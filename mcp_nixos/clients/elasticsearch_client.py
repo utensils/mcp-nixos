@@ -29,8 +29,10 @@ DEFAULT_READ_TIMEOUT = 10.0
 # Channel to Index mapping
 AVAILABLE_CHANNELS = {
     "unstable": "latest-42-nixos-unstable",
+    "25.05": "latest-42-nixos-25.05",  # Beta channel
+    "beta": "latest-42-nixos-25.05",  # Alias for beta
     "24.11": "latest-42-nixos-24.11",
-    "stable": "latest-42-nixos-24.11",  # Alias
+    "stable": "latest-42-nixos-24.11",  # Alias for stable
 }
 DEFAULT_CHANNEL = "unstable"
 
@@ -129,10 +131,13 @@ class ElasticsearchClient:
         # Normalize channel name to lowercase
         ch_lower = channel.lower()
 
-        # First check if we need to handle the stable alias
+        # First check if we need to handle aliases
         if ch_lower == "stable":
             logger.debug("Converting 'stable' alias to actual channel name: 24.11")
             ch_lower = "24.11"  # Always convert stable to the actual version
+        elif ch_lower == "beta":
+            logger.debug("Converting 'beta' alias to actual channel name: 25.05")
+            ch_lower = "25.05"  # Always convert beta to the actual version
 
         # Then check if the channel is valid
         if ch_lower not in self.available_channels:
