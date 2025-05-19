@@ -40,9 +40,9 @@ class MCPNixOSRealAPITestBase(unittest.TestCase):
         self.context = NixOSContext()
 
         # Ensure we're using the correct endpoints
-        self.context.es_client.es_packages_url = "https://search.nixos.org/backend/latest-42-nixos-unstable/_search"
+        self.context.es_client.es_packages_url = "https://search.nixos.org/backend/latest-43-nixos-unstable/_search"
         self.context.es_client.es_options_url = (
-            "https://search.nixos.org/backend/latest-42-nixos-unstable-options/_search"
+            "https://search.nixos.org/backend/latest-43-nixos-unstable-options/_search"
         )
 
         # Use a smaller cache for testing

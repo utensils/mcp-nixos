@@ -47,7 +47,7 @@ def test_version_fallback_package_not_found(mock_version):
     import mcp_nixos
 
     # Check that the default version is used
-    assert mcp_nixos.__version__ == "0.5.0"
+    assert mcp_nixos.__version__ == "0.5.1"
     mock_version.assert_called_once_with("mcp-nixos")
 
 
@@ -80,5 +80,5 @@ def test_version_ultimate_fallback(mock_get_distribution, _):
     import mcp_nixos
 
     # Check that the default version is used when everything fails
-    assert mcp_nixos.__version__ == "0.5.0"
+    assert mcp_nixos.__version__ == "0.5.1"
     mock_get_distribution.assert_called_once()

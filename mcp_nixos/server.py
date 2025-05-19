@@ -19,7 +19,7 @@ Elasticsearch Implementation Notes (NixOS):
 The server connects to the NixOS search Elasticsearch API with these details:
   - URL: https://search.nixos.org/backend/{index}/_search
   - Credentials: Basic authentication (public credentials from NixOS search)
-  - Index pattern: latest-42-nixos-{channel} (e.g., latest-42-nixos-unstable)
+  - Index pattern: latest-43-nixos-{channel} (e.g., latest-43-nixos-unstable)
   - Both packages and options are in the same index, distinguished by a "type" field
   - Hierarchical paths use a special query format with wildcards
 

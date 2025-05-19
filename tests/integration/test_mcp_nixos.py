@@ -55,9 +55,9 @@ class TestElasticsearchClient(unittest.TestCase):
         # Use a smaller cache for testing
         self.client.cache = SimpleCache(max_size=10, ttl=60)
         # Default base endpoint for packages index
-        self.client.es_packages_url = "https://search.nixos.org/backend/latest-42-nixos-unstable/_search"
+        self.client.es_packages_url = "https://search.nixos.org/backend/latest-43-nixos-unstable/_search"
         # Default base endpoint for options index
-        self.client.es_options_url = "https://search.nixos.org/backend/latest-42-nixos-unstable-options/_search"
+        self.client.es_options_url = "https://search.nixos.org/backend/latest-43-nixos-unstable-options/_search"
 
     def test_search_packages(self):
         """Test searching for packages."""

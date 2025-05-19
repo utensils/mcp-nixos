@@ -28,11 +28,11 @@ DEFAULT_READ_TIMEOUT = 10.0
 
 # Channel to Index mapping
 AVAILABLE_CHANNELS = {
-    "unstable": "latest-42-nixos-unstable",
-    "25.05": "latest-42-nixos-25.05",  # Beta channel
-    "beta": "latest-42-nixos-25.05",  # Alias for beta
-    "24.11": "latest-42-nixos-24.11",
-    "stable": "latest-42-nixos-24.11",  # Alias for stable
+    "unstable": "latest-43-nixos-unstable",
+    "25.05": "latest-43-nixos-25.05",  # Beta channel
+    "beta": "latest-43-nixos-25.05",  # Alias for beta
+    "24.11": "latest-43-nixos-24.11",
+    "stable": "latest-43-nixos-24.11",  # Alias for stable
 }
 DEFAULT_CHANNEL = "unstable"
 

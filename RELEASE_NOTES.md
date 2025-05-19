@@ -1,3 +1,48 @@
+# MCP-NixOS: v0.5.1 Release Notes
+
+## Overview
+
+MCP-NixOS v0.5.1 is a minor release that updates the Elasticsearch index references to ensure compatibility with the latest NixOS search API. This release updates the index references from `latest-42-` to `latest-43-` to maintain functionality with the NixOS search service.
+
+## Changes in v0.5.1
+
+### 🔧 Fixes & Improvements
+
+- **Updated Elasticsearch Index References**: Fixed the Elasticsearch index references to ensure proper connectivity with the NixOS search API
+- **Version Bump**: Bumped version from 0.5.0 to 0.5.1
+
+## Installation
+
+```bash
+# Install with pip
+pip install mcp-nixos==0.5.1
+
+# Install with uv
+uv pip install mcp-nixos==0.5.1
+
+# Install with uvx
+uvx mcp-nixos==0.5.1
+```
+
+## Configuration
+
+Configure Claude to use the tool by adding it to your `~/.config/claude/config.json` file:
+
+```json
+{
+  "tools": [
+    {
+      "path": "mcp_nixos",
+      "default_enabled": true
+    }
+  ]
+}
+```
+
+## Contributors
+
+- James Brink (@utensils)
+
 # MCP-NixOS: v0.5.0 Release Notes
 
 ## Overview
@@ -24,7 +69,7 @@ MCP-NixOS v0.5.0 introduces support for the NixOS 25.05 Beta channel, enhancing 
 
 The release implements the following key improvements:
 
-1. **25.05 Beta Channel**: Added the Elasticsearch index mapping for the upcoming NixOS 25.05 release using the index name pattern `latest-42-nixos-25.05`
+1. **25.05 Beta Channel**: Added the Elasticsearch index mapping for the upcoming NixOS 25.05 release using the index name pattern `latest-43-nixos-25.05`
 
 2. **Beta Alias**: Implemented a "beta" alias that will always point to the current beta channel, similar to how the "stable" alias points to the current stable release
 

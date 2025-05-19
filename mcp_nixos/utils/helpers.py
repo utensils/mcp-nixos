@@ -241,7 +241,7 @@ def make_http_request(
 
         # Extract channel information from URL for ES requests to ensure proper cache separation
         channel_key = ""
-        if "latest-42-nixos" in url:
+        if "latest-43-nixos" in url:
             if "unstable" in url:
                 channel_info = "unstable"
             elif "24.11" in url:
