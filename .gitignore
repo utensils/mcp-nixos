@@ -59,6 +59,7 @@ venv.bak/
 *.swp
 *.swo
 *~
+.vscode/
 
 # Misc
 temp

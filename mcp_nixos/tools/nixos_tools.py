@@ -468,9 +468,17 @@ def _format_option_info(info: Dict[str, Any], channel: str) -> str:
 def nixos_search(
     query: str, type: str = "packages", limit: int = 20, channel: str = CHANNEL_UNSTABLE, context=None
 ) -> str:
-    """
-    Search for NixOS packages, options, or programs.
-    ... (Args/Returns docstring) ...
+    """Search for NixOS packages, options, or programs.
+
+    Args:
+        query: The search term
+        type: The type to search (packages, options, or programs)
+        limit: Maximum number of results to return (default: 20)
+        channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
+        context: Optional context object (used internally)
+
+    Returns:
+        Formatted search results as text
     """
     logger.info(f"Searching NixOS '{channel}' for {type} matching '{query}' (limit {limit})")
     search_type = type.lower()
@@ -541,9 +549,16 @@ def nixos_search(
 
 
 def nixos_info(name: str, type: str = "package", channel: str = CHANNEL_UNSTABLE, context=None) -> str:
-    """
-    Get detailed information about a NixOS package or option.
-    ... (Args/Returns docstring) ...
+    """Get detailed information about a NixOS package or option.
+
+    Args:
+        name: The name of the package or option
+        type: Either "package" or "option"
+        channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
+        context: Optional context object (used internally)
+
+    Returns:
+        Detailed information about the package or option
     """
     logger.info(f"Getting NixOS '{channel}' {type} info for: {name}")
     info_type = type.lower()
@@ -584,9 +599,14 @@ def nixos_info(name: str, type: str = "package", channel: str = CHANNEL_UNSTABLE
 
 
 def nixos_stats(channel: str = CHANNEL_UNSTABLE, context=None) -> str:
-    """
-    Get statistics about available NixOS packages and options.
-    ... (Args/Returns docstring) ...
+    """Get statistics about available NixOS packages and options.
+
+    Args:
+        channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
+        context: Optional context object (used internally)
+
+    Returns:
+        Statistics about packages and options
     """
     logger.info(f"Getting NixOS statistics for channel '{channel}'")
 
@@ -671,7 +691,7 @@ def register_nixos_tools(mcp) -> None:
             query: The search term
             type: The type to search (packages, options, or programs)
             limit: Maximum number of results to return (default: 20)
-            channel: NixOS channel to use (default: unstable)
+            channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
 
         Returns:
             Results formatted as text
@@ -715,7 +735,7 @@ def register_nixos_tools(mcp) -> None:
         Args:
             name: The name of the package or option
             type: Either "package" or "option"
-            channel: NixOS channel to use (default: unstable)
+            channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
 
         Returns:
             Detailed information about the package or option
@@ -757,7 +777,7 @@ def register_nixos_tools(mcp) -> None:
         """Get statistics about available NixOS packages and options.
 
         Args:
-            channel: NixOS channel to use (default: unstable)
+            channel: NixOS channel to use (default: unstable, options: unstable, 24.11, 25.05, beta, stable)
 
         Returns:
             Statistics about packages and options
