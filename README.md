@@ -197,6 +197,19 @@ If you installed using Nix:
 }
 ```
 
+Or run directly from GitHub without installing:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "command": "nix",
+      "args": ["run", "github:utensils/mcp-nixos", "--"]
+    }
+  }
+}
+```
+
 For development with the source code (for those who enjoy punishment):
 
 ```json
