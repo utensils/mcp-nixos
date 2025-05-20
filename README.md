@@ -165,6 +165,9 @@ uv pip install mcp-nixos
 
 # Option 3: Run directly with uvx (recommended for the truly enlightened)
 uvx --install-deps mcp-nixos
+
+# Option 4: Install with Nix like a true believer (requires Nix with flakes enabled)
+nix profile install github:utensils/mcp-nixos
 ```
 
 ### Configure It (The Part You'll Definitely Mess Up)
@@ -177,6 +180,18 @@ Add to your MCP configuration file (e.g., `~/.config/claude/config.json`):
     "nixos": {
       "command": "uvx",
       "args": ["mcp-nixos"]
+    }
+  }
+}
+```
+
+If you installed using Nix:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "command": "mcp-nixos"
     }
   }
 }
@@ -237,6 +252,36 @@ run         # Start the server (and your journey into madness)
 run-tests   # Run tests with coverage (expose the flaws)
 lint        # Format and lint code (fix the mess you made)
 publish     # Build and publish to PyPI (share your pain)
+```
+
+### Native Nix Package (For True NixOS Enthusiasts)
+
+The project can also be used directly as a Nix package:
+
+```bash
+# Build the package without installing it
+nix build github:utensils/mcp-nixos
+
+# Run it directly without installing
+nix run github:utensils/mcp-nixos
+
+# Install to your user profile
+nix profile install github:utensils/mcp-nixos
+
+# Use in your NixOS configuration
+{
+  inputs.mcp-nixos.url = "github:utensils/mcp-nixos";
+  
+  outputs = { self, nixpkgs, mcp-nixos }: {
+    nixosConfigurations.yourhostname = nixpkgs.lib.nixosSystem {
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [ mcp-nixos.packages.${pkgs.system}.default ];
+        })
+      ];
+    };
+  };
+}
 ```
 
 ### Testing (Yes, We Actually Do That)
