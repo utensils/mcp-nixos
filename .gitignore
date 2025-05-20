@@ -53,6 +53,7 @@ venv.bak/
 
 # Nix
 .direnv/
+result
 
 # IDE
 .idea/

@@ -5,9 +5,13 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     devshell.url = "github:numtide/devshell";
+    pyproject-nix = {
+      url = "github:nix-community/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, devshell }:
+  outputs = { self, nixpkgs, flake-utils, devshell, pyproject-nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -85,8 +89,42 @@
           echo "---------------------------------------------"
         '';
 
+        # Setup for Python package - using simpler buildPythonApplication approach
+        pythonPackage = pkgs.python311Packages.buildPythonApplication {
+          pname = "mcp-nixos";
+          version = "0.5.1";  # Should match the version in pyproject.toml
+          
+          src = ./.;
+          
+          format = "pyproject";
+          
+          nativeBuildInputs = with pkgs.python311Packages; [
+            hatchling
+          ];
+          
+          propagatedBuildInputs = with pkgs.python311Packages; [
+            mcp
+            requests
+            python-dotenv
+            beautifulsoup4
+            psutil
+          ];
+          
+          # Disable runtime dependency checks since the available versions in nixpkgs
+          # may not match exactly what's specified in pyproject.toml
+          pythonImportsCheck = [];
+          doCheck = false;
+          dontCheckRuntimeDeps = true;
+        };
+
       in
       {
+        # Packages
+        packages = {
+          default = pythonPackage;
+          mcp-nixos = pythonPackage;
+        };
+        
         # Create a separate shell for website development
         devShells.web = pkgs.devshell.mkShell {
           name = "mcp-nixos-web";
