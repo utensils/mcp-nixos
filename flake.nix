@@ -125,6 +125,18 @@
           mcp-nixos = pythonPackage;
         };
         
+        # Add apps for direct execution with nix run
+        apps = {
+          default = flake-utils.lib.mkApp {
+            drv = pythonPackage;
+            name = "mcp-nixos";
+          };
+          mcp-nixos = flake-utils.lib.mkApp {
+            drv = pythonPackage;
+            name = "mcp-nixos";
+          };
+        };
+        
         # Create a separate shell for website development
         devShells.web = pkgs.devshell.mkShell {
           name = "mcp-nixos-web";
