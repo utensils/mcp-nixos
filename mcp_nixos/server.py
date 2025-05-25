@@ -234,7 +234,7 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
 
     try:
         # Exact match query with correct field names
-        field = "package_pname" if type == "package" else "option_name.keyword"
+        field = "package_pname" if type == "package" else "option_name"
         query = {"bool": {"must": [{"term": {"type": type}}, {"term": {field: name}}]}}
         hits = es_query(CHANNELS[channel], query, 1)
 

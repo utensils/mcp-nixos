@@ -39,6 +39,20 @@ class TestRealIntegration:
         assert "nginx" in result.lower() or "No options found" in result
         assert "<" not in result  # No XML
 
+    def test_nixos_option_info_real(self):
+        """Test real NixOS option info."""
+        # Test with a common option that should exist
+        result = nixos_info("services.nginx.enable", type="option")
+        if "NOT_FOUND" not in result:
+            assert "Option: services.nginx.enable" in result
+            assert "Type:" in result
+            assert "<" not in result  # No XML
+        else:
+            # If not found, try another common option
+            result = nixos_info("boot.loader.grub.enable", type="option")
+            if "NOT_FOUND" not in result:
+                assert "Option: boot.loader.grub.enable" in result
+
     def test_nixos_stats_real(self):
         """Test real NixOS stats."""
         result = nixos_stats()

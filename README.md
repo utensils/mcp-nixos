@@ -7,9 +7,11 @@
 [![smithery badge](https://smithery.ai/badge/@utensils/mcp-nixos)](https://smithery.ai/server/@utensils/mcp-nixos)
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/99cc55fb-a5c5-4473-b315-45a6961b2e8c)
 
-> **🎉 REFACTORED**: Version 1.0.0 represents a complete rewrite from 9,755 lines down to under 400. Because sometimes less is more, and more is just showing off.
+> **🎉 REFACTORED**: Version 1.0.0 represents a complete rewrite from 9,755 lines down to ~500. Because sometimes less is more, and more is just showing off.
 >
 > **📢 RENAMED**: This package was renamed from `nixmcp` to `mcp-nixos` in version 0.2.0. Update your references accordingly or continue living in the past—your choice.
+>
+> **🐛 FIXED**: Version 1.0.1 fixes NixOS option lookups that were failing due to incorrect Elasticsearch field names. Your AI can now actually tell you about `services.nginx.enable` without throwing a tantrum.
 
 ## What The Hell Is This Thing?
 

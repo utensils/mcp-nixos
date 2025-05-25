@@ -193,7 +193,8 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - **Pass Criteria**: 80% of expected behaviors must be observed
 - **Security**: Never commit API keys; use environment variables in CI/CD
 
-### Key Implementation Fixes (v1.0.0)
+### Key Implementation Fixes (v1.0.1)
+- **NixOS Option Info**: Fixed `option_name.keyword` → `option_name` field for exact matches
 - **Elasticsearch Queries**: Added `minimum_should_match: 1` to prevent unrelated results
 - **Option Search**: Uses wildcard queries (`*{query}*`) for hierarchical option names
 - **HTML Stripping**: Removes `<rendered-html>` tags and nested HTML from descriptions
@@ -344,7 +345,9 @@ mcp_nixos/
 tests/
 ├── test_plain_text_output.py     # Plain text validation
 ├── test_real_integration.py      # Real API tests
-└── test_server_comprehensive.py  # Unit tests
+├── test_server_comprehensive.py  # Unit tests
+├── test_nixos_option_info.py     # NixOS option lookup tests
+└── test_nixos_info_option_evals.py  # Option eval tests
 ```
 
 **Adding a New Tool**
