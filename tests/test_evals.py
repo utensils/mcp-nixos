@@ -1,8 +1,6 @@
 """Basic evaluation tests for MCP-NixOS to validate AI usability."""
 
-import pytest
 from unittest.mock import patch, Mock
-import xml.etree.ElementTree as ET
 from mcp_nixos.server import nixos_search, nixos_info, home_manager_search, darwin_search
 
 
@@ -19,36 +17,43 @@ class TestPackageDiscoveryEvals:
                 "hits": [
                     {
                         "_source": {
-                            "package": {
-                                "pname": "vscode",
-                                "version": "1.85.0",
-                                "description": "Open source source code editor developed by Microsoft",
-                            }
+                            "package_pname": "vscode",
+                            "package_pversion": "1.85.0",
+                            "package_description": "Open source source code editor developed by Microsoft",
                         }
                     }
                 ]
             }
         }
+        mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
         # Simulate tool call that AI would make
         result = nixos_search("vscode", type="packages")
 
         # Verify AI would get useful results
-        root = ET.fromstring(result)
-        assert root.find(".//package/name").text == "vscode"
-        assert "Microsoft" in root.find(".//package/description").text
-
-        # AI should be able to provide installation instructions from this
-        assert root.tag == "package_search"
-        assert int(root.find(".//results").get("count")) > 0
+        assert "Found 1 packages matching 'vscode':" in result
+        assert "• vscode (1.85.0)" in result
+        assert "Open source source code editor developed by Microsoft" in result
 
     @patch("mcp_nixos.server.requests.post")
     def test_find_git_command(self, mock_post):
         """User wants 'git' command - should search programs and get package info."""
         # First call - search programs
         search_response = Mock()
-        search_response.json.return_value = {"hits": {"hits": [{"_source": {"program": "git", "package": "git"}}]}}
+        search_response.json.return_value = {
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "package_programs": ["git"],
+                            "package_pname": "git",
+                        }
+                    }
+                ]
+            }
+        }
+        search_response.raise_for_status = Mock()
 
         # Second call - get package info
         info_response = Mock()
@@ -57,31 +62,29 @@ class TestPackageDiscoveryEvals:
                 "hits": [
                     {
                         "_source": {
-                            "package": {
-                                "pname": "git",
-                                "version": "2.43.0",
-                                "description": "Distributed version control system",
-                                "homepage": "https://git-scm.com",
-                            }
+                            "package_pname": "git",
+                            "package_pversion": "2.43.0",
+                            "package_description": "Distributed version control system",
+                            "package_homepage": ["https://git-scm.com"],
                         }
                     }
                 ]
             }
         }
+        info_response.raise_for_status = Mock()
 
         mock_post.side_effect = [search_response, info_response]
 
         # AI would first search for the program
         result1 = nixos_search("git", type="programs")
-        root1 = ET.fromstring(result1)
-        assert root1.find(".//program/name").text == "git"
-        assert root1.find(".//program/package").text == "git"
+        assert "Found 1 programs matching 'git':" in result1
+        assert "• git (provided by git)" in result1
 
         # Then get detailed info
         result2 = nixos_info("git", type="package")
-        root2 = ET.fromstring(result2)
-        assert root2.find(".//name").text == "git"
-        assert "version control" in root2.find(".//description").text
+        assert "Package: git" in result2
+        assert "Version: 2.43.0" in result2
+        assert "Distributed version control system" in result2
 
 
 class TestServiceConfigurationEvals:
@@ -96,229 +99,203 @@ class TestServiceConfigurationEvals:
                 "hits": [
                     {
                         "_source": {
-                            "option": {
-                                "option_name": "services.nginx.enable",
-                                "option_type": "boolean",
-                                "option_description": "Whether to enable the nginx web server",
-                                "option_default": "false",
-                            }
+                            "option_name": "services.nginx.enable",
+                            "option_type": "boolean",
+                            "option_description": "Whether to enable Nginx Web Server.",
+                            "option_default": "false",
                         }
                     },
                     {
                         "_source": {
-                            "option": {
-                                "option_name": "services.nginx.virtualHosts",
-                                "option_type": "attribute set of submodules",
-                                "option_description": "Declarative nginx virtual hosts",
-                            }
+                            "option_name": "services.nginx.virtualHosts",
+                            "option_type": "attribute set of submodules",
+                            "option_description": "Definition of nginx virtual hosts.",
                         }
                     },
                 ]
             }
         }
+        mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = nixos_search("services.nginx", type="options")
+        # AI searches for nginx options
+        result = nixos_search("nginx", type="options")
 
-        root = ET.fromstring(result)
-        options = root.findall(".//option")
-
-        # Should find enable option
-        enable_found = False
-        vhosts_found = False
-
-        for opt in options:
-            name = opt.find("name").text
-            if name == "services.nginx.enable":
-                enable_found = True
-                assert opt.find("type").text == "boolean"
-            elif name == "services.nginx.virtualHosts":
-                vhosts_found = True
-                assert "virtual hosts" in opt.find("description").text
-
-        assert enable_found, "Should find nginx enable option"
-        assert vhosts_found, "Should find virtualHosts option"
+        # Should get service configuration options
+        assert "Found 2 options matching 'nginx':" in result
+        assert "• services.nginx.enable" in result
+        assert "• services.nginx.virtualHosts" in result
+        assert "Whether to enable Nginx Web Server" in result
 
 
 class TestHomeManagerIntegrationEvals:
-    """Evaluations for Home Manager vs system configuration."""
+    """Evaluations for Home Manager configuration scenarios."""
 
     @patch("mcp_nixos.server.requests.get")
     def test_git_user_config(self, mock_get):
-        """User asks about git config - should find Home Manager options."""
+        """User wants to configure git via Home Manager."""
         mock_response = Mock()
         mock_response.text = """
         <html>
-            <dt class="option">programs.git.enable</dt>
+            <dt>programs.git.enable</dt>
             <dd>
-                <p>Whether to enable Git</p>
+                <p>Whether to enable Git.</p>
                 <span class="term">Type: boolean</span>
             </dd>
-            <dt class="option">programs.git.userName</dt>
+            <dt>programs.git.userName</dt>
             <dd>
-                <p>Default Git user name</p>
-                <span class="term">Type: string</span>
+                <p>Default user name to use.</p>
+                <span class="term">Type: null or string</span>
             </dd>
-            <dt class="option">programs.git.userEmail</dt>
+            <dt>programs.git.userEmail</dt>
             <dd>
-                <p>Default Git user email</p>
-                <span class="term">Type: string</span>
+                <p>Default user email to use.</p>
+                <span class="term">Type: null or string</span>
             </dd>
         </html>
         """
+        mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
-        result = home_manager_search("programs.git")
+        # AI searches for git configuration
+        result = home_manager_search("git")
 
-        root = ET.fromstring(result)
-        options = root.findall(".//option")
-
-        # Should find git configuration options
-        option_names = [opt.find("name").text for opt in options]
-        assert "programs.git.enable" in option_names
-        assert "programs.git.userName" in option_names
-        assert "programs.git.userEmail" in option_names
-
-        # AI can recommend Home Manager for user-specific git config
+        # Should find user-level git options
+        assert "Found 3 Home Manager options matching 'git':" in result
+        assert "• programs.git.enable" in result
+        assert "• programs.git.userName" in result
+        assert "• programs.git.userEmail" in result
 
 
 class TestDarwinPlatformEvals:
-    """Evaluations for macOS/nix-darwin scenarios."""
+    """Evaluations for macOS-specific scenarios."""
 
     @patch("mcp_nixos.server.requests.get")
     def test_macos_dock_settings(self, mock_get):
-        """User wants to configure macOS dock - should find darwin options."""
+        """User wants to configure macOS dock behavior."""
         mock_response = Mock()
         mock_response.text = """
         <html>
-            <dt class="option">system.defaults.dock.autohide</dt>
+            <dt>system.defaults.dock.autohide</dt>
             <dd>
-                <p>Whether to automatically hide the dock</p>
-                <span class="term">Type: boolean</span>
+                <p>Whether to automatically hide and show the dock.</p>
+                <span class="term">Type: null or boolean</span>
             </dd>
-            <dt class="option">system.defaults.dock.tilesize</dt>
+            <dt>system.defaults.dock.autohide-delay</dt>
             <dd>
-                <p>Size of dock icons</p>
-                <span class="term">Type: integer</span>
+                <p>Sets the speed of the autohide delay.</p>
+                <span class="term">Type: null or float</span>
             </dd>
         </html>
         """
+        mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
-        result = darwin_search("system.defaults.dock")
+        # AI searches for dock settings
+        result = darwin_search("dock")
 
-        root = ET.fromstring(result)
-        options = root.findall(".//option")
-
-        # Should find dock configuration options
-        option_names = [opt.find("name").text for opt in options]
-        assert "system.defaults.dock.autohide" in option_names
-        assert "system.defaults.dock.tilesize" in option_names
-
-        # AI can provide darwin-configuration.nix examples
+        # Should find macOS dock options
+        assert "Found 2 nix-darwin options matching 'dock':" in result
+        assert "• system.defaults.dock.autohide" in result
+        assert "Whether to automatically hide and show the dock" in result
 
 
 class TestErrorHandlingEvals:
     """Evaluations for error scenarios."""
 
     def test_invalid_channel_error(self):
-        """Should provide clear error for invalid channel."""
-        result = nixos_search("test", channel="invalid-channel")
+        """User specifies invalid channel - should get clear error."""
+        result = nixos_search("firefox", channel="invalid-channel")
 
-        root = ET.fromstring(result)
-        assert root.tag == "error"
-        assert "Invalid channel" in root.find(".//message").text
-
-        # AI should understand this is a channel error
+        # Should get a clear error message
+        assert "Error (ERROR): Invalid channel 'invalid-channel'" in result
 
     @patch("mcp_nixos.server.requests.post")
     def test_package_not_found(self, mock_post):
-        """Should provide clear message when package not found."""
+        """User searches for non-existent package."""
         mock_response = Mock()
         mock_response.json.return_value = {"hits": {"hits": []}}
+        mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = nixos_info("nonexistent-package", type="package")
+        result = nixos_info("nonexistentpackage", type="package")
 
-        root = ET.fromstring(result)
-        assert root.tag == "error"
-        assert root.find(".//code").text == "NOT_FOUND"
-        assert "not found" in root.find(".//message").text
+        # Should get informative not found error
+        assert "Error (NOT_FOUND): Package 'nonexistentpackage' not found" in result
 
 
-@pytest.mark.integration
 class TestCompleteScenarioEval:
-    """Full scenario evaluation."""
+    """End-to-end scenario evaluation."""
 
     @patch("mcp_nixos.server.requests.post")
     @patch("mcp_nixos.server.requests.get")
     def test_complete_firefox_installation_flow(self, mock_get, mock_post):
-        """Complete flow: user wants Firefox with specific config."""
-        # 1. Search for firefox package
-        search_response = Mock()
-        search_response.json.return_value = {
+        """Complete flow: user wants Firefox with specific Home Manager config."""
+        # Step 1: Search for Firefox package
+        search_resp = Mock()
+        search_resp.json.return_value = {
             "hits": {
                 "hits": [
                     {
                         "_source": {
-                            "package": {
-                                "pname": "firefox",
-                                "version": "120.0",
-                                "description": "Mozilla Firefox browser",
-                            }
+                            "package_pname": "firefox",
+                            "package_pversion": "121.0",
+                            "package_description": "A web browser built from Firefox source tree",
                         }
                     }
                 ]
             }
         }
+        search_resp.raise_for_status = Mock()
 
-        # 2. Get package info
-        info_response = Mock()
-        info_response.json.return_value = {
+        # Step 2: Get package details
+        info_resp = Mock()
+        info_resp.json.return_value = {
             "hits": {
                 "hits": [
                     {
                         "_source": {
-                            "package": {
-                                "pname": "firefox",
-                                "version": "120.0",
-                                "description": "Mozilla Firefox browser",
-                                "homepage": "https://www.mozilla.org/firefox/",
-                                "license": "MPL-2.0",
-                            }
+                            "package_pname": "firefox",
+                            "package_pversion": "121.0",
+                            "package_description": "A web browser built from Firefox source tree",
+                            "package_homepage": ["https://www.mozilla.org/firefox/"],
+                            "package_license_set": ["MPL-2.0"],
                         }
                     }
                 ]
             }
         }
+        info_resp.raise_for_status = Mock()
 
-        mock_post.side_effect = [search_response, info_response]
-
-        # 3. Check Home Manager for user config
-        mock_get.return_value = Mock(
-            text="""
+        # Step 3: Search Home Manager options
+        hm_resp = Mock()
+        hm_resp.text = """
         <html>
-            <dt class="option">programs.firefox.enable</dt>
+            <dt>programs.firefox.enable</dt>
             <dd>
-                <p>Whether to enable Firefox</p>
+                <p>Whether to enable Firefox.</p>
                 <span class="term">Type: boolean</span>
             </dd>
         </html>
         """
-        )
+        hm_resp.raise_for_status = Mock()
 
-        # Execute the flow an AI would follow
-        search_result = nixos_search("firefox", type="packages")
-        assert "firefox" in search_result.lower()
+        mock_post.side_effect = [search_resp, info_resp]
+        mock_get.return_value = hm_resp
 
-        info_result = nixos_info("firefox", type="package")
-        assert "Mozilla" in info_result
+        # Execute the flow
+        # 1. Search for Firefox
+        result1 = nixos_search("firefox")
+        assert "Found 1 packages matching 'firefox':" in result1
+        assert "• firefox (121.0)" in result1
 
-        hm_result = home_manager_search("firefox")
-        assert "programs.firefox.enable" in hm_result
+        # 2. Get detailed info
+        result2 = nixos_info("firefox")
+        assert "Package: firefox" in result2
+        assert "Homepage: https://www.mozilla.org/firefox/" in result2
 
-        # AI should now be able to provide both system and user installation options
+        # 3. Check Home Manager options
+        result3 = home_manager_search("firefox")
+        assert "• programs.firefox.enable" in result3
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        # AI should now have all info needed to guide user through installation

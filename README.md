@@ -63,9 +63,9 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 - **Stateless Operation**: Because state management is overrated
   - No cache to corrupt, no files to clean up
   - Direct API calls every time (your internet better be working)
-- **Structured Output**: XML responses that AI models actually understand
+- **Plain Text Output**: Human-readable responses that AI models love
   - Clear error messages when things go wrong (and they will)
-  - Consistent format across all tools
+  - Consistent format across all tools with bullet points and hierarchy
 
 ## MCP Resources & Tools: The Power Tools You Didn't Know You Needed
 
@@ -379,19 +379,19 @@ That's a 95.7% reduction in code, a 100% reduction in complexity, and a 0% reduc
 
 No abstractions, no frameworks, no "enterprise patterns". Just functions that do what they say on the tin.
 
-### Structured XML Output: Because AI Models Are Picky Eaters
+### Plain Text Output: Because Humans and AI Can Both Read It
 
-Every response is carefully crafted XML that AI models can digest:
+Every response is clean, human-readable plain text:
 
-```xml
-<package_info>
-  <name>firefox</name>
-  <version>123.0</version>
-  <description>A web browser that respects your privacy</description>
-</package_info>
+```
+Package: firefox
+Version: 123.0
+Description: A web browser that respects your privacy
+Homepage: https://www.mozilla.org/firefox/
+License: MPL-2.0
 ```
 
-Clean, consistent, and parseable. Unlike my git commit history.
+Clean, consistent, and readable. Unlike my git commit history.
 
 ## What is Model Context Protocol?
 

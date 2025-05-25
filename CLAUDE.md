@@ -30,6 +30,44 @@ This project underwent a massive refactoring in v1.0.0, reducing the codebase fr
   - Build: `build`
   - Publish to PyPI: `publish`
 
+## 🔧 MCP Development Setup
+
+### Local Development with Claude Code
+The project includes a `.mcp.json` file that configures Claude Code to use the local development version of the MCP server:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "-m", "mcp_nixos"],
+      "env": {}
+    }
+  }
+}
+```
+
+This configuration:
+- **Automatically activates** when Claude Code is launched from the project directory
+- **Uses uv** to run the local development code directly
+- **Overrides** any global nixos MCP server configuration
+- **Enables real-time testing** of code changes without reinstalling
+
+### Testing MCP Tools in Claude Code
+1. Make code changes to `server.py`
+2. Restart Claude Code (changes require restart)
+3. Test your changes using the MCP tools (they'll use your local code)
+4. Example queries:
+   - "Search for git packages in nixos"
+   - "Get info about the neovim option in home manager"
+   - "List darwin options"
+
+### Switching Between Local and Production
+- **Local dev**: Simply open Claude Code from the project directory
+- **Production**: Open Claude Code from any other directory (uses global config)
+- **Note**: The `.mcp.json` file is project-specific and only applies when Claude Code is launched from this directory
+
 ## ⚠️ CRITICAL: Testing and Implementation Changes ⚠️
 
 **NEVER MODIFY IMPLEMENTATION CODE WITHOUT VALIDATING YOUR APPROACH**

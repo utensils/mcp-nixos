@@ -194,7 +194,7 @@ class EvalFramework:
         for criterion in scenario.success_criteria:
             if "finds" in criterion and "package" in criterion:
                 # Check if package was found
-                criteria_met[criterion] = any("<package>" in call[2] for call in tool_calls)
+                criteria_met[criterion] = any("Found" in call[2] and "packages" in call[2] for call in tool_calls)
             elif "mentions" in criterion:
                 # Check if certain text is mentioned
                 key_term = criterion.split("mentions")[1].strip()
@@ -574,7 +574,9 @@ class TestEvalReporting:
             scenario=scenario,
             passed=True,
             score=1.0,
-            tool_calls_made=[("nixos_search", {"query": "test"}, "<package_search>...</package_search>")],
+            tool_calls_made=[
+                ("nixos_search", {"query": "test"}, "Found 1 packages matching 'test':\n\n• test (1.0.0)")
+            ],
             criteria_met={"finds test package": True},
             reasoning="Made 1 tool calls; Met 1/1 criteria",
         )

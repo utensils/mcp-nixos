@@ -264,8 +264,8 @@ def nixos_stats(channel: str = "unstable") -> str:
         url = f"{NIXOS_API}/{index}/_count"
 
         # Get counts
-        pkg_resp = requests.post(url, json={"query": {"exists": {"field": "package"}}}, auth=NIXOS_AUTH, timeout=10)
-        opt_resp = requests.post(url, json={"query": {"exists": {"field": "option"}}}, auth=NIXOS_AUTH, timeout=10)
+        pkg_resp = requests.post(url, json={"query": {"term": {"type": "package"}}}, auth=NIXOS_AUTH, timeout=10)
+        opt_resp = requests.post(url, json={"query": {"term": {"type": "option"}}}, auth=NIXOS_AUTH, timeout=10)
 
         pkg_count = pkg_resp.json().get("count", 0)
         opt_count = opt_resp.json().get("count", 0)
