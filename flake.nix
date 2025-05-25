@@ -64,10 +64,10 @@
           if command -v uv >/dev/null 2>&1; then
             echo "(Using uv)"
             # Install with all optional dependencies for development
-            uv pip install ".[dev]"
+            uv pip install ".[dev,evals]"
           else
             echo "(Using pip)"
-            python -m pip install ".[dev]"
+            python -m pip install ".[dev,evals]"
           fi
 
           if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
