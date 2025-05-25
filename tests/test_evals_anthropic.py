@@ -5,7 +5,7 @@ import os
 import pytest
 from typing import List, Dict, Optional, Any, cast
 from dataclasses import dataclass
-import anthropic
+import anthropic  # type: ignore[import-not-found]
 
 from mcp_nixos.server import (
     nixos_search,
@@ -496,7 +496,7 @@ EVAL_SCENARIOS = [
 
 
 # Load .env file for tests
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # type: ignore[import-not-found]
 
 load_dotenv()
 
