@@ -3,6 +3,15 @@
 ## 🚀 The Great Simplification
 This project underwent a massive refactoring in v1.0.0, reducing the codebase from 9,755 lines to ~500 lines (94.6% reduction) while maintaining 100% functionality. We proved that most "enterprise" code is just complexity for complexity's sake.
 
+## 📝 Documentation Guidelines
+- **NO ONE-OFF DOCUMENTATION FILES**: Do not create temporary or one-off documentation files (e.g., CHANGES.md, NOTES.md, etc.)
+- All documentation belongs in:
+  - `CLAUDE.md` - Primary source of truth for development guidelines
+  - `README.md` - User-facing documentation
+  - Code comments - Only when absolutely necessary
+  - Commit messages - For change history
+- If you need to document something, update the appropriate existing file
+
 ## 🛠️ Essential Development Commands (Quick Reference)
 
 - **Develop environment**: `nix develop`
@@ -63,35 +72,22 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - PRs follow the pattern: commit to `develop` → open PR to `main` → merge once approved
 - Branch deletion on merge is disabled to preserve branch history
 
-## CI/CD Configuration
+## CI/CD Configuration (v1.0.0 - Simplified)
 
-- **IMPORTANT**: Only use the single `.github/workflows/ci.yml` file for all CI/CD workflows
-- Never create additional workflow files as it leads to duplicate/conflicting CI runs
-- The main workflow already includes cross-platform testing (Linux, macOS, Windows)
-- Update the existing ci.yml file when adding new CI steps instead of creating new files
-- Includes Codecov integration for both coverage reporting and test analytics:
-  - Generates coverage reports in XML format for Codecov upload
-  - Creates JUnit XML test results for Codecov Test Analytics
-  - Uses `continue-on-error` and `if: always()` to ensure reports are uploaded even when tests fail
-  - Configured with appropriate flags to categorize different test types
-- Website deployment to AWS S3/CloudFront:
-  - Automatic deployment only when changes are detected in the website directory
-  - Only runs on pushes to `main` branch (not on PRs)
-  - Uses AWS environment credentials for S3 sync and CloudFront cache invalidation
-  - Independent of other jobs like testing or type checking
-  - Configured to skip deployment entirely if no website files have changed
-- PyPI package deployment:
-  - Only runs on version tag pushes (v*)
-  - Depends on successful completion of all test and quality jobs
-  - Uses the PyPI trusted publishing workflow
-- When working with PRs:
-  - The CI workflow is configured to run only on:
-    - Pushes to `main` branch
-    - Pull requests targeting the `main` branch
-    - Version tag pushes
-  - Pushes to `develop` branch will not trigger CI unless there's an open PR to `main`
-  - CI may run twice for PR updates - this is controlled by the concurrency settings
-  - The `cancel-in-progress: true` setting ensures older runs are cancelled when new commits are pushed
+- **Single workflow file**: `.github/workflows/ci.yml` handles all CI/CD operations
+- **Simplified testing**: Uses Nix flake environment on Linux only (no matrix tests)
+- **Smart triggering** to prevent redundant runs:
+  - PRs: Run tests when opened, synchronized, or reopened
+  - Main branch: Skip CI on merge commits (already tested in PR)
+  - Tags: Run full CI + publish on version tags (v*)
+  - Concurrency: Cancel in-progress PR runs when new commits are pushed
+- **Jobs**:
+  - `test`: Runs all tests, linting, type checking, and coverage in one job
+  - `analyze`: Code complexity analysis (PRs only)
+  - `deploy-website`: Deploys to S3/CloudFront when website files change (main branch only)
+  - `publish`: Publishes to PyPI on version tags
+- **Codecov integration**: Uploads coverage and test results
+- **No redundant runs**: Smart conditions prevent the PR→merge→tag triple-run issue
 
 ## Architecture (v1.0.0 - The Minimalist Edition)
 

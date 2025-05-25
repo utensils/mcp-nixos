@@ -3,27 +3,35 @@
 name: CI
 
 on:
-  # Only run on push events for the main branch and tags
+  # Push events - only on main branch or version tags
   push:
     branches: [main]
-    tags: ["v*"] # Run CI on version tags
-  # Run on pull requests to the main branch
+    tags: ["v*"]
+  # Pull requests - only when targeting main branch
   pull_request:
     branches: [main]
-  # Allow manual trigger
+    types: [opened, synchronize, reopened]
+  # Manual trigger
   workflow_dispatch:
 
+# Cancel in-progress runs when a new commit is pushed
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    name: Build Flake
+  # Single test job using Nix flake
+  test:
+    name: Test & Lint
     runs-on: ubuntu-latest
+    # Skip CI on merge commits to main if PR was already tested
+    if: |
+      github.event_name != 'push' || 
+      !contains(github.event.head_commit.message, 'Merge pull request')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
@@ -31,319 +39,61 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
+      
       - name: Cache Nix store
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/nix
+          path: ~/.cache/nix
           key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
           restore-keys: |
             ${{ runner.os }}-nix-
-      - name: Build flake and check dev environment
+      
+      - name: Build flake
         run: |
           nix flake check --accept-flake-config
-          nix develop -c echo "Flake development environment builds successfully"
-
-  lint:
-    name: Lint Code
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      - name: Cache Nix store
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      - name: Run linters (Black, Flake8)
+          nix develop -c echo "Development environment ready"
+      
+      - name: Format check
+        run: nix develop --command format --check
+      
+      - name: Lint
+        run: nix develop --command lint
+      
+      - name: Type check
+        run: nix develop --command typecheck
+      
+      - name: Run all tests
         run: |
-          nix develop --command lint
-
-  typecheck:
-    name: Type Check (pyright)
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      - name: Cache Nix store
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      - name: Run pyright type checker
-        run: |
-          # Use the new 'typecheck' command from flake.nix
-          nix develop --command typecheck
-
-  unit-tests:
-    name: Run Unit Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-      # Don't fail the entire matrix if one OS fails
-      fail-fast: false
-    # All tests need the build job to complete first
-    needs: [build]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Nix
-        if: runner.os != 'Windows'
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      - name: Cache Nix store
-        if: runner.os != 'Windows'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-            /nix/store
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      - name: Set up Python (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install build pytest pytest-cov pytest-asyncio
-          python -m pip install -e ".[dev,win]"
-        shell: bash
-
-      - name: Setup Python environment and run unit tests (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          # Set up the environment using the setup command from flake.nix
           nix develop --command setup
-
-          # Run unit tests only
-          # The conftest.py will automatically create a unit test cache directory
-          nix develop --command run-tests --unit
-
-      - name: Run unit tests (Windows)
-        if: runner.os == 'Windows'
-        continue-on-error: true  # Continue to artifact upload even if tests fail
-        id: run_unit_tests
-        run: |
-          $env:MCP_NIXOS_CACHE_DIR = Join-Path $env:RUNNER_TEMP "mcp_nixos_test_cache_win"
-          python -m pytest tests/ -v --unit --cov=mcp_nixos --cov-report=term --cov-report=html --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
-        shell: pwsh
-
-      - name: Upload unit test coverage artifact
-        uses: actions/upload-artifact@v4
+          nix develop --command run-tests -- --cov=mcp_nixos --cov-report=xml --junitxml=junit.xml
+      
+      - name: Upload coverage to Codecov
         if: always()
-        with:
-          name: unit-coverage-report-${{ runner.os }}
-          path: |
-            ./htmlcov/
-            ./coverage.xml
-            ./junit.xml
-
-  integration-tests:
-    name: Run Integration Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-      # Don't fail the entire matrix if one OS fails
-      fail-fast: false
-    # All tests need the build job to complete first
-    needs: [build]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Nix
-        if: runner.os != 'Windows'
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      - name: Cache Nix store
-        if: runner.os != 'Windows'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-            /nix/store
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      - name: Set up Python (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install build pytest pytest-cov pytest-asyncio
-          python -m pip install -e ".[dev,win]"
-        shell: bash
-
-      - name: Setup Python environment and run integration tests (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          # Set up the environment using the setup command from flake.nix
-          nix develop --command setup
-
-          # Run integration tests only
-          # The conftest.py will automatically create an integration test cache directory
-          nix develop --command run-tests --integration
-
-      - name: Run integration tests (Windows)
-        if: runner.os == 'Windows'
-        continue-on-error: true  # Continue to artifact upload even if tests fail
-        id: run_integration_tests
-        run: |
-          $env:MCP_NIXOS_CACHE_DIR = Join-Path $env:RUNNER_TEMP "mcp_nixos_test_cache_win"
-          python -m pytest tests/ -v --integration --cov=mcp_nixos --cov-report=term --cov-report=html --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
-        shell: pwsh
-
-      - name: Upload integration test coverage artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: integration-coverage-report-${{ runner.os }}
-          path: |
-            ./htmlcov/
-            ./coverage.xml
-            ./junit.xml
-
-  upload-coverage:
-    name: Upload Combined Coverage
-    needs: [unit-tests, integration-tests]
-    runs-on: ubuntu-latest
-    if: always()  # Run even if test jobs fail
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Download all coverage artifacts from all platforms
-      - name: Download Ubuntu unit test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: unit-coverage-report-Linux
-          path: ./coverage-unit-linux/
-        continue-on-error: true
-
-      - name: Download macOS unit test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: unit-coverage-report-macOS
-          path: ./coverage-unit-macos/
-        continue-on-error: true
-
-      - name: Download Windows unit test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: unit-coverage-report-Windows
-          path: ./coverage-unit-windows/
-        continue-on-error: true
-
-      - name: Download Ubuntu integration test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-coverage-report-Linux
-          path: ./coverage-integration-linux/
-        continue-on-error: true
-
-      - name: Download macOS integration test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-coverage-report-macOS
-          path: ./coverage-integration-macos/
-        continue-on-error: true
-
-      - name: Download Windows integration test coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: integration-coverage-report-Windows
-          path: ./coverage-integration-windows/
-        continue-on-error: true
-
-      # List all coverage files to verify downloads
-      - name: List downloaded coverage files
-        run: |
-          echo "Verifying downloaded coverage files:"
-          find ./coverage-*/ -name "coverage.xml" | sort
-
-      # Upload all coverage reports to Codecov
-      - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage-unit-linux/coverage.xml,./coverage-integration-linux/coverage.xml,./coverage-unit-macos/coverage.xml,./coverage-integration-macos/coverage.xml,./coverage-unit-windows/coverage.xml,./coverage-integration-windows/coverage.xml
-          fail_ci_if_error: true
+          files: ./coverage.xml
+          fail_ci_if_error: false
         env:
-          # Add the Codecov token from repository secrets
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       
-      # Upload all test results to Codecov Test Analytics
-      - name: Upload test results to Codecov Test Analytics
-        if: ${{ !cancelled() }}
+      - name: Upload test results to Codecov
+        if: always()
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: |
-            ./coverage-unit-linux/junit.xml
-            ./coverage-integration-linux/junit.xml
-            ./coverage-unit-macos/junit.xml
-            ./coverage-integration-macos/junit.xml
-            ./coverage-unit-windows/junit.xml
-            ./coverage-integration-windows/junit.xml
-          flags: |
-            unit_tests
-            integration_tests
-          
-  analyze-complexity:
-    name: Analyze Code Complexity
-    needs: [build]
+          files: ./junit.xml
+
+  # Complexity analysis for PRs only
+  analyze:
+    name: Code Complexity
     runs-on: ubuntu-latest
-    # Only run on PRs to main branch or manual dispatch
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full git history for wily to analyze
-
+          fetch-depth: 0
+      
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
@@ -352,106 +102,29 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
       
-      - name: Cache Nix store
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-
-      - name: Set up Python environment
+      - name: Setup and analyze
         run: |
           nix develop --command setup
-
-      - name: Install wily
-        run: |
-          nix develop --command bash -c 'if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi && pip install wily'
-
-      - name: Build wily cache
-        run: |
-          nix develop --command bash -c 'if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi && wily build mcp_nixos tests'
-
-      - name: Find base branch for PR or use default
-        id: find-base-branch
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "BASE_BRANCH=origin/${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-          else
-            echo "BASE_BRANCH=HEAD^1" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run wily diff 
-        id: wily-diff
-        run: |
-          if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+          nix develop --command bash -c 'source .venv/bin/activate && pip install wily'
+          nix develop --command bash -c 'source .venv/bin/activate && wily build mcp_nixos tests'
           
-          echo "Running complexity analysis comparing to ${{ steps.find-base-branch.outputs.BASE_BRANCH }}"
-          DIFF_OUTPUT=$(wily diff mcp_nixos tests -r ${{ steps.find-base-branch.outputs.BASE_BRANCH }})
-          
-          # Set multi-line output for GitHub Actions
-          echo "DIFF_OUTPUT<<EOF" >> $GITHUB_ENV
-          echo "$DIFF_OUTPUT" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
-          # Store output as artifact
           mkdir -p complexity-report
-          echo "$DIFF_OUTPUT" > complexity-report/diff.txt
-          
-          # Also create a more detailed report of top 10 most complex files
-          wily rank mcp_nixos maintainability.mi --limit 10 --desc > complexity-report/top10_maintainability.txt
-          wily rank mcp_nixos raw.loc --limit 10 --desc > complexity-report/top10_loc.txt
-          wily rank mcp_nixos cyclomatic.complexity --limit 10 --desc > complexity-report/top10_cyclomatic.txt
-
+          nix develop --command bash -c 'source .venv/bin/activate && wily diff mcp_nixos tests -r origin/${{ github.event.pull_request.base.ref }}' > complexity-report/diff.txt || true
+      
       - name: Upload complexity report
         uses: actions/upload-artifact@v4
         with:
           name: complexity-report
           path: complexity-report/
 
-      - name: Add PR comment with complexity analysis
-        if: github.event_name == 'pull_request'
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          message: |
-            ## Code Complexity Analysis
-            
-            ```
-            ${{ env.DIFF_OUTPUT }}
-            ```
-            
-            For more details, check the complexity-report artifact in the workflow run.
-          comment_tag: complexity-analysis
-
-  check-website-changes:
-    name: Check for Website Changes
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    outputs:
-      website_changed: ${{ steps.changes.outputs.website_changed }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      
-      - name: Check for changes in website directory
-        id: changes
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -q "^website/"; then
-            echo "website_changed=true" >> $GITHUB_OUTPUT
-            echo "Changes detected in website directory"
-          else
-            echo "website_changed=false" >> $GITHUB_OUTPUT
-            echo "No changes detected in website directory"
-          fi
-
+  # Website deployment - only on main branch pushes with changes
   deploy-website:
-    name: Deploy Website to AWS S3
-    needs: [check-website-changes]
-    if: github.ref == 'refs/heads/main' && needs.check-website-changes.outputs.website_changed == 'true'
+    name: Deploy Website
     runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' && 
+      github.event_name == 'push' &&
+      !startsWith(github.event.head_commit.message, 'Merge pull request')
     environment:
       name: AWS
       url: https://mcp-nixos.utensils.io
@@ -460,21 +133,36 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check for website changes
+        id: changes
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q "^website/"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No website changes - skipping deployment"
+          fi
       
       - name: Setup Node.js
+        if: steps.changes.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: website/package-lock.json
       
-      - name: Install website dependencies
-        run: cd website && npm install
-      
-      - name: Build website
-        run: cd website && npm run build
-      
+      - name: Build and Deploy
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          cd website
+          npm install
+          npm run build
+        
       - name: Configure AWS credentials
+        if: steps.changes.outputs.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -482,20 +170,16 @@ jobs:
           aws-region: us-east-1
       
       - name: Deploy to S3
+        if: steps.changes.outputs.changed == 'true'
         run: |
           aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
-      
-      - name: Invalidate CloudFront cache
-        run: |
-          # Use the fixed CloudFront distribution ID
-          DISTRIBUTION_ID="E1QS1G7FYYJ6TL"
-          echo "Invalidating CloudFront distribution: $DISTRIBUTION_ID"
-          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+          aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
 
+  # PyPI publishing - only on version tags
   publish:
-    name: Build and Publish to PyPI
+    name: Publish to PyPI
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, typecheck, unit-tests, integration-tests]
+    needs: [test]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -505,6 +189,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
@@ -512,28 +197,18 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
-      - name: Cache Nix store
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nix
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      - name: Build package distributions using Nix environment
+      
+      - name: Build package
         run: |
           nix develop --command build
           ls -l dist/
-      - name: Verify built package installation (Wheel)
+      
+      - name: Verify package
         run: |
-          python3 -m venv .verifier-venv
-          source .verifier-venv/bin/activate
-          python -m pip install --upgrade pip
-          WHEEL_FILE=$(ls dist/*.whl)
-          echo "Verifying wheel: $WHEEL_FILE"
-          python -m pip install "$WHEEL_FILE"
-          echo "Checking installation..."
-          python -c "import mcp_nixos; print(f'Successfully installed mcp_nixos version: {mcp_nixos.__version__}')"
-          deactivate
-      - name: Publish package distributions to PyPI
+          python3 -m venv test-env
+          source test-env/bin/activate
+          pip install dist/*.whl
+          python -c "import mcp_nixos; print(f'Version: {mcp_nixos.__version__}')"
+      
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
