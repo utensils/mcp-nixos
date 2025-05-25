@@ -154,8 +154,8 @@ class TestErrorHandling:
         with pytest.raises(SystemExit) as exc_info:
             main()
 
-        # Should propagate the original exit code, not wrap it
-        assert exc_info.value.code == 1  # Gets wrapped as general error
+        # Should propagate the original exit code
+        assert exc_info.value.code == 42
 
     @patch("mcp_nixos.__main__.mcp")
     @patch("sys.stderr", new_callable=StringIO)
@@ -186,14 +186,14 @@ class TestIntegration:
         # Note: The annotation might not be present, so we just check it's callable
         assert callable(main)
 
-    @patch("mcp_nixos.server.mcp")
-    def test_server_integration(self, mock_server_mcp):
+    def test_server_integration(self):
         """Test integration between __main__ and server."""
-        # Import main after patching
-        from mcp_nixos.__main__ import mcp
+        # Import both modules
+        from mcp_nixos.__main__ import mcp as main_mcp
+        from mcp_nixos.server import mcp as server_mcp
 
         # Verify they reference the same mcp instance
-        assert mcp is mock_server_mcp
+        assert main_mcp is server_mcp
 
 
 if __name__ == "__main__":

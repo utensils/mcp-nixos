@@ -250,6 +250,9 @@ pip install -e ".[dev]"
 
 # Or with uv (recommended for the enlightened)
 uv pip install -e ".[dev]"
+
+# For evaluation tests with Anthropic API (optional)
+pip install -e ".[dev,evals]"
 ```
 
 ### Using Nix (Of Course There's a Nix Development Environment)
@@ -300,12 +303,43 @@ nix profile install github:utensils/mcp-nixos
 Tests use real Elasticsearch API calls instead of mocks because we're not afraid of the real world:
 
 ```bash
-# Run tests with coverage (default and recommended)
+# Run all tests including evaluation tests (default)
 run-tests
 
-# Run tests without coverage (for those who prefer blissful ignorance)
-run-tests --no-coverage
+# Run only unit tests
+run-tests --unit
+
+# Run only integration tests
+run-tests --integration
+
+# Exclude Anthropic API tests (if you don't have an API key)
+pytest -m "not anthropic"
 ```
+
+#### Evaluation Testing with Anthropic API
+
+We use Claude to test our MCP tools in realistic scenarios. This ensures the tools work well in practice, not just in unit tests.
+
+**Setup:**
+1. Copy `.env.example` to `.env`
+2. Add your Anthropic API key to `.env`
+3. Run `pip install anthropic python-dotenv` (or `pip install -e ".[evals]"`)
+
+```bash
+# Run evaluation tests with Anthropic API
+pytest tests/test_evals_anthropic.py -v
+
+# Or run the standalone script for a detailed report
+python tests/test_evals_anthropic.py
+
+# The tests run by default locally if you have an API key
+# They're automatically excluded from CI unless you're a maintainer
+```
+
+**Security Notes:**
+- The `.env` file is gitignored. Never commit API keys to the repository.
+- In CI/CD, evaluation tests only run for repository maintainers on the protected main branch
+- Pull requests from forks cannot access the API key secrets
 
 Code coverage is tracked on [Codecov](https://codecov.io/gh/utensils/mcp-nixos) (where we pretend to care about 100% coverage).
 

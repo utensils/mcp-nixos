@@ -45,20 +45,33 @@ def es_query(index: str, query: dict, size: int = 20) -> List[dict]:
 def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int = 100) -> List[Dict[str, str]]:
     """Parse options from HTML documentation."""
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, timeout=30)  # Increase timeout for large docs
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         options = []
 
-        # Darwin uses plain dt elements without class
-        # Home Manager uses dt elements without class but has anchor elements with IDs
-
-        # Find all dt elements
+        # Get all dt elements
         dts = soup.find_all("dt")
 
         for dt in dts:
             # Get option name
-            name = dt.get_text(strip=True)
+            name = ""
+            if "home-manager" in url:
+                # Home Manager uses anchor IDs like "opt-programs.git.enable"
+                anchor = dt.find("a", id=True)
+                if anchor:
+                    anchor_id = anchor.get("id", "")
+                    # Remove "opt-" prefix and convert underscores
+                    if anchor_id.startswith("opt-"):
+                        name = anchor_id[4:]  # Remove "opt-" prefix
+                        # Convert _name_ placeholders back to <name>
+                        name = name.replace("_name_", "<name>")
+                else:
+                    # Fallback to text content
+                    name = dt.get_text(strip=True)
+            else:
+                # Darwin and fallback - use text content
+                name = dt.get_text(strip=True)
 
             # Skip if it doesn't look like an option (must contain a dot)
             if "." not in name:
@@ -73,18 +86,28 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
             # Find the corresponding dd element
             dd = dt.find_next_sibling("dd")
             if dd:
-                # Extract description (first p tag)
-                desc = dd.find("p")
-                description = desc.get_text(strip=True) if desc else ""
-
-                # Extract type info
-                type_elem = dd.find("span", class_="term")
-                if type_elem:
-                    type_text = type_elem.get_text(strip=True)
-                    # Clean up type text
-                    type_info = type_text.replace("Type:", "").strip()
+                # Extract description (first p tag or direct text)
+                desc_elem = dd.find("p")
+                if desc_elem:
+                    description = desc_elem.get_text(strip=True)
                 else:
-                    type_info = ""
+                    # Get first text node
+                    description = dd.get_text(strip=True).split("\n")[0]
+
+                # Extract type info - look for various patterns
+                type_info = ""
+                # Pattern 1: <span class="term">Type: ...</span>
+                type_elem = dd.find("span", class_="term")
+                if type_elem and "Type:" in type_elem.get_text():
+                    type_info = type_elem.get_text(strip=True).replace("Type:", "").strip()
+                # Pattern 2: Look for "Type:" in text
+                elif "Type:" in dd.get_text():
+                    text = dd.get_text()
+                    type_start = text.find("Type:") + 5
+                    type_end = text.find("\n", type_start)
+                    if type_end == -1:
+                        type_end = len(text)
+                    type_info = text[type_start:type_end].strip()
 
                 options.append(
                     {
@@ -122,16 +145,19 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
                         {"match": {"package_pname": {"query": query, "boost": 3}}},
                         {"match": {"package_description": query}},
                     ],
+                    "minimum_should_match": 1,
                 }
             }
         elif type == "options":
+            # Use wildcard for option names to handle hierarchical names like services.nginx.enable
             q = {
                 "bool": {
                     "must": [{"term": {"type": "option"}}],
                     "should": [
-                        {"match": {"option_name": {"query": query, "boost": 3}}},
+                        {"wildcard": {"option_name": f"*{query}*"}},
                         {"match": {"option_description": query}},
                     ],
+                    "minimum_should_match": 1,
                 }
             }
         else:  # programs
@@ -142,6 +168,7 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
                         {"match": {"package_programs": {"query": query, "boost": 2}}},
                         {"match": {"package_pname": query}},
                     ],
+                    "minimum_should_match": 1,
                 }
             }
 
@@ -168,6 +195,15 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
                 name = src.get("option_name", "")
                 opt_type = src.get("option_type", "")
                 desc = src.get("option_description", "")
+                # Strip HTML tags from description
+                if desc and "<rendered-html>" in desc:
+                    # Remove outer rendered-html tags
+                    desc = desc.replace("<rendered-html>", "").replace("</rendered-html>", "")
+                    # Remove common HTML tags
+                    import re
+
+                    desc = re.sub(r"<[^>]+>", "", desc)
+                    desc = desc.strip()
                 results.append(f"• {name}")
                 if opt_type:
                     results.append(f"  Type: {opt_type}")
@@ -237,6 +273,13 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
 
             desc = src.get("option_description", "")
             if desc:
+                # Strip HTML tags from description
+                if "<rendered-html>" in desc:
+                    desc = desc.replace("<rendered-html>", "").replace("</rendered-html>", "")
+                    import re
+
+                    desc = re.sub(r"<[^>]+>", "", desc)
+                    desc = desc.strip()
                 info.append(f"Description: {desc}")
 
             default = src.get("option_default", "")
@@ -340,7 +383,8 @@ Use home_manager_list_options to see available option categories."""
 def home_manager_list_options() -> str:
     """List Home Manager categories."""
     try:
-        options = parse_html_options(HOME_MANAGER_URL)
+        # Get more options to see all categories (default 100 is too few)
+        options = parse_html_options(HOME_MANAGER_URL, limit=4000)
         categories = {}
 
         for opt in options:
@@ -445,7 +489,8 @@ Use darwin_list_options to see available option categories."""
 def darwin_list_options() -> str:
     """List nix-darwin categories."""
     try:
-        options = parse_html_options(DARWIN_URL)
+        # Get more options to see all categories (default 100 is too few)
+        options = parse_html_options(DARWIN_URL, limit=2000)
         categories = {}
 
         for opt in options:

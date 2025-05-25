@@ -65,7 +65,7 @@ jobs:
       - name: Run all tests
         run: |
           nix develop --command setup
-          nix develop --command run-tests -- --cov=mcp_nixos --cov-report=xml --junitxml=junit.xml
+          nix develop --command run-tests -- -m "not anthropic" --cov=mcp_nixos --cov-report=xml --junitxml=junit.xml
       
       - name: Upload coverage to Codecov
         if: always()

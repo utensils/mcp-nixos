@@ -309,6 +309,7 @@ class TestNixOSTools:
                             {"match": {"package_pname": {"query": "test", "boost": 3}}},
                             {"match": {"package_description": "test"}},
                         ],
+                        "minimum_should_match": 1,
                     }
                 },
                 20,

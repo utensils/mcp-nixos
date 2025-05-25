@@ -42,8 +42,8 @@ mcp_nixos_test_cache/
 *test_cache*/
 
 # Environments
-# Note: We're keeping .env in the repo since it contains public credentials
-# .env
+.env
+.env.local
 .venv
 env/
 venv/

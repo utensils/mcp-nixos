@@ -54,11 +54,17 @@ class MockAIAssistant:
         self.tool_calls = []
 
         # Simulate AI decision making based on query
-        if "install" in query.lower() and any(pkg in query.lower() for pkg in ["vscode", "firefox", "git"]):
+        if ("install" in query.lower() or "get" in query.lower()) and any(
+            pkg in query.lower() for pkg in ["vscode", "firefox", "git"]
+        ):
             self._handle_package_installation(query)
-        elif "configure" in query.lower() and "nginx" in query.lower():
+        elif ("configure" in query.lower() or "set up" in query.lower()) and "nginx" in query.lower():
             self._handle_service_configuration(query)
-        elif "home manager" in query.lower() or "should i configure" in query.lower():
+        elif (
+            "home manager" in query.lower()
+            or "should i configure" in query.lower()
+            or ("manage" in query.lower() and "home manager" in query.lower())
+        ):
             self._handle_home_manager_query(query)
         elif "dock" in query.lower() and ("darwin" in query.lower() or "macos" in query.lower()):
             self._handle_darwin_query(query)
@@ -128,6 +134,11 @@ class MockAIAssistant:
             self._make_tool_call("nixos_search", query="git", type="packages")
             self._make_tool_call("home_manager_search", query="programs.git")
             self._make_tool_call("home_manager_info", name="programs.git.enable")
+        elif "shell" in query.lower():
+            # Handle shell configuration queries
+            self._make_tool_call("home_manager_search", query="programs.zsh")
+            self._make_tool_call("home_manager_info", name="programs.zsh.enable")
+            self._make_tool_call("home_manager_options_by_prefix", option_prefix="programs.zsh")
 
     def _handle_darwin_query(self, query: str):
         """Handle Darwin/macOS queries."""
@@ -248,11 +259,9 @@ class TestPackageDiscoveryEvals:
         mock_query.return_value = [
             {
                 "_source": {
-                    "package": {
-                        "pname": "vscode",
-                        "version": "1.85.0",
-                        "description": "Open source code editor by Microsoft",
-                    }
+                    "package_pname": "vscode",
+                    "package_pversion": "1.85.0",
+                    "package_description": "Open source code editor by Microsoft",
                 }
             }
         ]
@@ -283,16 +292,14 @@ class TestPackageDiscoveryEvals:
         def query_side_effect(*args, **kwargs):
             query = args[1]
             if "program" in str(query):
-                return [{"_source": {"program": "git", "package": "git"}}]
+                return [{"_source": {"package_programs": ["git"], "package_pname": "git"}}]
             else:
                 return [
                     {
                         "_source": {
-                            "package": {
-                                "pname": "git",
-                                "version": "2.43.0",
-                                "description": "Distributed version control system",
-                            }
+                            "package_pname": "git",
+                            "package_pversion": "2.43.0",
+                            "package_description": "Distributed version control system",
                         }
                     }
                 ]
@@ -372,11 +379,9 @@ class TestServiceConfigurationEvals:
         mock_query.return_value = [
             {
                 "_source": {
-                    "option": {
-                        "option_name": "services.nginx.enable",
-                        "option_type": "boolean",
-                        "option_description": "Whether to enable nginx web server",
-                    }
+                    "option_name": "services.nginx.enable",
+                    "option_type": "boolean",
+                    "option_description": "Whether to enable nginx web server",
                 }
             }
         ]

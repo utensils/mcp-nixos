@@ -84,8 +84,6 @@ Implementing quick fixes without understanding the architecture can completely b
 ## Source of Truth & Code Patterns
 
 - CLAUDE.md is the primary source of truth for coding rules
-- Sync changes to other rule files using: `nix develop -c sync-rules` 
-  - This syncs CLAUDE.md to `.windsurfrules`, `.cursorrules`, `.goosehints`
 - Always follow existing code patterns and module structure
 - Maintain architectural boundaries and consistency
 
@@ -102,12 +100,10 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 
 ## Branch Management
 
-- Default development branch is `develop`
-- Main release branch is `main`
+- Main branch is `main` (protected)
 - Branch protection rules are enforced:
   - `main`: Requires PR review (1 approval), admin enforcement, no deletion, no force push
-  - `develop`: Protected from deletion but allows force push
-- PRs follow the pattern: commit to `develop` → open PR to `main` → merge once approved
+- PRs are created from feature branches to `main`
 - Branch deletion on merge is disabled to preserve branch history
 
 ## CI/CD Configuration
@@ -186,6 +182,23 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
     - Properly clean up file handles with explicit close or context managers
   - Use platform-specific test markers (@pytest.mark.windows, @pytest.mark.skipwindows)
   - Ensure tests work consistently across Windows, macOS, and Linux
+
+## Testing Guidelines
+
+### Evaluation Testing with Anthropic API
+- **Purpose**: Test MCP tools with real AI behavior to ensure practical usability
+- **Setup**: Copy `.env.example` to `.env` and add your Anthropic API key
+- **Run**: `python run_evals.py` or `pytest tests/test_evals_anthropic.py -v`
+- **Scenarios**: Package installation, service configuration, Home Manager integration
+- **Pass Criteria**: 80% of expected behaviors must be observed
+- **Security**: Never commit API keys; use environment variables in CI/CD
+
+### Key Implementation Fixes (v1.0.0)
+- **Elasticsearch Queries**: Added `minimum_should_match: 1` to prevent unrelated results
+- **Option Search**: Uses wildcard queries (`*{query}*`) for hierarchical option names
+- **HTML Stripping**: Removes `<rendered-html>` tags and nested HTML from descriptions
+- **Home Manager Parsing**: Extracts option names from anchor IDs (format: `opt-programs.git.enable`)
+- **List Limits**: Increased to 4000 for Home Manager and 2000 for Darwin to see all categories
 
 ## API Reference (v1.0.0 - Tools Only)
 

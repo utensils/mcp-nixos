@@ -39,6 +39,10 @@ dev = [
 win = [
     "pywin32>=306.0",  # Required for Windows-specific file operations and tests
 ]
+evals = [
+    "anthropic>=0.34.0",
+    "python-dotenv>=1.0.0",
+]
 
 [project.scripts]
 mcp-nixos = "mcp_nixos.__main__:main"

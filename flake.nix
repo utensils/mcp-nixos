@@ -403,29 +403,6 @@
               '';
             }
             {
-              name = "sync-rules";
-              category = "development";
-              help = "Sync CLAUDE.md to .windsurfrules, .cursorrules, and .goosehints files";
-              command = ''
-                echo "--- Syncing CLAUDE.md to rule files ---"
-                if [ ! -f "CLAUDE.md" ]; then
-                  echo "❌ Error: CLAUDE.md file not found!"
-                  exit 1
-                fi
-                
-                # Copy content to rule files
-                cat CLAUDE.md > .windsurfrules
-                cat CLAUDE.md > .cursorrules
-                cat CLAUDE.md > .goosehints
-                
-                # Verify sync
-                echo "✅ CLAUDE.md synced to:"
-                echo "   - .windsurfrules"
-                echo "   - .cursorrules"
-                echo "   - .goosehints"
-              '';
-            }
-            {
               name = "web-dev";
               category = "website";
               help = "Launch Node.js shell for website development";
