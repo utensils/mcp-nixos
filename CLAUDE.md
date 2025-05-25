@@ -110,6 +110,7 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 
 - **Single workflow file**: `.github/workflows/ci.yml` handles all CI/CD operations
 - **Testing**: Uses Nix flake environment on Linux only (no matrix tests)
+- **Dependency Management**: Nix flake includes all dev and eval dependencies for isolated environment
 - **Smart triggering** to prevent redundant runs:
   - PRs: Run tests when opened, synchronized, or reopened
   - Main branch: Skip CI on merge commits (already tested in PR)
@@ -120,6 +121,7 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - `analyze`: Code complexity analysis (PRs only)
   - `deploy-website`: Deploys to S3/CloudFront when website files change (main branch only)
   - `publish`: Publishes to PyPI on version tags
+- **Test Exclusions**: Anthropic evaluation tests excluded via `-m "not anthropic"` marker
 - **Codecov integration**: Uploads coverage and test results
 - **No redundant runs**: Smart conditions prevent the PR→merge→tag triple-run issue
 
@@ -259,10 +261,13 @@ All tools return human-readable plain text, not XML or JSON.
 - `test_real_integration.py` - Tests against real APIs
 - `test_server_comprehensive.py` - Comprehensive unit tests
 - `test_main.py` - Entry point tests
+- `test_nixos_option_info.py` - NixOS option lookup tests
+- `test_nixos_info_option_evals.py` - Option evaluation tests
+- `test_evals_anthropic.py` - Anthropic API evaluation tests (requires API key)
 
 **Running Tests**
 ```bash
-# All tests
+# All tests (excludes Anthropic evals)
 run-tests
 
 # Specific test file
@@ -270,6 +275,9 @@ run-tests -- tests/test_plain_text_output.py -v
 
 # Integration tests only
 run-tests -- --integration
+
+# Include Anthropic evaluation tests (requires API key)
+run-tests -m "anthropic"
 
 # With coverage
 run-tests -- --cov=mcp_nixos
@@ -282,16 +290,17 @@ run-tests -- --cov=mcp_nixos
 - No filesystem dependencies (stateless)
 
 
-### Dependency Management (v1.0.0 - Lean & Mean)
+### Dependency Management (v1.0.1 - Lean & Mean)
 - Project uses `pyproject.toml` for dependency specification (PEP 621)
 - Core dependencies (reduced from 5 to 3):
-  - `mcp>=1.5.0`: Base MCP framework
+  - `mcp>=1.6.0`: Base MCP framework
   - `requests>=2.32.3`: HTTP client for API interactions
   - `beautifulsoup4>=4.13.3`: HTML parsing for documentation
-- Removed dependencies:
-  - ~~`python-dotenv`~~ - No config files to load
-  - ~~`psutil`~~ - No orphan processes to manage
-- Dev dependencies defined in `[project.optional-dependencies]`
+- Optional dependencies defined in `[project.optional-dependencies]`:
+  - `dev`: Development tools (pytest, black, flake8, etc.)
+  - `evals`: Evaluation testing (anthropic, python-dotenv)
+  - `win`: Windows-specific dependencies (pywin32)
+- Nix flake installs both `dev` and `evals` dependencies for complete development environment
 
 ### Installation & Usage
 - Install: `pip install mcp-nixos`, `uv pip install mcp-nixos`, `uvx mcp-nixos`
@@ -301,9 +310,10 @@ run-tests -- --cov=mcp_nixos
   - Build: `docker build -t mcp-nixos .`
   - Deployed on Smithery.ai as a hosted service
 - Development:
-  - Environment: `nix develop`
+  - Environment: `nix develop` (includes all dev and eval dependencies)
   - Run server: `run`
   - Tests: `run-tests`, `run-tests --unit`, `run-tests --integration`
+  - Evaluation tests: `run-tests -m "anthropic"` (requires `ANTHROPIC_API_KEY`)
   - Code quality: `lint`, `typecheck`, `format`
   - Stats: `loc`
   - Package: `build`, `publish`
