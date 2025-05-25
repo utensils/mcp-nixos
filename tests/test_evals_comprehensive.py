@@ -181,7 +181,7 @@ class EvalFramework:
         # Check expected tool calls
         expected_tools = set()
         for expected_call in scenario.expected_tool_calls:
-            # Parse expected call (simplified - in real impl would be more robust)
+            # Parse expected call
             tool_name = expected_call.split("(")[0]
             expected_tools.add(tool_name)
 

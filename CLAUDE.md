@@ -1,6 +1,6 @@
 # MCP-NixOS Project Guidelines (v1.0.0)
 
-## 🚀 The Great Simplification
+## 🚀 Project Philosophy
 This project underwent a massive refactoring in v1.0.0, reducing the codebase from 9,755 lines to ~500 lines (94.6% reduction) while maintaining 100% functionality. We proved that most "enterprise" code is just complexity for complexity's sake.
 
 ## 📝 Documentation Guidelines
@@ -72,10 +72,10 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - PRs follow the pattern: commit to `develop` → open PR to `main` → merge once approved
 - Branch deletion on merge is disabled to preserve branch history
 
-## CI/CD Configuration (v1.0.0 - Simplified)
+## CI/CD Configuration
 
 - **Single workflow file**: `.github/workflows/ci.yml` handles all CI/CD operations
-- **Simplified testing**: Uses Nix flake environment on Linux only (no matrix tests)
+- **Testing**: Uses Nix flake environment on Linux only (no matrix tests)
 - **Smart triggering** to prevent redundant runs:
   - PRs: Run tests when opened, synchronized, or reopened
   - Main branch: Skip CI on merge commits (already tested in PR)
@@ -89,7 +89,7 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - **Codecov integration**: Uploads coverage and test results
 - **No redundant runs**: Smart conditions prevent the PR→merge→tag triple-run issue
 
-## Architecture (v1.0.0 - The Minimalist Edition)
+## Architecture
 
 ### Core Components (Just 2 Files!)
 - **server.py**: All 13 MCP tools in ~500 lines of direct, functional code

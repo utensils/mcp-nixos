@@ -41,7 +41,7 @@ There. Now your AI assistant can actually give you correct information about Nix
 
 ### Environment Variables (For the Paranoid)
 
-Since v1.0.0, we've simplified things. No more cache directories to fill up your disk, no more orphan processes to haunt your system. Just pure, stateless operation:
+Since v1.0.0, the server operates statelessly. No cache directories to fill up your disk, no orphan processes to haunt your system:
 
 | Variable            | Description                              | Default                          |
 | ------------------- | ---------------------------------------- | -------------------------------- |

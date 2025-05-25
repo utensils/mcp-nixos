@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""CLI entry point for MCP-NixOS server (simplified version)."""
+"""CLI entry point for MCP-NixOS server."""
 
 import sys
 from mcp_nixos.server import mcp

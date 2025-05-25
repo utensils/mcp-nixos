@@ -513,7 +513,7 @@ class TestHomeManagerTools:
         assert root.find(".//code").text == "NOT_FOUND"
 
     def test_home_manager_stats(self):
-        """Test Home Manager stats returns simplified message."""
+        """Test Home Manager stats returns informational message."""
         result = home_manager_stats()
         root = ET.fromstring(result)
 
@@ -606,7 +606,7 @@ class TestDarwinTools:
         assert root.find(".//type").text == "boolean"
 
     def test_darwin_stats(self):
-        """Test Darwin stats returns simplified message."""
+        """Test Darwin stats returns informational message."""
         result = darwin_stats()
         root = ET.fromstring(result)
 
