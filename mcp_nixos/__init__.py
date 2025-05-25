@@ -12,7 +12,7 @@ try:
         __version__ = version("mcp-nixos")
     except PackageNotFoundError:
         # Package is not installed, use a default version
-        __version__ = "0.5.1"
+        __version__ = "1.0.0"
 except ImportError:
     # Fallback for Python < 3.8
     try:
@@ -20,4 +20,4 @@ except ImportError:
 
         __version__ = pkg_resources.get_distribution("mcp-nixos").version
     except Exception:
-        __version__ = "0.5.1"
+        __version__ = "1.0.0"

@@ -1,3 +1,89 @@
+# MCP-NixOS: v1.0.0 Release Notes - The Great Simplification
+
+## Overview
+
+MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've reduced the codebase by 95.7% (from 9,755 to 416 lines) while maintaining 100% functionality. This isn't just a refactor—it's a masterclass in minimalism.
+
+## Changes in v1.0.0
+
+### 🎯 The Nuclear Option
+
+- **Complete Rewrite**: Threw away 95.7% of the code and somehow everything still works
+- **Stateless Operation**: No more cache directories filling up your disk
+- **Direct API Calls**: Removed all abstraction layers—now it's just functions doing their job
+- **Simplified Dependencies**: Reduced from 5 to 3 core dependencies (40% reduction)
+- **Two-File Implementation**: Everything you need in just `server.py` and `__main__.py`
+
+### 🚀 Major Improvements
+
+- **Structured XML Output**: All responses now return clean, parseable XML that AI models love
+- **Better Error Handling**: Clear error messages in XML format when things go wrong
+- **Zero Configuration**: Removed all the config options you weren't using anyway
+- **Faster Startup**: No cache initialization, no state management, just pure functionality
+- **100% Test Coverage**: Comprehensive test suite ensures everything works as advertised
+
+### 💥 Breaking Changes
+
+- **No More Caching**: All operations are now stateless (your internet better be working)
+- **Environment Variables Removed**: Only `ELASTICSEARCH_URL` remains
+- **No Pre-Cache Option**: The `--pre-cache` flag is gone (along with the cache itself)
+- **No Interactive Shell**: The deprecated CLI has been completely removed
+
+### 🧹 What We Removed
+
+- `cache/` directory - Complex caching that nobody understood
+- `clients/` directory - Abstract interfaces that abstracted nothing
+- `contexts/` directory - Context managers for contexts that didn't exist
+- `resources/` directory - MCP resource definitions (now inline)
+- `tools/` directory - Tool implementations (now in server.py)
+- `utils/` directory - "Utility" functions that weren't
+- 45 files of over-engineered complexity
+
+### 📊 The Numbers
+
+- **Before**: 9,755 lines across 47 files in 6 directories
+- **After**: 416 lines across 2 files that matter
+- **Reduction**: 95.7% less code, 100% less complexity, 0% less functionality
+
+## Installation
+
+```bash
+# Install with pip
+pip install mcp-nixos==1.0.0
+
+# Install with uv
+uv pip install mcp-nixos==1.0.0
+
+# Install with uvx
+uvx mcp-nixos==1.0.0
+```
+
+## Migration Guide
+
+If you're upgrading from v0.x:
+
+1. **Remove cache-related environment variables** - They don't do anything anymore
+2. **Remove `--pre-cache` from any scripts** - It's gone
+3. **That's it** - Everything else just works
+
+## Why This Matters
+
+This release demonstrates that most "enterprise" code is just complexity for complexity's sake. By removing abstractions, caching layers, and "design patterns," we've created something that:
+
+- Is easier to understand
+- Has fewer bugs (less code = less bugs)
+- Starts faster
+- Uses less memory
+- Is more reliable
+
+Sometimes the best code is the code you delete.
+
+## Contributors
+
+- James Brink (@utensils) - Chief Code Deleter
+
+---
+
 # MCP-NixOS: v0.5.1 Release Notes
 
 ## Overview

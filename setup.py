@@ -10,7 +10,6 @@ if __name__ == "__main__":
         install_requires=[
             "mcp>=1.5.0",
             "requests>=2.32.3",
-            "python-dotenv>=1.1.0",
             "beautifulsoup4>=4.13.3",
         ],
     )

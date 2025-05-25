@@ -1,8 +1,11 @@
-# MCP-NixOS Project Guidelines
+# MCP-NixOS Project Guidelines (v1.0.0)
+
+## 🚀 The Great Simplification
+This project underwent a massive refactoring in v1.0.0, reducing the codebase from 9,755 lines to ~500 lines (94.6% reduction) while maintaining 100% functionality. We proved that most "enterprise" code is just complexity for complexity's sake.
 
 ## 🛠️ Essential Development Commands (Quick Reference)
 
-- **Develop environment**: `nix develop` (Python) or `nix develop .#web` (Website)
+- **Develop environment**: `nix develop`
 - **Run the server**: `run` (in nix shell)
 - **Test commands**:
   - All tests: `run-tests`
@@ -14,8 +17,9 @@
   - Format code: `format`
   - Lint code: `lint`
   - Type check: `typecheck`
-  - Check complexity: `complexity report <file> <metric>`
-- **Website development**: `web-dev` → opens website shell with its own commands
+- **Package management**:
+  - Build: `build`
+  - Publish to PyPI: `publish`
 
 ## ⚠️ CRITICAL: Testing and Implementation Changes ⚠️
 
@@ -40,7 +44,12 @@ Implementing quick fixes without understanding the architecture can completely b
 
 ## Project Overview
 
-MCP-NixOS provides MCP resources and tools for NixOS packages, system options, Home Manager configuration, and nix-darwin macOS configuration. Communication uses JSON-based messages over standard I/O. An interactive shell (`mcp_shell.py`) is included for manual testing and exploration.
+MCP-NixOS provides MCP tools for searching and querying:
+- **NixOS**: packages, options, and programs via Elasticsearch API
+- **Home Manager**: configuration options via HTML documentation parsing  
+- **nix-darwin**: macOS configuration options via HTML documentation parsing
+
+All responses are formatted as human-readable plain text (no XML).
 
 Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/utensils/mcp-nixos)
 
@@ -84,37 +93,47 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - CI may run twice for PR updates - this is controlled by the concurrency settings
   - The `cancel-in-progress: true` setting ensures older runs are cancelled when new commits are pushed
 
-## Architecture
+## Architecture (v1.0.0 - The Minimalist Edition)
 
-### Core Components
-- **Cache**: Simple in-memory and filesystem HTML caching
-- **Clients**: Elasticsearch, Home Manager, nix-darwin, HTML
-- **Contexts**: Application state management for each platform
-- **Resources**: MCP resource definitions using URL schemes
-- **Tools**: Search, info, and statistics tools
-- **Utils**: Cross-platform helpers and cache management
-- **Server**: FastMCP server implementation
-- **Pre-Cache**: Command-line option to populate cache data during setup/build
+### Core Components (Just 2 Files!)
+- **server.py**: All 13 MCP tools in ~500 lines of direct, functional code
+- **__main__.py**: Simple entry point (28 lines)
 
-### Implementation Guidelines
+### What We Removed (And Don't Miss)
+- ❌ Cache layer - Stateless operation, no cache corruption
+- ❌ Client abstractions - Direct API calls are clearer
+- ❌ Context managers - No state to manage
+- ❌ Resource definitions - Tools-only approach is simpler
+- ❌ Utility modules - Inline what's needed
+- ❌ 45+ files of complexity - Less is more
 
-**Resources**
-- Use consistent URL schemes: `nixos://`, `home-manager://`, `darwin://`
-- Follow path hierarchy: `scheme://category/action/parameter`
-- Parameters in curly braces: `nixos://package/{package_name}`
-- Return structured data as dictionaries
-- Errors: `{"error": message, "found": false}`
+### Key Design Principles
+- **Direct API Integration**: No abstraction layers between tools and APIs
+- **Plain Text Output**: Human-readable responses, no XML parsing needed
+- **Stateless Operation**: Each request is independent, no side effects
+- **Minimal Dependencies**: Only 3 core dependencies (mcp, requests, beautifulsoup4)
 
-**Tools**
-- Functions with type hints (return `str` for human-readable output)
-- Include `context` parameter for dependency injection
-- Detailed Google-style docstrings
-- Catch exceptions for user-friendly error messages
+### Implementation Guidelines (v1.0.0)
 
-**Context Management**
-- Lifespan management for initialization/cleanup
-- Eager loading with fallbacks and timeouts
-- Prefer dependency injection over global state
+**Tools Only (No Resources)**
+- Direct FastMCP tool decorators (`@mcp.tool()`)
+- All tools return plain text strings (NOT XML)
+- Consistent format with bullet points and clear hierarchy
+- No dependency injection needed (stateless)
+
+**Plain Text Output Format**
+- Human-readable responses with consistent formatting
+- Errors: `Error (CODE): Description`
+- Search results: Bullet points (•) with indented details
+- Info results: Key-value pairs with clear labels
+
+**Direct API Integration**
+- Elasticsearch for NixOS (with auth credentials)
+  - Correct field names: `package_pname`, `option_name`, etc.
+- HTML parsing for Home Manager and Darwin
+  - Parse dt/dd elements for option documentation
+- No abstraction layers or client classes
+- Handle timeouts and errors gracefully
 
 **Best Practices**
 - Type annotations (Optional, Union, List, Dict)
@@ -134,212 +153,108 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - Use platform-specific test markers (@pytest.mark.windows, @pytest.mark.skipwindows)
   - Ensure tests work consistently across Windows, macOS, and Linux
 
-## API Reference
+## API Reference (v1.0.0 - Tools Only)
 
-### NixOS Resources & Tools
-- Status, package info/search, option info/search, program search
-- `nixos_search()`, `nixos_info()`, `nixos_stats()`
-- Multiple channels: unstable (default), stable (24.11)
+### NixOS Tools (Elasticsearch API)
+- `nixos_search(query, type, channel)` - Search packages/options/programs
+  - Returns: Plain text list with bullet points
+- `nixos_info(name, type, channel)` - Get package or option details  
+  - Returns: Key-value pairs (Package:, Version:, etc.)
+- `nixos_stats(channel)` - Get statistics
+  - Returns: Formatted statistics with bullet points
+- Channels: unstable (default), stable/24.11, beta/25.05
 
-### Home Manager Resources & Tools
-- Status, option info/search, hierarchical lists, prefix paths
-- `home_manager_search()`, `home_manager_info()`, `home_manager_options_by_prefix()`
+### Home Manager Tools (HTML Parsing)
+- `home_manager_search(query)` - Search configuration options
+- `home_manager_info(name)` - Get specific option details
+- `home_manager_stats()` - Returns informational message
+- `home_manager_list_options()` - List all option categories
+- `home_manager_options_by_prefix(prefix)` - Get options under a prefix
 
-### nix-darwin Resources & Tools
-- Status, option info/search, category lists, prefix paths
-- `darwin_search()`, `darwin_info()`, `darwin_options_by_prefix()`
+### nix-darwin Tools (HTML Parsing)
+- `darwin_search(query)` - Search macOS configuration options
+- `darwin_info(name)` - Get specific option details  
+- `darwin_stats()` - Returns informational message
+- `darwin_list_options()` - List all option categories
+- `darwin_options_by_prefix(prefix)` - Get options under a prefix
+
+All tools return human-readable plain text, not XML or JSON.
 
 ## System Requirements
 
-### APIs & Configuration
-- Elasticsearch API for NixOS features
-- HTML parsing for Home Manager and nix-darwin
-- Multi-level caching with filesystem persistence
-- Environment configuration via ENV variables
+### APIs & External Dependencies
+- **NixOS**: Elasticsearch API at https://search.nixos.org/backend
+  - Authenticated with hardcoded credentials (public API)
+- **Home Manager**: HTML docs at https://nix-community.github.io/home-manager/options.xhtml
+- **nix-darwin**: HTML docs at https://nix-darwin.github.io/nix-darwin/manual/index.html
 
-### Configuration
-- `MCP_NIXOS_LOG_LEVEL`, `MCP_NIXOS_LOG_FILE`, `LOG_FORMAT`
-- `MCP_NIXOS_CACHE_DIR`, `MCP_NIXOS_CACHE_TTL`
-- `MCP_NIXOS_CLEANUP_ORPHANS`, `KEEP_TEST_CACHE` (development)
-- `ELASTICSEARCH_URL`, `ELASTICSEARCH_USER`, `ELASTICSEARCH_PASSWORD`
+### Configuration (v1.0.0 - Minimal)
+- `ELASTICSEARCH_URL` - Override default NixOS API URL (optional)
+- That's it! No cache config, no log levels, no complex settings.
 
 ## Development
 
-### Website 
-- The website is built with Next.js 15.2 and Tailwind CSS in the `/website` directory
-- Uses TypeScript, App Router, and static export for AWS S3/CloudFront hosting
-- NixOS color scheme is used throughout: primary #5277C3, secondary #7EBAE4
-- Directory structure:
-  - `/app` - Next.js App Router pages
-  - `/components` - React components with client/server separation
-  - `/public` - Static assets including favicon and images
-  - `/public/favicon` - Website favicon files
-  - `/public/images` - Logo images and attribution information
-- Deployment:
-  - Hosted on AWS S3 bucket `urandom-mcp-nixos` with CloudFront CDN distribution ID `E1QS1G7FYYJ6TL`
-  - Automatically deployed via GitHub Actions when changes are detected in the website directory
-  - Only deploys on pushes to the `main` branch, not on PRs or feature branches
-  - Configured to skip deployment entirely if no website files have changed
-  - Uses AWS credentials stored in the AWS environment in GitHub repository
-- Nested shell architecture:
-  - Main shell has single command: `web-dev` - Launch website development shell
-  - Website shell (`nix develop .#web`) provides dedicated commands:
-    - `install` - Install dependencies 
-    - `dev` - Start development server
-    - `build` - Build for production
-    - `lint` - Lint code
-    - `lint:fix` - Fix linting issues
-    - `type-check` - Run TypeScript type checking
-- Code quality tools:
-  - ESLint for code linting with TypeScript and React plugins
-  - Prettier for code formatting with tailwind plugin
-  - TypeScript for type checking
-- Follows responsive design principles and accessibility guidelines (WCAG 2.1 AA)
 
 ### C Extension Compilation Support
 - Fully supports building C extensions via native libffi support
 - Environment setup managed by flake.nix for build tools and headers
 
-### Testing
-- 80%+ code coverage with pytest
-- Test debugging and single test execution:
-  - Run a specific test file: `run-tests -- tests/path/to/test_file.py`
-  - Run a specific test class: `run-tests -- tests/path/to/test_file.py::TestClass`
-  - Run a specific test method: `run-tests -- tests/path/to/test_file.py::TestClass::test_method`
-  - Add verbosity: `run-tests -- path/to/test -v`
-  - Debug with PDB: `run-tests -- path/to/test --pdb`
-  - Filter tests by markers: `run-tests -- -m "integration and not slow"`
+### Testing (v1.0.0 - Simplified)
 
-### MCP Testing Best Practices
-- Test tool registration and functionality separately
-- Avoid testing the MCP protocol itself, focus on business logic
-- Mock direct functions rather than trying to mock MCP calls
-- Use `assertGreaterEqual` when testing decorated functions (call counts can vary)
-- Never use recursive logic in MCP tool functions
-- Validate tool discovery and self-documentation capabilities
-- Mock context objects but test real implementations
-- Codecov Test Analytics integration:
-  - JUnit XML reports generated during all test runs
-  - Uploaded to Codecov for insights on test performance and failures
-  - Configured to upload results even when tests fail
-  - Results displayed in PR comments with failure details
-- Static type checking (zero-tolerance policy)
-- Linting with Black and Flake8
-- Test organization mirrors module structure
-- Use dependency injection for testable components
-- Write test docstrings that clearly explain the test's purpose
-- Tests categorized with markers:
-  - Integration tests: `@pytest.mark.integration`
-  - Slow tests: `@pytest.mark.slow`
-  - Async tests: `@pytest.mark.asyncio`
-  - Platform-specific tests:
-    - Windows-only tests: `@pytest.mark.windows`
-    - Skip on Windows: `@pytest.mark.skipwindows`
-- Cross-platform testing:
-  - CI runs tests on Linux, macOS, and Windows
-  - Linux and macOS tests use flake.nix for development environment
-  - Windows tests use Python's venv with special dependencies (pywin32)
-  - All tests must be platform-agnostic or include platform-specific handling
-  - Enhance error messages with platform-specific diagnostic information
-  - Use platform-aware assertions (e.g., normcase for Windows paths)
-  - Never let platform-specific test failures cascade to other test jobs
-  - See detailed guide in `docs/WINDOWS_TESTING.md`
-  - IMPORTANT: When comparing file paths in tests, use `os.path.normcase()` or the `compare_paths` fixture
-  - When mocking modules like `tempfile`, mock the entire module rather than specific functions
-  - For assertions involving paths, use platform-specific expectations:
-    ```python
-    if os.name == "nt":  # Windows
-        assert os.path.normcase(path) == os.path.normcase(r"\windows\style\path")
-    else:  # Unix
-        assert path == "/unix/style/path"
-    ```
-- Run specific test categories:
-  - Unit tests only: `nix run .#run-tests -- --unit`
-  - Integration tests only: `nix run .#run-tests -- --integration`
-  - All tests: `nix run .#run-tests`
-  - With JUnit XML (for local test analytics): `python -m pytest --junitxml=junit.xml -o junit_family=legacy`
-- Test Cache Configuration:
-  - Tests use structured cache directory with separate areas for unit and integration tests
-  - Automatic subdirectory: `./mcp_nixos_test_cache/{unit|integration|mixed}`
-  - Cache is automatically cleaned up after tests unless `KEEP_TEST_CACHE=true`
-  - Override with `MCP_NIXOS_CACHE_DIR=/custom/path nix run .#run-tests`
-  - Designed for parallel test runs without cache conflicts
-  - Testing strictly maintains cache directory isolation from system directories
-  - All tests must check for both default OS cache paths and test-specific paths
-  - The gitignore file excludes `mcp_nixos_test_cache/` and `*test_cache*/` patterns
+**Test Organization**
+- Unit tests validate individual functions with mocked APIs
+- Integration tests verify real API responses
+- Plain text output tests ensure no XML leakage
 
-### Code Complexity Analysis
-- Uses wily to track and report on code complexity metrics
-- Available locally via `nix develop -c complexity` command:
-  - Build cache: `complexity build`
-  - View report: `complexity report <file> <metric>`
-  - Generate graph: `complexity graph <file> <metric>`
-  - Rank files: `complexity rank [path] [metric]`
-  - Compare changes: `complexity diff [git_ref]`
-- Pre-commit hook to check complexity on every commit
-- Continuous Integration:
-  - Separate GitHub workflow for complexity analysis
-  - Runs on all PRs targeting main branch
-  - Posts complexity report as PR comment
-  - Archives detailed reports as artifacts
-- Key metrics tracked:
-  - Cyclomatic complexity
-  - Maintainability index
-  - Lines of code
-  - Comments and documentation
-- Code complexity thresholds:
-  - Functions should maintain cyclomatic complexity < 10
-  - Files should maintain maintainability index > 65
-  - Keep module sizes reasonable (< 500 lines preferred)
+**Key Test Files**
+- `test_plain_text_output.py` - Validates all outputs are plain text
+- `test_real_integration.py` - Tests against real APIs
+- `test_server_comprehensive.py` - Comprehensive unit tests
+- `test_main.py` - Entry point tests
 
-### Logging Tests
-- Prefer direct behavior verification over implementation details
-- When testing log level filtering:
-  - Use `isEnabledFor()` assertions for level checks (platform-independent)
-  - Use mock handlers with explicit level settings
-  - Test both logger configuration and actual handler behavior
-  - Avoid patching internal logging methods (`_log`) which vary by platform
-  - Add clear error messages to assertions
-- Prevent test flakiness by avoiding sleep/timing dependencies
-- Use clean logger fixtures to prevent test interaction
+**Running Tests**
+```bash
+# All tests
+run-tests
 
-### Development Shells
-- Project uses a nested shell architecture for development environments:
-  - `devShells.default`: Main Python development shell
-  - `devShells.web`: Dedicated Node.js shell for website development
-- Separation prevents dependency conflicts between Python and Node.js
-- Each shell has purpose-specific commands via `pkgs.devshell.mkShell`
-- Shell navigation:
-  - From host system: `nix develop` (main) or `nix develop .#web` (website)
-  - From main shell: `web-dev` launches website shell
-  - Each shell shows commands via menu interface
+# Specific test file
+run-tests -- tests/test_plain_text_output.py -v
 
-### Dependency Management
+# Integration tests only
+run-tests -- --integration
+
+# With coverage
+run-tests -- --cov=mcp_nixos
+```
+
+**Test Best Practices**
+- Mock API responses, not MCP protocol
+- Test plain text output format consistency
+- Verify error handling returns proper format
+- No filesystem dependencies (stateless)
+
+
+### Dependency Management (v1.0.0 - Lean & Mean)
 - Project uses `pyproject.toml` for dependency specification (PEP 621)
-- Core dependencies:
+- Core dependencies (reduced from 5 to 3):
   - `mcp>=1.5.0`: Base MCP framework
   - `requests>=2.32.3`: HTTP client for API interactions
-  - `python-dotenv>=1.1.0`: Environment variable management
   - `beautifulsoup4>=4.13.3`: HTML parsing for documentation
-  - `psutil>=5.9.8`: Process and system utilities for orphan cleanup
+- Removed dependencies:
+  - ~~`python-dotenv`~~ - No config files to load
+  - ~~`psutil`~~ - No orphan processes to manage
 - Dev dependencies defined in `[project.optional-dependencies]`
-- Setup script ensures all dependencies are properly installed
 
 ### Installation & Usage
 - Install: `pip install mcp-nixos`, `uv pip install mcp-nixos`, `uvx mcp-nixos`
 - Claude Code configuration: Add to `~/.config/claude/config.json`
 - Docker deployment:
   - Standard use: `docker run --rm ghcr.io/utensils/mcp-nixos`
-  - Docker image includes pre-cached data for immediate startup
-  - Build with pre-cache: `docker build -t mcp-nixos .`
+  - Build: `docker build -t mcp-nixos .`
   - Deployed on Smithery.ai as a hosted service
-- Interactive CLI (deprecated from v0.3.1):
-  - For manual testing, use a JSON-capable HTTP client like HTTPie or curl
-  - Example: `echo '{"type":"call","tool":"nixos_search","params":{"query":"python"}}' | nc localhost 8080`
 - Development:
   - Environment: `nix develop`
   - Run server: `run`
-  - Pre-cache data: `python -m mcp_nixos --pre-cache`
   - Tests: `run-tests`, `run-tests --unit`, `run-tests --integration`
   - Code quality: `lint`, `typecheck`, `format`
   - Stats: `loc`
@@ -370,14 +285,30 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 ### Licensing and Attribution
 - Project code is licensed under MIT License
 - The NixOS snowflake logo is used with attribution to the NixOS project
-- Project assets include:
-  - `nixos-flake.svg`: NixOS snowflake logo in blue (monochrome)
-  - `nixos-snowflake-colour.svg`: NixOS snowflake logo with gradient colors
-  - `mcp-nixos.png`: Project logo incorporating the NixOS snowflake design
-  - Favicon files derived from the project logo
-- Logo attribution must be maintained in:
-  - README.md attribution section
-  - Website footer with link to attribution details
-  - Attribution document in website/public/images/attribution.md
-- Attribution document must specify both "NixOS" and "NixOS snowflake logo"
-- When adding or modifying logo files, update all attribution locations
+
+## Quick Implementation Reference
+
+**File Structure (v1.0.0)**
+```
+mcp_nixos/
+├── server.py      # ~500 lines - All 13 MCP tools
+└── __main__.py    # 28 lines - Entry point
+
+tests/
+├── test_plain_text_output.py     # Plain text validation
+├── test_real_integration.py      # Real API tests
+└── test_server_comprehensive.py  # Unit tests
+```
+
+**Adding a New Tool**
+1. Add function with `@mcp.tool()` decorator in server.py
+2. Return plain text string (no XML!)
+3. Use consistent formatting (bullets, key-value pairs)
+4. Add tests for plain text output
+
+**Key URLs**
+- NixOS API: https://search.nixos.org/backend
+- Home Manager: https://nix-community.github.io/home-manager/options.xhtml
+- Darwin: https://nix-darwin.github.io/nix-darwin/manual/index.html
+
+Remember: Less code = fewer bugs. Keep it simple!

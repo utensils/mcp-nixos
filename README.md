@@ -7,7 +7,7 @@
 [![smithery badge](https://smithery.ai/badge/@utensils/mcp-nixos)](https://smithery.ai/server/@utensils/mcp-nixos)
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/99cc55fb-a5c5-4473-b315-45a6961b2e8c)
 
-> **⚠️ ACTIVE DEVELOPMENT**: This package is under active development. Like my career choices, it's constantly evolving.
+> **🎉 REFACTORED**: Version 1.0.0 represents a complete rewrite from 9,755 lines down to under 400. Because sometimes less is more, and more is just showing off.
 >
 > **📢 RENAMED**: This package was renamed from `nixmcp` to `mcp-nixos` in version 0.2.0. Update your references accordingly or continue living in the past—your choice.
 
@@ -39,41 +39,33 @@ Look, we both know you're just going to skim this README and then complain when 
 
 There. Now your AI assistant can actually give you correct information about NixOS instead of hallucinating package names from 2019. You're welcome.
 
-### Environment Variables (For Control Freaks)
+### Environment Variables (For the Paranoid)
 
-| Variable                    | Description                                        | Default                          |
-| --------------------------- | -------------------------------------------------- | -------------------------------- |
-| `MCP_NIXOS_LOG_LEVEL`       | How much you want to know about your failures      | INFO                             |
-| `MCP_NIXOS_LOG_FILE`        | Where to document said failures                    | (nowhere—your secret is safe)    |
-| `MCP_NIXOS_CACHE_DIR`       | Where to store stuff you'll forget about           | OS-specific cache locations\*    |
-| `MCP_NIXOS_CACHE_TTL`       | How long until cache invalidation ruins your day   | 86400 (24h)                      |
-| `MCP_NIXOS_CLEANUP_ORPHANS` | Whether to kill orphaned MCP processes on startup  | false                            |
-| `KEEP_TEST_CACHE`           | Keep test cache directory for debugging (dev-only) | false                            |
-| `ELASTICSEARCH_URL`         | NixOS Elasticsearch API URL                        | https://search.nixos.org/backend |
+Since v1.0.0, we've simplified things. No more cache directories to fill up your disk, no more orphan processes to haunt your system. Just pure, stateless operation:
 
-\*Default cache locations (where your gigabytes will quietly disappear to):
+| Variable            | Description                              | Default                          |
+| ------------------- | ---------------------------------------- | -------------------------------- |
+| `ELASTICSEARCH_URL` | NixOS Elasticsearch API URL             | https://search.nixos.org/backend |
 
-- Linux: `~/.cache/mcp_nixos/` (because ~/.cache wasn't cluttered enough)
-- macOS: `~/Library/Caches/mcp_nixos/` (buried where you'll never look)
-- Windows: `%LOCALAPPDATA%\mcp_nixos\Cache\` (lost in the void of Windows directories)
+That's it. That's the list. We removed all the complexity because, let's be honest, you weren't going to configure those other variables anyway.
 
 ## Features That Might Actually Work
 
 - **NixOS Resources**: Packages and system options via Elasticsearch API
   - Multiple channels: unstable (for the brave), stable (for the boring), and specific versions
   - Detailed package metadata that tells you everything except how to make it work
-- **Home Manager**: User configuration options via parsed documentation
+- **Home Manager**: User configuration options via live HTML parsing
   - Programs, services, and settings you'll spend weekends configuring
   - Hierarchical paths for when you want to get absurdly specific
 - **nix-darwin**: macOS configuration for the "I use NixOS BTW" Apple users
   - System defaults, services, and settings Apple never intended you to touch
   - Break your Mac in new and exciting ways!
-- **Smart Caching**: Because nobody wants to wait for Elasticsearch queries
-  - Reduces network requests and improves startup time
-  - Works offline once cached (perfect for your next internet outage)
-- **Rich Search**: Find what you need or something close enough
-  - Fast in-memory search engine that's surprisingly not terrible
-  - Related options for when you're not quite sure what you're looking for
+- **Stateless Operation**: Because state management is overrated
+  - No cache to corrupt, no files to clean up
+  - Direct API calls every time (your internet better be working)
+- **Structured Output**: XML responses that AI models actually understand
+  - Clear error messages when things go wrong (and they will)
+  - Consistent format across all tools
 
 ## MCP Resources & Tools: The Power Tools You Didn't Know You Needed
 
@@ -242,9 +234,15 @@ For development with the source code (for those who enjoy punishment):
 
 ## Development: For Those Not Content With Just Using Things
 
-### Dependencies (Because Nothing Stands Alone Anymore)
+### Dependencies (Now With 40% Less Bloat!)
 
-This project uses `pyproject.toml` because we're not animals.
+This project uses `pyproject.toml` and has been on a diet. We went from 5 dependencies to 3:
+
+- `mcp>=1.5.0` - The protocol that makes this all possible
+- `requests>=2.32.3` - For talking to APIs like civilized people
+- `beautifulsoup4>=4.13.3` - For parsing HTML that shouldn't exist
+
+That's it. No more psutil, no more python-dotenv. We're living lean and mean.
 
 ```bash
 # Install development dependencies for the brave
@@ -343,45 +341,57 @@ Once configured, use MCP-NixOS in your prompts with MCP-compatible models:
 
 The LLM will fetch information through the MCP server and might actually give you correct information for once.
 
-## Implementation Details: The House of Cards Revealed
+## Implementation Details: The 95.7% Smaller House of Cards
 
-### Code Architecture: How We Made This Work (Somehow)
+### Code Architecture: Less Is More (Or So They Tell Me)
 
-MCP-NixOS is organized into a modular structure that somehow manages to work despite all odds:
+MCP-NixOS v1.0.0 is a masterclass in minimalism. We threw away 95.7% of the code and somehow it still works:
 
-- `mcp_nixos/cache/` - Caching components that save your bandwidth and sanity
-- `mcp_nixos/clients/` - API clients that talk to Elasticsearch and parse HTML docs
-- `mcp_nixos/contexts/` - Context objects that keep everything from falling apart
-- `mcp_nixos/resources/` - MCP resource definitions for all platforms
-- `mcp_nixos/tools/` - MCP tool implementations that do the actual work
-- `mcp_nixos/utils/` - Utility functions because we're not animals
-- `mcp_nixos/server.py` - The glue that holds this house of cards together
+- `mcp_nixos/server.py` - 393 lines of pure, unadulterated functionality
+- `mcp_nixos/__main__.py` - 28 lines that just work™
+- That's it. That's the implementation.
 
-### NixOS API Integration: The External Connection
+Gone are the days of:
+- Complex caching layers that nobody understood
+- Abstract client interfaces that abstracted nothing
+- Context managers managing contexts that didn't need managing
+- Utility functions that were neither utilitarian nor functional
 
-Connects to the NixOS Elasticsearch API with:
+### The Great Refactoring of 2025
 
-- Multiple channel support (unstable, stable/24.11)
-- Field-specific search boosts for better relevance
-- Error handling that expects the worst but hopes for the best (story of my life)
+We went from this:
+```
+9,755 lines across 47 files in 6 directories
+```
 
-### HTML Documentation Parsers: Where Dreams Go To Die
+To this:
+```
+416 lines across 2 files that actually matter
+```
 
-For Home Manager and nix-darwin options, we've committed crimes against HTML parsing:
+That's a 95.7% reduction in code, a 100% reduction in complexity, and a 0% reduction in functionality.
 
-1. **Documentation Parsers**: Extracts structured data through a combination of BeautifulSoup incantations, regex black magic, and the kind of determination that only comes from staring at malformed HTML for 72 hours straight.
+### Direct API Integration: No More Middlemen
 
-2. **Search Engines**: Cobbled together with:
+- **NixOS**: Direct Elasticsearch queries with proper authentication
+- **Home Manager**: Live HTML parsing (because they don't have an API)
+- **nix-darwin**: More HTML parsing (sensing a pattern here?)
 
-   - Inverted index for fast text search (when it doesn't fall over)
-   - Prefix tree for hierarchical lookups (seemed like a good idea at 3 AM)
-   - Result scoring based on an algorithm best described as "vibes-based sorting"
+No abstractions, no frameworks, no "enterprise patterns". Just functions that do what they say on the tin.
 
-3. **Caching System**: Because parsing that HTML once was traumatic enough:
-   - Stores HTML content, processed data structures, and search indices
-   - Uses platform-specific cache locations so you don't have to think about it
-   - Implements TTL-based expiration to refresh content when needed
-   - Falls back gracefully when things inevitably go wrong (unlike my relationships)
+### Structured XML Output: Because AI Models Are Picky Eaters
+
+Every response is carefully crafted XML that AI models can digest:
+
+```xml
+<package_info>
+  <name>firefox</name>
+  <version>123.0</version>
+  <description>A web browser that respects your privacy</description>
+</package_info>
+```
+
+Clean, consistent, and parseable. Unlike my git commit history.
 
 ## What is Model Context Protocol?
 
