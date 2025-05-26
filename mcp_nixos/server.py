@@ -625,8 +625,45 @@ def home_manager_info(name: str) -> str:
 @mcp.tool()
 def home_manager_stats() -> str:
     """Get Home Manager statistics."""
-    return """Home Manager statistics require parsing the full documentation.
-Use home_manager_list_options to see available option categories."""
+    try:
+        # Parse all options to get statistics
+        options = parse_html_options(HOME_MANAGER_URL, limit=5000)
+
+        if not options:
+            return error("Failed to fetch Home Manager statistics")
+
+        # Count categories
+        categories = {}
+        for opt in options:
+            cat = opt["name"].split(".")[0]
+            categories[cat] = categories.get(cat, 0) + 1
+
+        # Count types
+        types = {}
+        for opt in options:
+            opt_type = opt.get("type", "unknown")
+            if opt_type:
+                # Simplify complex types
+                if "null or" in opt_type:
+                    opt_type = "nullable"
+                elif "list of" in opt_type:
+                    opt_type = "list"
+                elif "attribute set" in opt_type:
+                    opt_type = "attribute set"
+                types[opt_type] = types.get(opt_type, 0) + 1
+
+        # Build statistics
+        return f"""Home Manager Statistics:
+• Total options: {len(options):,}
+• Categories: {len(categories)}
+• Top categories:
+  - programs: {categories.get('programs', 0):,} options
+  - services: {categories.get('services', 0):,} options
+  - home: {categories.get('home', 0):,} options
+  - wayland: {categories.get('wayland', 0):,} options
+  - xsession: {categories.get('xsession', 0):,} options"""
+    except Exception as e:
+        return error(str(e))
 
 
 @mcp.tool()
@@ -752,8 +789,45 @@ def darwin_info(name: str) -> str:
 @mcp.tool()
 def darwin_stats() -> str:
     """Get nix-darwin statistics."""
-    return """nix-darwin statistics require parsing the full documentation.
-Use darwin_list_options to see available option categories."""
+    try:
+        # Parse all options to get statistics
+        options = parse_html_options(DARWIN_URL, limit=3000)
+
+        if not options:
+            return error("Failed to fetch nix-darwin statistics")
+
+        # Count categories
+        categories = {}
+        for opt in options:
+            cat = opt["name"].split(".")[0]
+            categories[cat] = categories.get(cat, 0) + 1
+
+        # Count types
+        types = {}
+        for opt in options:
+            opt_type = opt.get("type", "unknown")
+            if opt_type:
+                # Simplify complex types
+                if "null or" in opt_type:
+                    opt_type = "nullable"
+                elif "list of" in opt_type:
+                    opt_type = "list"
+                elif "attribute set" in opt_type:
+                    opt_type = "attribute set"
+                types[opt_type] = types.get(opt_type, 0) + 1
+
+        # Build statistics
+        return f"""nix-darwin Statistics:
+• Total options: {len(options):,}
+• Categories: {len(categories)}
+• Top categories:
+  - services: {categories.get('services', 0):,} options
+  - system: {categories.get('system', 0):,} options
+  - launchd: {categories.get('launchd', 0):,} options
+  - programs: {categories.get('programs', 0):,} options
+  - homebrew: {categories.get('homebrew', 0):,} options"""
+    except Exception as e:
+        return error(str(e))
 
 
 @mcp.tool()
@@ -796,6 +870,130 @@ def darwin_options_by_prefix(option_prefix: str) -> str:
             results.append(f"• {opt['name']}")
             if opt["description"]:
                 results.append(f"  {opt['description']}")
+            results.append("")
+
+        return "\n".join(results).strip()
+
+    except Exception as e:
+        return error(str(e))
+
+
+@mcp.tool()
+def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
+    """Search NixOS flakes by name, description, owner, or repository.
+
+    Note: Flakes are indexed separately from packages/options. Channel parameter
+    is ignored as flakes use a different indexing system.
+    """
+    if not 1 <= limit <= 100:
+        return error("Limit must be 1-100")
+
+    try:
+        # Flakes are indexed in separate indices with pattern group-*-manual-*
+        # We search across all of them
+        flake_index = "group-*-manual-*"
+
+        # Build query for flakes
+        q = {
+            "bool": {
+                "should": [
+                    {"match": {"flake_name": {"query": query, "boost": 3}}},
+                    {"match": {"flake_description": {"query": query, "boost": 2}}},
+                    {"match": {"package_pname": {"query": query, "boost": 1.5}}},
+                    {"match": {"package_description": query}},
+                    {"term": {"flake_resolved.owner": {"value": query, "boost": 2}}},
+                    {"term": {"flake_resolved.repo": {"value": query, "boost": 2}}},
+                ],
+                "minimum_should_match": 1,
+            }
+        }
+
+        # Execute search directly against flake indices
+        try:
+            resp = requests.post(
+                f"{NIXOS_API}/{flake_index}/_search", json={"query": q, "size": limit}, auth=NIXOS_AUTH, timeout=10
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            hits = data.get("hits", {}).get("hits", [])
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                # No flake indices found
+                return error("Flake indices not found. Flake search may be temporarily unavailable.")
+            raise
+
+        # Format results as plain text
+        if not hits:
+            return f"""No flakes found matching '{query}'.
+
+Try searching for:
+• Popular flakes: nixpkgs, home-manager, flake-utils, devenv
+• By owner: nix-community, numtide, cachix
+• By topic: python, rust, nodejs, devops
+
+Browse flakes at:
+• GitHub: https://github.com/topics/nix-flakes
+• FlakeHub: https://flakehub.com/"""
+
+        # Group hits by flake to avoid duplicates
+        flakes = {}
+        for hit in hits:
+            src = hit.get("_source", {})
+            # Get flake information
+            name = src.get("flake_name", "")
+            if not name:
+                name = src.get("package_pname", "")
+
+            if not name:
+                continue
+
+            # Create unique key for the flake
+            resolved = src.get("flake_resolved", {})
+            if isinstance(resolved, dict):
+                owner = resolved.get("owner", "")
+                repo = resolved.get("repo", "")
+                flake_key = f"{owner}/{repo}/{name}" if owner and repo else name
+            else:
+                flake_key = name
+
+            # Initialize flake entry if not seen
+            if flake_key not in flakes:
+                flakes[flake_key] = {
+                    "name": name,
+                    "description": src.get("flake_description") or src.get("package_description", ""),
+                    "owner": resolved.get("owner", "") if isinstance(resolved, dict) else "",
+                    "repo": resolved.get("repo", "") if isinstance(resolved, dict) else "",
+                    "type": resolved.get("type", "") if isinstance(resolved, dict) else "",
+                    "packages": [],
+                }
+
+            # Add package if available
+            attr_name = src.get("package_attr_name", "")
+            if attr_name and attr_name not in flakes[flake_key]["packages"]:
+                flakes[flake_key]["packages"].append(attr_name)
+
+        # Build results
+        results = []
+        results.append(f"Found {len(flakes)} unique flakes matching '{query}':\n")
+
+        for flake in flakes.values():
+            results.append(f"• {flake['name']}")
+            if flake["owner"] and flake["repo"]:
+                results.append(
+                    f"  Repository: {flake['owner']}/{flake['repo']}" + (f" ({flake['type']})" if flake["type"] else "")
+                )
+            if flake["description"]:
+                desc = flake["description"]
+                if len(desc) > 200:
+                    desc = desc[:200] + "..."
+                results.append(f"  {desc}")
+            if flake["packages"]:
+                # Show max 5 packages, sorted
+                packages = sorted(flake["packages"])[:5]
+                if len(flake["packages"]) > 5:
+                    results.append(f"  Packages: {', '.join(packages)}, ... ({len(flake['packages'])} total)")
+                else:
+                    results.append(f"  Packages: {', '.join(packages)}")
             results.append("")
 
         return "\n".join(results).strip()

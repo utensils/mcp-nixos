@@ -466,11 +466,28 @@ class TestHomeManagerTools:
             "Tip: Use home_manager_options_by_prefix('programs.git.enable') to browse available options."
         )
 
-    def test_home_manager_stats(self):
+    @patch("requests.get")
+    def test_home_manager_stats(self, mock_get):
         """Test Home Manager stats message."""
+        mock_html = """
+        <html>
+        <body>
+            <dl class="variablelist">
+                <dt id="opt-programs.git.enable">programs.git.enable</dt>
+                <dd>Enable git</dd>
+                <dt id="opt-services.gpg-agent.enable">services.gpg-agent.enable</dt>
+                <dd>Enable gpg-agent</dd>
+            </dl>
+        </body>
+        </html>
+        """
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = mock_html
+
         result = home_manager_stats()
-        assert "Home Manager statistics require parsing the full documentation" in result
-        assert "Use home_manager_list_options" in result
+        assert "Home Manager Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
 
     @patch("mcp_nixos.server.parse_html_options")
     def test_home_manager_list_options_success(self, mock_parse):
@@ -531,10 +548,28 @@ class TestDarwinTools:
         assert "Type: boolean" in result
         assert "Description: Auto-hide the dock" in result
 
-    def test_darwin_stats(self):
+    @patch("requests.get")
+    def test_darwin_stats(self, mock_get):
         """Test Darwin stats message."""
+        mock_html = """
+        <html>
+        <body>
+            <dl>
+                <dt>system.defaults.dock.autohide</dt>
+                <dd>Auto-hide the dock</dd>
+                <dt>services.nix-daemon.enable</dt>
+                <dd>Enable nix-daemon</dd>
+            </dl>
+        </body>
+        </html>
+        """
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = mock_html
+
         result = darwin_stats()
-        assert "nix-darwin statistics require parsing the full documentation" in result
+        assert "nix-darwin Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
 
     @patch("mcp_nixos.server.parse_html_options")
     def test_darwin_list_options_success(self, mock_parse):

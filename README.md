@@ -85,8 +85,10 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 **Tools:**
 
 - `nixos_search(query, type, channel)` - The search function you'll use most
+- `nixos_flakes_search(query, limit)` - Search NixOS flakes (deduplicated results)
 - `nixos_info(name, type, channel)` - Get package or option details
 - `nixos_stats(channel)` - Get NixOS statistics nobody asked for
+- `nixos_channels()` - List available channels with their status
 
 **Channels:**
 
@@ -107,6 +109,7 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 
 - `home_manager_search(query)` - Search configuration options
 - `home_manager_info(name)` - Get option details (exact name required, but we'll suggest alternatives)
+- `home_manager_stats()` - Get statistics showing total options and top categories
 - `home_manager_options_by_prefix(option_prefix)` - Get options by prefix
 - `home_manager_list_options()` - List all option categories when overwhelmed
 
@@ -123,6 +126,7 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 
 - `darwin_search(query)` - Search macOS configuration options
 - `darwin_info(name)` - Get option details (exact name required, suggestions provided)
+- `darwin_stats()` - Get statistics showing total options and top categories
 - `darwin_options_by_prefix(option_prefix)` - Get options by prefix
 - `darwin_list_options()` - List all option categories
 
@@ -132,17 +136,21 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 # NixOS examples for when you're pretending to know what you're doing
 nixos_search(query="firefox", type="packages", channel="unstable")
 nixos_search(query="postgresql", type="options", channel="stable")
+nixos_flakes_search(query="home-manager", limit=20)
 nixos_info(name="firefox", type="package")
 nixos_info(name="services.postgresql.enable", type="option")
+nixos_channels()  # See what channels are available
 
 # Home Manager examples for the domestic configuration enthusiasts
 home_manager_search(query="programs.git")
 home_manager_info(name="programs.firefox.enable")
+home_manager_stats()  # See what's available at a glance
 home_manager_options_by_prefix(option_prefix="programs.git")
 
 # nix-darwin examples for the masochistic Mac users
 darwin_search(query="system.defaults.dock")
 darwin_info(name="services.yabai.enable")
+darwin_stats()  # See the macOS chaos quantified
 darwin_options_by_prefix(option_prefix="system.defaults")
 ```
 

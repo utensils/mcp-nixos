@@ -11,14 +11,17 @@ from mcp_nixos.server import (
     nixos_search,
     nixos_info,
     nixos_stats,
+    nixos_flakes_search,
     home_manager_search,
     home_manager_info,
     home_manager_list_options,
     home_manager_options_by_prefix,
+    home_manager_stats,
     darwin_search,
     darwin_info,
     darwin_list_options,
     darwin_options_by_prefix,
+    darwin_stats,
 )
 
 
@@ -75,14 +78,17 @@ class AnthropicEvaluator:
             "nixos_search": nixos_search,
             "nixos_info": nixos_info,
             "nixos_stats": nixos_stats,
+            "nixos_flakes_search": nixos_flakes_search,
             "home_manager_search": home_manager_search,
             "home_manager_info": home_manager_info,
             "home_manager_list_options": home_manager_list_options,
             "home_manager_options_by_prefix": home_manager_options_by_prefix,
+            "home_manager_stats": home_manager_stats,
             "darwin_search": darwin_search,
             "darwin_info": darwin_info,
             "darwin_list_options": darwin_list_options,
             "darwin_options_by_prefix": darwin_options_by_prefix,
+            "darwin_stats": darwin_stats,
         }
 
     def create_tools_description(self) -> List[Dict[str, Any]]:
@@ -203,6 +209,28 @@ class AnthropicEvaluator:
                     },
                     "required": ["option_prefix"],
                 },
+            },
+            {
+                "name": "nixos_flakes_search",
+                "description": "Search for NixOS flakes in the flake registry",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query for flakes"},
+                        "limit": {"type": "integer", "default": 20, "minimum": 1, "maximum": 100},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "home_manager_stats",
+                "description": "Get Home Manager statistics showing total options and categories",
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "darwin_stats",
+                "description": "Get nix-darwin statistics showing total options and categories",
+                "input_schema": {"type": "object", "properties": {}},
             },
         ]
 
@@ -492,6 +520,50 @@ EVAL_SCENARIOS = [
         ],
         description="Test development environment guidance",
     ),
+    EvalScenario(
+        name="flake_search_home_manager",
+        user_query="Find the home-manager flake for managing user configurations",
+        expected_behaviors=[
+            "tool call: nixos_flakes_search",
+            "mentions nix-community/home-manager",
+            "mentions github:nix-community/home-manager",
+            "provides flake URL",
+        ],
+        description="Test flake search functionality",
+    ),
+    EvalScenario(
+        name="flake_search_devenv",
+        user_query="I need a flake for setting up development environments, something like devenv",
+        expected_behaviors=[
+            "tool call: nixos_flakes_search",
+            "mentions cachix/devenv",
+            "mentions reproducible",
+            "provides flake information",
+        ],
+        description="Test searching for development flakes",
+    ),
+    EvalScenario(
+        name="home_manager_statistics",
+        user_query="How many configuration options does Home Manager have?",
+        expected_behaviors=[
+            "tool call: home_manager_stats",
+            "mentions 2129",
+            "mentions categories",
+            "mentions programs",
+        ],
+        description="Test Home Manager statistics functionality",
+    ),
+    EvalScenario(
+        name="darwin_statistics",
+        user_query="Show me statistics about nix-darwin configuration options",
+        expected_behaviors=[
+            "tool call: darwin_stats",
+            "mentions total options",
+            "mentions categories",
+            "mentions services",
+        ],
+        description="Test Darwin statistics functionality",
+    ),
 ]
 
 
@@ -595,6 +667,58 @@ class TestAnthropicEvals:
 
         assert result.score >= 0.25  # Very low threshold for complex scenario
         assert len(result.tool_calls) > 0
+
+    def test_flake_search_home_manager(self, evaluator):
+        """Test flake search for home-manager."""
+        scenario = EVAL_SCENARIOS[6]
+        result = evaluator.run_scenario(scenario)
+
+        print(f"\nScenario: {scenario.name}")
+        print(f"Score: {result.score:.2f}")
+        print(f"Tool calls: {len(result.tool_calls)}")
+        print(f"Reasoning: {result.reasoning}")
+
+        assert result.score >= 0.5
+        assert any(tc.name == "nixos_flakes_search" for tc in result.tool_calls)
+
+    def test_flake_search_devenv(self, evaluator):
+        """Test flake search for development environments."""
+        scenario = EVAL_SCENARIOS[7]
+        result = evaluator.run_scenario(scenario)
+
+        print(f"\nScenario: {scenario.name}")
+        print(f"Score: {result.score:.2f}")
+        print(f"Tool calls: {len(result.tool_calls)}")
+        print(f"Reasoning: {result.reasoning}")
+
+        assert result.score >= 0.5
+        assert any("devenv" in str(tc.arguments).lower() for tc in result.tool_calls)
+
+    def test_home_manager_statistics(self, evaluator):
+        """Test Home Manager statistics functionality."""
+        scenario = EVAL_SCENARIOS[8]
+        result = evaluator.run_scenario(scenario)
+
+        print(f"\nScenario: {scenario.name}")
+        print(f"Score: {result.score:.2f}")
+        print(f"Tool calls: {len(result.tool_calls)}")
+        print(f"Reasoning: {result.reasoning}")
+
+        assert result.score >= 0.5
+        assert any(tc.name == "home_manager_stats" for tc in result.tool_calls)
+
+    def test_darwin_statistics(self, evaluator):
+        """Test Darwin statistics functionality."""
+        scenario = EVAL_SCENARIOS[9]
+        result = evaluator.run_scenario(scenario)
+
+        print(f"\nScenario: {scenario.name}")
+        print(f"Score: {result.score:.2f}")
+        print(f"Tool calls: {len(result.tool_calls)}")
+        print(f"Reasoning: {result.reasoning}")
+
+        assert result.score >= 0.5
+        assert any(tc.name == "darwin_stats" for tc in result.tool_calls)
 
 
 def generate_evaluation_report(results: List[EvalResult]) -> str:

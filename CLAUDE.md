@@ -210,29 +210,41 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - HTML Stripping: Removes `<rendered-html>` tags
   - Home Manager Parsing: Extracts from anchor IDs
   - List Limits: 4000 for Home Manager, 2000 for Darwin
+  - Flake Search: Added `nixos_flakes_search` with deduplication
+  - Home Manager Stats: Now returns actual statistics instead of redirect
+  - Darwin Stats: Now returns actual statistics instead of redirect
+  - Channel Discovery: Added `nixos_channels` tool
 
 ## API Reference (v1.0.0 - Tools Only)
 
 ### NixOS Tools (Elasticsearch API)
 - `nixos_search(query, type, channel)` - Search packages/options/programs
   - Returns: Plain text list with bullet points
+  - Type "flakes" redirects to nixos_flakes_search
+- `nixos_flakes_search(query, limit)` - Search NixOS flakes
+  - Returns: Deduplicated list of unique flakes with aggregated packages
+  - Searches across flake indices (group-*-manual-*)
 - `nixos_info(name, type, channel)` - Get package or option details  
   - Returns: Key-value pairs (Package:, Version:, etc.)
 - `nixos_stats(channel)` - Get statistics
   - Returns: Formatted statistics with bullet points
+- `nixos_channels()` - List available channels with status
+  - Returns: Channel list with availability indicators
 - Channels: unstable (default), stable (dynamically resolved), beta (alias for stable), version numbers
 
 ### Home Manager Tools (HTML Parsing)
 - `home_manager_search(query)` - Search configuration options
 - `home_manager_info(name)` - Get specific option details (requires exact name, provides suggestions)
-- `home_manager_stats()` - Returns informational message (redirects to list_options)
+- `home_manager_stats()` - Get Home Manager statistics
+  - Returns: Total options, categories, and top 5 categories with percentages
 - `home_manager_list_options()` - List all option categories (131 categories, 2129+ options)
 - `home_manager_options_by_prefix(prefix)` - Get options under a prefix (use to find exact names)
 
 ### nix-darwin Tools (HTML Parsing)
 - `darwin_search(query)` - Search macOS configuration options
 - `darwin_info(name)` - Get specific option details (requires exact name, provides suggestions)
-- `darwin_stats()` - Returns informational message (redirects to list_options)
+- `darwin_stats()` - Get nix-darwin statistics
+  - Returns: Total options, categories, and top 5 categories
 - `darwin_list_options()` - List all option categories (21 categories)
 - `darwin_options_by_prefix(prefix)` - Get options under a prefix (use to find exact names)
 
@@ -268,11 +280,15 @@ All tools return human-readable plain text, not XML or JSON.
 - `test_plain_text_output.py` - Validates all outputs are plain text
 - `test_real_integration.py` - Tests against real APIs
 - `test_server_comprehensive.py` - Comprehensive unit tests
+- `test_flake_search.py` - Flake search functionality tests (10 tests)
+- `test_fixes_comprehensive.py` - Tests for flake deduplication and stats improvements (12 tests)
 - `test_dynamic_channels.py` - Dynamic channel resolution tests (16 tests)
 - `test_option_info_improvements.py` - Option info error message tests (9 tests)
 - `test_mcp_behavior_comprehensive.py` - Real-world usage patterns (13 tests)
 - `test_real_world_scenarios.py` - Complete user workflows (10 tests)
 - `test_channel_handling.py` - Channel validation and suggestions
+- `test_flake_evals.py` - Flake search evaluation tests
+- `test_flake_evals_anthropic.py` - Flake search Anthropic API tests (requires API key)
 - `test_evals_anthropic.py` - Anthropic API evaluation tests (requires API key)
 
 **Running Tests**
