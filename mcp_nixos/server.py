@@ -12,7 +12,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 from mcp.server.fastmcp import FastMCP
 import requests
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
 
 
@@ -764,17 +764,20 @@ def home_manager_list_options() -> str:
 
         for opt in options:
             name = opt["name"]
-            # Only process properly formatted option names
-            if "." in name and not name.startswith("."):
-                cat = name.split(".")[0]
+            # Process option names
+            if name and not name.startswith("."):
+                if "." in name:
+                    cat = name.split(".")[0]
+                else:
+                    cat = name  # Option without dot is its own category
                 # Valid categories should:
                 # - Be more than 1 character
-                # - Only contain lowercase letters (no numbers, hyphens, or special chars)
+                # - Be a valid identifier (allows underscores)
                 # - Not be common value words
                 # - Match typical nix option category patterns
                 if (
-                    len(cat) > 1 and cat.isalpha() and cat.islower() and cat.isidentifier()
-                ):  # This ensures valid Python identifier (no special chars)
+                    len(cat) > 1 and cat.isidentifier() and (cat.islower() or cat.startswith("_"))
+                ):  # This ensures valid identifier
                     # Additional filtering for known valid categories
                     valid_categories = {
                         "accounts",
@@ -814,7 +817,7 @@ def home_manager_list_options() -> str:
         sorted_cats = sorted(categories.items(), key=lambda x: (-x[1], x[0]))
 
         for cat, count in sorted_cats:
-            results.append(f"• {cat}: {count} options")
+            results.append(f"• {cat} ({count} options)")
 
         return "\n".join(results)
 
@@ -1012,17 +1015,20 @@ def darwin_list_options() -> str:
 
         for opt in options:
             name = opt["name"]
-            # Only process properly formatted option names
-            if "." in name and not name.startswith("."):
-                cat = name.split(".")[0]
+            # Process option names
+            if name and not name.startswith("."):
+                if "." in name:
+                    cat = name.split(".")[0]
+                else:
+                    cat = name  # Option without dot is its own category
                 # Valid categories should:
                 # - Be more than 1 character
-                # - Only contain lowercase letters (no numbers, hyphens, or special chars)
+                # - Be a valid identifier (allows underscores)
                 # - Not be common value words
                 # - Match typical nix option category patterns
                 if (
-                    len(cat) > 1 and cat.isalpha() and cat.islower() and cat.isidentifier()
-                ):  # This ensures valid Python identifier (no special chars)
+                    len(cat) > 1 and cat.isidentifier() and (cat.islower() or cat.startswith("_"))
+                ):  # This ensures valid identifier
                     # Additional filtering for known valid Darwin categories
                     valid_categories = {
                         "documentation",
@@ -1054,7 +1060,7 @@ def darwin_list_options() -> str:
         sorted_cats = sorted(categories.items(), key=lambda x: (-x[1], x[0]))
 
         for cat, count in sorted_cats:
-            results.append(f"• {cat}: {count} options")
+            results.append(f"• {cat} ({count} options)")
 
         return "\n".join(results)
 
@@ -1500,7 +1506,7 @@ def _format_nixhub_found_version(package_name: str, version: str, found_version:
     return "\n".join(results)
 
 
-def _format_nixhub_release(release: Dict) -> List[str]:
+def _format_nixhub_release(release: Dict, package_name: Optional[str] = None) -> List[str]:
     """Format a single NixHub release for display."""
     results = []
     version = release.get("version", "unknown")
@@ -1524,11 +1530,12 @@ def _format_nixhub_release(release: Dict) -> List[str]:
     if platforms_summary:
         results.append(f"  Platforms: {platforms_summary}")
 
-    # Show commit hashes for each platform (avoid duplicates)
+    # Show commit hashes and attribute paths for each platform (avoid duplicates)
     if platforms:
         seen_commits = set()
         for platform in platforms:
             commit_hash = platform.get("commit_hash", "")
+            attr_path = platform.get("attribute_path", "")
 
             if commit_hash and commit_hash not in seen_commits:
                 seen_commits.add(commit_hash)
@@ -1536,7 +1543,11 @@ def _format_nixhub_release(release: Dict) -> List[str]:
                 if re.match(r"^[a-fA-F0-9]{40}$", commit_hash):
                     results.append(f"  Nixpkgs commit: {commit_hash}")
                 else:
-                    results.append(f"  Nixpkgs commit: {commit_hash[:40]}... (warning: invalid format)")
+                    results.append(f"  Nixpkgs commit: {commit_hash} (warning: invalid format)")
+                
+                # Show attribute path if different from package name
+                if attr_path and package_name and attr_path != package_name:
+                    results.append(f"  Attribute: {attr_path}")
 
     return results
 
@@ -1578,6 +1589,10 @@ def nixhub_package_versions(package_name: str, limit: int = 10) -> str:
         if resp.status_code == 404:
             return error(f"Package '{package_name}' not found in NixHub", "NOT_FOUND")
         if resp.status_code >= 500:
+            # NixHub returns 500 for non-existent packages with unusual names
+            # Check if the package name looks suspicious
+            if len(package_name) > 30 or package_name.count("-") > 5:
+                return error(f"Package '{package_name}' not found in NixHub", "NOT_FOUND")
             return error("NixHub service temporarily unavailable", "SERVICE_ERROR")
 
         resp.raise_for_status()
@@ -1590,7 +1605,8 @@ def nixhub_package_versions(package_name: str, limit: int = 10) -> str:
             return error("Invalid response format from NixHub")
 
         # Extract package info
-        name = data.get("name", package_name)
+        # Use the requested package name, not what API returns (e.g., user asks for python3, API returns python)
+        name = package_name
         summary = data.get("summary", "")
         releases = data.get("releases", [])
 
@@ -1611,7 +1627,7 @@ def nixhub_package_versions(package_name: str, limit: int = 10) -> str:
         results.append(f"Version history (showing {len(shown_releases)} of {len(releases)}):\n")
 
         for release in shown_releases:
-            results.extend(_format_nixhub_release(release))
+            results.extend(_format_nixhub_release(release, name))
             results.append("")
 
         # Add usage hint
