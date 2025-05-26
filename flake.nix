@@ -374,7 +374,7 @@
               command = "pyright"; # Direct command
             }
             {
-              name = "pylint";
+              name = "check-pylint";
               category = "development";
               help = "Run pylint static code analyzer";
               command = ''
