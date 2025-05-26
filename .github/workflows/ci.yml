@@ -178,8 +178,11 @@ jobs:
   # PyPI publishing - only on version tags
   publish:
     name: Publish to PyPI
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [test]
+    if: |
+      always() &&
+      needs.test.result == 'success' &&
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:
       name: pypi
