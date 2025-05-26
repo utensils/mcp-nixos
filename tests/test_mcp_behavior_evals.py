@@ -53,7 +53,7 @@ class TestMCPBehaviorEvals:
 
         # Step 2: Get detailed info if found
         if analysis1["has_results"]:
-            response2 = assistant.use_tool("nixos_info", name="neovim", search_type="package")
+            response2 = assistant.use_tool("nixos_info", name="neovim", type="package")
             analysis2 = assistant.analyze_response(response2)
 
             assert "Package:" in response2
@@ -73,7 +73,7 @@ class TestMCPBehaviorEvals:
 
         # Step 2: Get specific option details
         if "services.nginx.enable" in response1:
-            response2 = assistant.use_tool("nixos_info", name="services.nginx.enable", search_type="option")
+            response2 = assistant.use_tool("nixos_info", name="services.nginx.enable", type="option")
 
             assert "Type: boolean" in response2
             assert "Default:" in response2
@@ -126,7 +126,7 @@ class TestMCPBehaviorEvals:
 
         results = {}
         for channel in channels:
-            response = assistant.use_tool("nixos_info", name=package, search_type="package", channel=channel)
+            response = assistant.use_tool("nixos_info", name=package, type="package", channel=channel)
             if "Version:" in response:
                 # Extract version
                 for line in response.split("\n"):
@@ -157,7 +157,7 @@ class TestMCPBehaviorEvals:
 
         if "virtualisation.docker.enable" in response1:
             # Get details on enable option
-            assistant.use_tool("nixos_info", name="virtualisation.docker.enable", search_type="option")
+            assistant.use_tool("nixos_info", name="virtualisation.docker.enable", type="option")
 
             # Search for related options
             assistant.use_tool("nixos_search", query="docker", search_type="options", limit=10)
@@ -191,7 +191,7 @@ class TestMCPBehaviorEvals:
         assert "Invalid channel" in response1
 
         # Try non-existent package
-        response2 = assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", search_type="package")
+        response2 = assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", type="package")
         assert "not found" in response2.lower()
 
         # Try invalid type
@@ -241,7 +241,7 @@ class TestMCPBehaviorEvals:
                         break
 
                 if package_name:
-                    info = assistant.use_tool("nixos_info", name=package_name, search_type="package")
+                    info = assistant.use_tool("nixos_info", name=package_name, type="package")
                     assert "Package:" in info
 
         # 3. Configure git in Home Manager

@@ -311,7 +311,17 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
 
 @mcp.tool()
 def nixos_search(query: str, search_type: str = "packages", limit: int = 20, channel: str = "unstable") -> str:
-    """Search NixOS packages, options, or programs."""
+    """Search NixOS packages, options, or programs.
+    
+    Args:
+        query: Search term to look for
+        search_type: Type of search - "packages", "options", "programs", or "flakes"
+        limit: Maximum number of results to return (1-100)
+        channel: NixOS channel to search in (e.g., "unstable", "stable", "25.05")
+    
+    Returns:
+        Plain text results with bullet points or error message
+    """
     if search_type not in ["packages", "options", "programs", "flakes"]:
         return error(f"Invalid type '{search_type}'")
     channels = get_channels()
@@ -420,7 +430,16 @@ def nixos_search(query: str, search_type: str = "packages", limit: int = 20, cha
 
 @mcp.tool()
 def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> str:  # pylint: disable=redefined-builtin
-    """Get detailed info about a NixOS package or option."""
+    """Get detailed info about a NixOS package or option.
+    
+    Args:
+        name: Name of the package or option to look up
+        type: Type of lookup - "package" or "option"
+        channel: NixOS channel to search in (e.g., "unstable", "stable", "25.05")
+    
+    Returns:
+        Plain text details about the package/option or error message
+    """
     info_type = type  # Avoid shadowing built-in
     if info_type not in ["package", "option"]:
         return error("Type must be 'package' or 'option'")
@@ -496,7 +515,11 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
 
 @mcp.tool()
 def nixos_channels() -> str:
-    """List available NixOS channels with their status."""
+    """List available NixOS channels with their status.
+    
+    Returns:
+        Plain text list showing channel names, versions, and availability
+    """
     try:
         # Get resolved channels and available raw data
         configured = get_channels()
@@ -544,7 +567,14 @@ def nixos_channels() -> str:
 
 @mcp.tool()
 def nixos_stats(channel: str = "unstable") -> str:
-    """Get NixOS statistics."""
+    """Get NixOS statistics for a channel.
+    
+    Args:
+        channel: NixOS channel to get stats for (e.g., "unstable", "stable", "25.05")
+    
+    Returns:
+        Plain text statistics including package/option counts
+    """
     channels = get_channels()
     if channel not in channels:
         suggestions = get_channel_suggestions(channel)
@@ -582,7 +612,17 @@ def nixos_stats(channel: str = "unstable") -> str:
 
 @mcp.tool()
 def home_manager_search(query: str, limit: int = 20) -> str:
-    """Search Home Manager options."""
+    """Search Home Manager configuration options.
+    
+    Searches through available Home Manager options by name and description.
+    
+    Args:
+        query: The search query string to match against option names and descriptions
+        limit: Maximum number of results to return (default: 20, max: 100)
+        
+    Returns:
+        Plain text list of matching options with name, type, and description
+    """
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -611,7 +651,16 @@ def home_manager_search(query: str, limit: int = 20) -> str:
 
 @mcp.tool()
 def home_manager_info(name: str) -> str:
-    """Get Home Manager option details."""
+    """Get detailed information about a specific Home Manager option.
+    
+    Requires an exact option name match. If not found, suggests similar options.
+    
+    Args:
+        name: The exact option name (e.g., 'programs.git.enable')
+        
+    Returns:
+        Plain text with option details (name, type, description) or error with suggestions
+    """
     try:
         # Search more broadly first
         options = parse_html_options(HOME_MANAGER_URL, name, "", 100)
@@ -654,7 +703,13 @@ def home_manager_info(name: str) -> str:
 
 @mcp.tool()
 def home_manager_stats() -> str:
-    """Get Home Manager statistics."""
+    """Get statistics about Home Manager options.
+    
+    Retrieves overall statistics including total options, categories, and top categories.
+    
+    Returns:
+        Plain text summary with total options, category count, and top 5 categories
+    """
     try:
         # Parse all options to get statistics
         options = parse_html_options(HOME_MANAGER_URL, limit=5000)
@@ -698,7 +753,13 @@ def home_manager_stats() -> str:
 
 @mcp.tool()
 def home_manager_list_options() -> str:
-    """List Home Manager categories."""
+    """List all Home Manager option categories.
+    
+    Enumerates all top-level categories with their option counts.
+    
+    Returns:
+        Plain text list of categories sorted alphabetically with option counts
+    """
     try:
         # Get more options to see all categories (default 100 is too few)
         options = parse_html_options(HOME_MANAGER_URL, limit=4000)
@@ -722,7 +783,16 @@ def home_manager_list_options() -> str:
 
 @mcp.tool()
 def home_manager_options_by_prefix(option_prefix: str) -> str:
-    """Get Home Manager options by prefix."""
+    """Get Home Manager options matching a specific prefix.
+    
+    Useful for browsing options under a category or finding exact option names.
+    
+    Args:
+        option_prefix: The prefix to match (e.g., 'programs.git' or 'services')
+        
+    Returns:
+        Plain text list of options with the given prefix, including descriptions
+    """
     try:
         options = parse_html_options(HOME_MANAGER_URL, "", option_prefix)
 
@@ -746,7 +816,17 @@ def home_manager_options_by_prefix(option_prefix: str) -> str:
 
 @mcp.tool()
 def darwin_search(query: str, limit: int = 20) -> str:
-    """Search nix-darwin options."""
+    """Search nix-darwin (macOS) configuration options.
+    
+    Searches through available nix-darwin options by name and description.
+    
+    Args:
+        query: The search query string to match against option names and descriptions
+        limit: Maximum number of results to return (default: 20, max: 100)
+        
+    Returns:
+        Plain text list of matching options with name, type, and description
+    """
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -775,7 +855,16 @@ def darwin_search(query: str, limit: int = 20) -> str:
 
 @mcp.tool()
 def darwin_info(name: str) -> str:
-    """Get nix-darwin option details."""
+    """Get detailed information about a specific nix-darwin option.
+    
+    Requires an exact option name match. If not found, suggests similar options.
+    
+    Args:
+        name: The exact option name (e.g., 'system.defaults.dock.autohide')
+        
+    Returns:
+        Plain text with option details (name, type, description) or error with suggestions
+    """
     try:
         # Search more broadly first
         options = parse_html_options(DARWIN_URL, name, "", 100)
@@ -818,7 +907,13 @@ def darwin_info(name: str) -> str:
 
 @mcp.tool()
 def darwin_stats() -> str:
-    """Get nix-darwin statistics."""
+    """Get statistics about nix-darwin options.
+    
+    Retrieves overall statistics including total options, categories, and top categories.
+    
+    Returns:
+        Plain text summary with total options, category count, and top 5 categories
+    """
     try:
         # Parse all options to get statistics
         options = parse_html_options(DARWIN_URL, limit=3000)
@@ -862,7 +957,13 @@ def darwin_stats() -> str:
 
 @mcp.tool()
 def darwin_list_options() -> str:
-    """List nix-darwin categories."""
+    """List all nix-darwin option categories.
+    
+    Enumerates all top-level categories with their option counts.
+    
+    Returns:
+        Plain text list of categories sorted alphabetically with option counts
+    """
     try:
         # Get more options to see all categories (default 100 is too few)
         options = parse_html_options(DARWIN_URL, limit=2000)
@@ -886,7 +987,16 @@ def darwin_list_options() -> str:
 
 @mcp.tool()
 def darwin_options_by_prefix(option_prefix: str) -> str:
-    """Get nix-darwin options by prefix."""
+    """Get nix-darwin options matching a specific prefix.
+    
+    Useful for browsing options under a category or finding exact option names.
+    
+    Args:
+        option_prefix: The prefix to match (e.g., 'system.defaults' or 'services')
+        
+    Returns:
+        Plain text list of options with the given prefix, including descriptions
+    """
     try:
         options = parse_html_options(DARWIN_URL, "", option_prefix)
 
@@ -910,7 +1020,14 @@ def darwin_options_by_prefix(option_prefix: str) -> str:
 
 @mcp.tool()
 def nixos_flakes_stats() -> str:
-    """Get statistics about available flakes in the search index."""
+    """Get statistics about available NixOS flakes.
+    
+    Retrieves statistics from the flake search index including total packages,
+    unique repositories, flake types, and top contributors.
+    
+    Returns:
+        Plain text summary with flake statistics and top contributors
+    """
     try:
         # Use the same alias as the web UI for accurate counts
         flake_index = "latest-43-group-manual"
@@ -1028,9 +1145,17 @@ def nixos_flakes_stats() -> str:
 @mcp.tool()
 def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS flakes by name, description, owner, or repository.
-
-    Note: Flakes are indexed separately from packages/options. Channel parameter
-    is ignored as flakes use a different indexing system.
+    
+    Searches the flake index for community-contributed packages and configurations.
+    Flakes are indexed separately from official packages.
+    
+    Args:
+        query: The search query (flake name, description, owner, or repository)
+        limit: Maximum number of results to return (default: 20, max: 100)
+        channel: Ignored - flakes use a separate indexing system
+        
+    Returns:
+        Plain text list of unique flakes with their packages and metadata
     """
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
