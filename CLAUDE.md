@@ -114,15 +114,24 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - **Single workflow file**: `.github/workflows/ci.yml` handles all CI/CD operations
 - **Testing**: Uses Nix flake environment on Linux only (no matrix tests)
 - **Dependency Management**: Nix flake includes all dev and eval dependencies for isolated environment
+- **Smart change detection**: Skips tests for documentation-only changes
+  - Uses `paths-filter` to categorize changes: code, docs, website
+  - Documentation changes (*.md, LICENSE) skip the entire test suite
+  - Website changes only trigger deployment, not tests
 - **Smart triggering** to prevent redundant runs:
   - PRs: Run tests when opened, synchronized, or reopened
   - Main branch: Skip CI on merge commits (already tested in PR)
   - Tags: Run full CI + publish on version tags (v*)
   - Concurrency: Cancel in-progress PR runs when new commits are pushed
+- **Release workflow**: Two options to avoid duplicate runs
+  - Automatic: Include `release: v1.0.0` in merge commit message
+  - Manual: Create tag after merge completes
 - **Jobs**:
-  - `test`: Runs all tests, linting, type checking, and coverage in one job
-  - `analyze`: Code complexity analysis (PRs only)
-  - `deploy-website`: Deploys to S3/CloudFront when website files change (main branch only)
+  - `changes`: Detects what changed to determine which jobs to run
+  - `test`: Runs all tests, linting, type checking, and coverage (skipped for docs-only)
+  - `analyze`: Code complexity analysis (PRs only, skipped for docs-only)
+  - `deploy-website`: Deploys to S3/CloudFront when website files change
+  - `create-release`: Auto-creates release when merge commit contains `release:`
   - `publish`: Publishes to PyPI on version tags
 - **Test Exclusions**: Anthropic evaluation tests excluded via `-m "not anthropic"` marker
 - **Codecov integration**: Uploads coverage and test results

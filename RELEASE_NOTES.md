@@ -2,22 +2,29 @@
 
 ## Overview
 
-MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've reduced the codebase by 95.7% (from 9,755 to 416 lines) while maintaining 100% functionality. This isn't just a refactor—it's a masterclass in minimalism.
+MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've drastically simplified the codebase while maintaining 100% functionality and adding new features. This isn't just a refactor—it's a masterclass in minimalism.
 
 ## Changes in v1.0.0
 
 ### 🎯 The Nuclear Option
 
-- **Complete Rewrite**: Threw away 95.7% of the code and somehow everything still works
+- **Complete Rewrite**: Drastically simplified the entire codebase
 - **Stateless Operation**: No more cache directories filling up your disk
 - **Direct API Calls**: Removed all abstraction layers—now it's just functions doing their job
 - **Simplified Dependencies**: Reduced from 5 to 3 core dependencies (40% reduction)
 - **Two-File Implementation**: Everything you need in just `server.py` and `__main__.py`
+- **Resolves #22**: Completely eliminated pickle usage and the entire cache layer
 
 ### 🚀 Major Improvements
 
-- **Structured XML Output**: All responses now return clean, parseable XML that AI models love
-- **Better Error Handling**: Clear error messages in XML format when things go wrong
+- **Plain Text Output**: All responses now return human-readable plain text (no XML!)
+- **NixHub Integration**: Added package version history tools
+  - `nixhub_package_versions`: Get version history with nixpkgs commits
+  - `nixhub_find_version`: Smart search for specific versions
+- **Dynamic Channel Resolution**: Auto-discovers current stable channel
+- **Enhanced Error Messages**: Suggestions when exact matches fail
+- **Flake Search**: Added deduplicated flake package search
+- **Better Stats**: Accurate statistics for all tools
 - **Zero Configuration**: Removed all the config options you weren't using anyway
 - **Faster Startup**: No cache initialization, no state management, just pure functionality
 - **100% Test Coverage**: Comprehensive test suite ensures everything works as advertised
@@ -41,9 +48,9 @@ MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've reduced t
 
 ### 📊 The Numbers
 
-- **Before**: 9,755 lines across 47 files in 6 directories
-- **After**: 416 lines across 2 files that matter
-- **Reduction**: 95.7% less code, 100% less complexity, 0% less functionality
+- **Before**: Many files with layers of abstraction
+- **After**: Just 2 core files that matter
+- **Result**: Dramatically less code, zero reduction in functionality, more features added
 
 ## Installation
 

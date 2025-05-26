@@ -4,6 +4,8 @@
 # - Repository members: Run all tests including eval tests
 # - External contributors: Skip eval tests to prevent API credit abuse
 # - Local development: Always runs all tests
+# - Skips tests for documentation-only changes
+# - Handles releases via PR labels to avoid duplicate runs
 
 name: CI
 
@@ -15,7 +17,7 @@ on:
   # Pull requests - only when targeting main branch
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
   # Manual trigger
   workflow_dispatch:
 
@@ -25,14 +27,49 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Detect what changed to determine if we need to run tests
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
+      website: ${{ steps.filter.outputs.website }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'mcp_nixos/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'setup.py'
+              - 'requirements.txt'
+              - 'flake.nix'
+              - 'flake.lock'
+              - '.github/workflows/**'
+            docs:
+              - '*.md'
+              - 'LICENSE'
+              - '.env.example'
+            website:
+              - 'website/**'
+
   # Single test job using Nix flake
   test:
     name: Test & Lint
+    needs: changes
     runs-on: ubuntu-latest
-    # Skip CI on merge commits to main if PR was already tested
+    # Skip tests if only docs changed, or on merge commits that were already tested
     if: |
-      github.event_name != 'push' || 
-      !contains(github.event.head_commit.message, 'Merge pull request')
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'push' || 
+       !contains(github.event.head_commit.message, 'Merge pull request'))
     permissions:
       contents: read
       pull-requests: read
@@ -132,8 +169,11 @@ jobs:
   # Complexity analysis for PRs only
   analyze:
     name: Code Complexity
+    needs: changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -166,10 +206,12 @@ jobs:
   # Website deployment - only on main branch pushes with changes
   deploy-website:
     name: Deploy Website
+    needs: changes
     runs-on: ubuntu-latest
     if: |
       github.ref == 'refs/heads/main' && 
       github.event_name == 'push' &&
+      needs.changes.outputs.website == 'true' &&
       !startsWith(github.event.head_commit.message, 'Merge pull request')
     environment:
       name: AWS
@@ -179,21 +221,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      
-      - name: Check for website changes
-        id: changes
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -q "^website/"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No website changes - skipping deployment"
-          fi
       
       - name: Setup Node.js
-        if: steps.changes.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -201,14 +230,12 @@ jobs:
           cache-dependency-path: website/package-lock.json
       
       - name: Build and Deploy
-        if: steps.changes.outputs.changed == 'true'
         run: |
           cd website
           npm install
           npm run build
         
       - name: Configure AWS credentials
-        if: steps.changes.outputs.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -216,10 +243,60 @@ jobs:
           aws-region: us-east-1
       
       - name: Deploy to S3
-        if: steps.changes.outputs.changed == 'true'
         run: |
           aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
           aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
+
+  # Create GitHub Release when PR with release label is merged
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, 'release:')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract version from commit message
+        id: extract_version
+        run: |
+          # Extract version from commit message like "release: v1.0.0"
+          VERSION=$(echo "${{ github.event.head_commit.message }}" | grep -oP 'release:\s*v?\K[0-9]+\.[0-9]+\.[0-9]+' || true)
+          if [ -z "$VERSION" ]; then
+            echo "No version found in commit message"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create and push tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a ${{ steps.extract_version.outputs.tag }} -m "Release ${{ steps.extract_version.outputs.tag }}"
+          git push origin ${{ steps.extract_version.outputs.tag }}
+      
+      - name: Extract release notes
+        id: extract_notes
+        run: |
+          # Extract release notes for this version from RELEASE_NOTES.md
+          awk '/^# MCP-NixOS: v${{ steps.extract_version.outputs.version }}/ {flag=1; next} /^# MCP-NixOS: v[0-9]/ {if(flag) exit} flag' RELEASE_NOTES.md > release_notes.txt
+          echo "Release notes extracted"
+      
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.extract_version.outputs.tag }}
+          release_name: Release ${{ steps.extract_version.outputs.tag }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
 
   # PyPI publishing - only on version tags
   publish:
