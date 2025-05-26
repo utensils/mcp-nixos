@@ -55,70 +55,70 @@ export default function DocsPage() {
                 </div>
               </div>
 
-              {/* Data Collection and Caching System */}
+              {/* v1.0.0 Architecture */}
               <div className="bg-white rounded-lg shadow-sm border-l-4 border-nix-primary p-5 mt-6">
                 <h3 className="text-xl font-semibold text-nix-dark mb-3 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-nix-primary" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                     <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                   </svg>
-                  Data Collection and Caching Architecture
+                  v1.0.0 - The Great Simplification
                 </h3>
                 
                 <div className="mb-4">
-                  <h4 className="font-semibold text-nix-primary mb-2">Data Sources</h4>
-                  <p className="text-gray-700 mb-2">MCP-NixOS collects data from multiple authoritative sources:</p>
+                  <h4 className="font-semibold text-nix-primary mb-2">Major Changes</h4>
+                  <p className="text-gray-700 mb-2">Version 1.0.0 represents a complete rewrite that drastically simplified the codebase:</p>
                   <ul className="list-disc list-inside space-y-1 text-gray-700 ml-4 mb-3">
-                    <li><span className="font-semibold">NixOS Elasticsearch API</span> - Queries the official search.nixos.org backend for package and option data</li>
-                    <li><span className="font-semibold">Home Manager</span> - Parses official HTML documentation to extract option definitions and metadata from Home Manager modules</li>
-                    <li><span className="font-semibold">nix-darwin</span> - Extracts macOS-specific configuration options by parsing official nix-darwin HTML documentation</li>
+                    <li><span className="font-semibold">Dramatically Simplified</span> - Removed all unnecessary abstractions and complexity</li>
+                    <li><span className="font-semibold">Stateless Operation</span> - No caching, no state management, just direct API calls</li>
+                    <li><span className="font-semibold">Plain Text Output</span> - All responses now return human-readable text (no XML)</li>
+                    <li><span className="font-semibold">Minimal Dependencies</span> - Reduced from 5 to 3 core dependencies</li>
+                    <li><span className="font-semibold">Two-File Implementation</span> - Everything in just server.py and __main__.py</li>
                   </ul>
                 </div>
 
                 <div className="mb-4">
-                  <h4 className="font-semibold text-nix-primary mb-2">Multi-Level Caching System</h4>
-                  <p className="text-gray-700 mb-2">MCP-NixOS implements a sophisticated multi-level caching architecture for optimal performance:</p>
+                  <h4 className="font-semibold text-nix-primary mb-2">New Features in v1.0.0</h4>
+                  <p className="text-gray-700 mb-2">Despite the dramatic simplification, we added more functionality:</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <div className="bg-nix-light bg-opacity-20 p-3 rounded">
-                      <h5 className="font-semibold text-nix-dark mb-1">In-Memory Cache (SimpleCache)</h5>
+                      <h5 className="font-semibold text-nix-dark mb-1">NixHub Integration</h5>
                       <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                        <li>Thread-safe implementation with RLock</li>
-                        <li>Dual timestamp approach for time shift resilience</li>
-                        <li>Configurable TTL (default: 10 minutes for API data)</li>
-                        <li>Automatic expiration with lazy cleanup</li>
-                        <li>Size-limited with LRU eviction policy</li>
+                        <li>Package version history with commit hashes</li>
+                        <li>Smart search for specific versions</li>
+                        <li>Reproducible builds with exact commits</li>
                       </ul>
                     </div>
                     
                     <div className="bg-nix-light bg-opacity-20 p-3 rounded">
-                      <h5 className="font-semibold text-nix-dark mb-1">Filesystem Cache (HTMLCache)</h5>
+                      <h5 className="font-semibold text-nix-dark mb-1">Enhanced Features</h5>
                       <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                        <li>Cross-platform cache directory management</li>
-                        <li>Atomic file operations with proper locking</li>
-                        <li>Content-addressed storage with MD5 hashing</li>
-                        <li>Metadata preservation for diagnostics</li>
-                        <li>Longer TTL (default: 24 hours for stable data)</li>
+                        <li>Dynamic channel discovery</li>
+                        <li>Flake search with deduplication</li>
+                        <li>Error messages with suggestions</li>
+                        <li>Accurate statistics for all tools</li>
+                        <li>100% test coverage</li>
                       </ul>
                     </div>
                   </div>
                   
-                  <p className="text-gray-700 text-sm italic">Both caching systems include comprehensive metrics tracking and resilience against system time shifts.</p>
+                  <p className="text-gray-700 text-sm italic">Sometimes the best code is the code you delete. Less complexity = fewer bugs.</p>
                 </div>
 
                 <div className="mb-4">
-                  <h4 className="font-semibold text-nix-primary mb-2">Optimization Techniques</h4>
+                  <h4 className="font-semibold text-nix-primary mb-2">Data Sources</h4>
+                  <p className="text-gray-700 mb-2">MCP-NixOS queries data directly from authoritative sources:</p>
                   <ul className="list-disc list-inside space-y-1 text-gray-700 ml-4">
-                    <li><span className="font-semibold">Smart Query Construction</span> - Optimized Elasticsearch DSL queries with proper field boosting</li>
-                    <li><span className="font-semibold">Parallel Processing</span> - Concurrent data fetching for multi-source queries</li>
-                    <li><span className="font-semibold">Pre-Caching</span> - Optional pre-population of cache during initialization</li>
-                    <li><span className="font-semibold">Incremental Updates</span> - Only fetch and process changed data</li>
-                    <li><span className="font-semibold">Response Formatting</span> - Efficient markdown generation for AI consumption</li>
+                    <li><span className="font-semibold">NixOS Elasticsearch API</span> - Official search.nixos.org backend</li>
+                    <li><span className="font-semibold">Home Manager HTML Docs</span> - Official documentation parsing</li>
+                    <li><span className="font-semibold">nix-darwin HTML Docs</span> - macOS configuration documentation</li>
+                    <li><span className="font-semibold">NixHub.io API</span> - Package version history (by Jetify)</li>
                   </ul>
                 </div>
 
                 <div className="mb-2">
-                  <h4 className="font-semibold text-nix-primary mb-2">Configuration Options</h4>
-                  <p className="text-gray-700 mb-2">The caching system can be fine-tuned via environment variables:</p>
+                  <h4 className="font-semibold text-nix-primary mb-2">Configuration</h4>
+                  <p className="text-gray-700 mb-2">Minimal configuration - only one optional environment variable:</p>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm text-gray-700">
                       <thead className="bg-gray-100">
@@ -130,19 +130,9 @@ export default function DocsPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         <tr>
-                          <td className="px-4 py-2 font-mono text-xs">MCP_NIXOS_CACHE_DIR</td>
-                          <td className="px-4 py-2">Custom cache directory location</td>
-                          <td className="px-4 py-2">OS-specific cache location</td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 font-mono text-xs">MCP_NIXOS_CACHE_TTL</td>
-                          <td className="px-4 py-2">Cache time-to-live in seconds</td>
-                          <td className="px-4 py-2">86400 (24 hours)</td>
-                        </tr>
-                        <tr>
                           <td className="px-4 py-2 font-mono text-xs">ELASTICSEARCH_URL</td>
-                          <td className="px-4 py-2">NixOS Elasticsearch API URL</td>
-                          <td className="px-4 py-2">search.nixos.org/backend</td>
+                          <td className="px-4 py-2">Custom NixOS Elasticsearch API URL</td>
+                          <td className="px-4 py-2">https://search.nixos.org/backend</td>
                         </tr>
                       </tbody>
                     </table>
@@ -251,6 +241,18 @@ export default function DocsPage() {
                         <code className="font-mono text-nix-dark block mb-1">nixos_stats</code>
                         <span className="text-sm text-gray-600">View statistics about available packages and options</span>
                       </a>
+                      <a href="#nixos_channels" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
+                        <code className="font-mono text-nix-dark block mb-1">nixos_channels</code>
+                        <span className="text-sm text-gray-600">List available NixOS channels</span>
+                      </a>
+                      <a href="#nixos_flakes_search" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
+                        <code className="font-mono text-nix-dark block mb-1">nixos_flakes_search</code>
+                        <span className="text-sm text-gray-600">Search community flakes</span>
+                      </a>
+                      <a href="#nixos_flakes_stats" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
+                        <code className="font-mono text-nix-dark block mb-1">nixos_flakes_stats</code>
+                        <span className="text-sm text-gray-600">Flake ecosystem statistics</span>
+                      </a>
                     </div>
                   </div>
                   
@@ -312,6 +314,27 @@ export default function DocsPage() {
                       <a href="#darwin_stats" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
                         <code className="font-mono text-nix-dark block mb-1">darwin_stats</code>
                         <span className="text-sm text-gray-600">View statistics about available options</span>
+                      </a>
+                    </div>
+                  </div>
+                  
+                  {/* NixHub Tools */}
+                  <div className="p-5">
+                    <div className="flex items-center mb-3">
+                      <svg className="w-6 h-6 text-nix-primary mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h4 className="text-lg font-semibold text-nix-dark">NixHub Version History</h4>
+                    </div>
+                    <p className="text-gray-700 mb-3 pl-8">Track package version history and find specific versions with nixpkgs commit hashes for reproducible builds.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-8">
+                      <a href="#nixhub_package_versions" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
+                        <code className="font-mono text-nix-dark block mb-1">nixhub_package_versions</code>
+                        <span className="text-sm text-gray-600">Get package version history</span>
+                      </a>
+                      <a href="#nixhub_find_version" className="border border-gray-200 rounded p-3 hover:bg-nix-light hover:bg-opacity-20 transition-colors cursor-pointer no-underline">
+                        <code className="font-mono text-nix-dark block mb-1">nixhub_find_version</code>
+                        <span className="text-sm text-gray-600">Smart search for specific versions</span>
                       </a>
                     </div>
                   </div>
@@ -588,6 +611,149 @@ Total options: 21,496
 - s390x-linux: 115,344 packages`}
                   language="markdown"
 
+                />
+              </div>
+            </div>
+            
+            <AnchorHeading level={4} className="text-lg font-semibold mt-8 mb-3 text-nix-primary">nixos_channels()</AnchorHeading>
+            <p className="mb-3 text-gray-800">List available NixOS channels with their status.</p>
+            
+            <div className="mb-4 pl-4 border-l-4 border-nix-light">
+              <h5 className="font-semibold text-nix-dark mb-2">Parameters:</h5>
+              <p className="text-gray-700">This function takes no parameters.</p>
+            </div>
+            
+            <div className="mt-4 mb-6">
+              <h5 className="text-md font-semibold mb-2 text-nix-primary">
+                <div className="flex items-center">
+                  <svg xmlns={"http://www.w3.org/2000/svg"} className="h-5 w-5 mr-2 text-nix-primary" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d={"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"} clipRule="evenodd" />
+                  </svg>
+                  Example: List channels
+                </div>
+              </h5>
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixos_channels"
+}`}
+                language="json"
+              />
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <h6 className="font-semibold text-nix-dark mb-2">Sample Response:</h6>
+                <CodeBlock
+                  code={`# Available NixOS Channels
+
+- unstable: ✓ Available
+- stable: ✓ Available (currently 25.05)
+- beta: → Redirects to stable
+- 25.05: ✓ Available
+- 24.11: ✓ Available
+- 24.05: ✓ Available
+- 23.11: ✓ Available
+- 23.05: ✓ Available`}
+                  language="text"
+                />
+              </div>
+            </div>
+            
+            <AnchorHeading level={4} className="text-lg font-semibold mt-8 mb-3 text-nix-primary">nixos_flakes_search()</AnchorHeading>
+            <p className="mb-3 text-gray-800">Search for community flakes in the NixOS ecosystem.</p>
+            
+            <div className="mb-4 pl-4 border-l-4 border-nix-light">
+              <h5 className="font-semibold text-nix-dark mb-2">Parameters:</h5>
+              <ul className="list-disc list-inside space-y-1 text-gray-700">
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">query</code>: The search term</li>
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">limit</code>: Maximum number of results to return - default: 20</li>
+              </ul>
+            </div>
+            
+            <div className="mt-4 mb-6">
+              <h5 className="text-md font-semibold mb-2 text-nix-primary">
+                <div className="flex items-center">
+                  <svg xmlns={"http://www.w3.org/2000/svg"} className="h-5 w-5 mr-2 text-nix-primary" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d={"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"} clipRule="evenodd" />
+                  </svg>
+                  Example: Search flakes
+                </div>
+              </h5>
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixos_flakes_search",
+  "params": {
+    "query": "devenv",
+    "limit": 10
+  }
+}`}
+                language="json"
+              />
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <h6 className="font-semibold text-nix-dark mb-2">Sample Response:</h6>
+                <CodeBlock
+                  code={`Found 12 total matches (3 unique flakes) for 'devenv':
+
+## github:cachix/devenv (5 packages)
+Tools for creating developer environments
+
+Packages: devenv, devenv-docs-generate, devenv-run-tests, generate-doc-options, mkdocs-scan
+
+## github:cachix/devenv/latest (4 packages)
+Tools for creating developer environments
+
+Packages: devenv, devenv-run-tests, generate-doc-options, mkdocs-scan
+
+## github:cachix/devenv/python-rewrite (3 packages)
+Tools for creating developer environments
+
+Packages: devenv, generate-doc-options, mkdocs-scan`}
+                  language="text"
+                />
+              </div>
+            </div>
+            
+            <AnchorHeading level={4} className="text-lg font-semibold mt-8 mb-3 text-nix-primary">nixos_flakes_stats()</AnchorHeading>
+            <p className="mb-3 text-gray-800">Get statistics about available flakes in the NixOS ecosystem.</p>
+            
+            <div className="mb-4 pl-4 border-l-4 border-nix-light">
+              <h5 className="font-semibold text-nix-dark mb-2">Parameters:</h5>
+              <p className="text-gray-700">This function takes no parameters.</p>
+            </div>
+            
+            <div className="mt-4 mb-6">
+              <h5 className="text-md font-semibold mb-2 text-nix-primary">
+                <div className="flex items-center">
+                  <svg xmlns={"http://www.w3.org/2000/svg"} className="h-5 w-5 mr-2 text-nix-primary" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d={"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"} clipRule="evenodd" />
+                  </svg>
+                  Example: Get flake stats
+                </div>
+              </h5>
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixos_flakes_stats"
+}`}
+                language="json"
+              />
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <h6 className="font-semibold text-nix-dark mb-2">Sample Response:</h6>
+                <CodeBlock
+                  code={`# NixOS Flakes Statistics
+
+Available flakes: 894
+Unique repositories: 6
+
+## Flake Types
+- github: 6 flakes (100.0%)
+
+## Top Contributors
+- NixOS: 523 packages
+- nix-community: 194 packages
+- numtide: 91 packages
+- cachix: 50 packages
+- DeterminateSystems: 36 packages`}
+                  language="text"
                 />
               </div>
             </div>
@@ -1290,99 +1456,172 @@ For more details, use \`darwin_info("homebrew.whalebrews")\`
             </div>
           </section>
           
-          <AnchorHeading id="configuration" level={2} className="text-2xl font-bold mt-12 mb-6 text-nix-primary border-b border-nix-light pb-2">Configuration</AnchorHeading>
-          <p className="mb-6 text-gray-800 font-medium">MCP-NixOS can be configured through environment variables, grouped by purpose:</p>
-          
-          <div className="overflow-x-auto mb-8 rounded-lg shadow-sm">
-            <div className="min-w-full md:min-w-0">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-nix-primary">
-                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold" colSpan={3}>Essential Variables</th>
-                  </tr>
-                  <tr className="bg-nix-secondary bg-opacity-20">
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Variable</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Description</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Default Value</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">MCP_NIXOS_LOG_LEVEL</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Logging level</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">INFO</td>
-                  </tr>
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">MCP_NIXOS_LOG_FILE</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Path to log file</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">None (stdout)</td>
-                  </tr>
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">MCP_NIXOS_CACHE_DIR</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Directory for cache files</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">~/.cache/mcp_nixos/ (platform-specific)</td>
-                  </tr>
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">MCP_NIXOS_CACHE_TTL</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Cache time-to-live in seconds</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">600 (10 minutes)</td>
-                  </tr>
-                </tbody>
-              </table>
+          <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
+            <AnchorHeading level={3} className="text-xl font-bold mb-4 text-nix-dark">NixHub Version History Tools</AnchorHeading>
+            <p className="mb-4 text-gray-800">Tools for tracking package version history and finding specific versions with nixpkgs commit hashes.</p>
+            
+            <AnchorHeading level={4} className="text-lg font-semibold mt-6 mb-3 text-nix-primary">nixhub_package_versions()</AnchorHeading>
+            <p className="mb-3 text-gray-800">Get version history for a specific package with nixpkgs commit hashes.</p>
+            
+            <div className="mb-4 pl-4 border-l-4 border-nix-light">
+              <h5 className="font-semibold text-nix-dark mb-2">Parameters:</h5>
+              <ul className="list-disc list-inside space-y-1 text-gray-700">
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">package_name</code>: Name of the package to query</li>
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">limit</code>: Maximum number of versions to return (1-50) - default: 10</li>
+              </ul>
             </div>
-          </div>
+            
+            <div className="mt-4 mb-6">
+              <h5 className="text-md font-semibold mb-2 text-nix-primary">
+                <div className="flex items-center">
+                  <svg xmlns={"http://www.w3.org/2000/svg"} className="h-5 w-5 mr-2 text-nix-primary" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d={"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"} clipRule="evenodd" />
+                  </svg>
+                  Example: Get package versions
+                </div>
+              </h5>
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixhub_package_versions",
+  "params": {
+    "package_name": "ruby",
+    "limit": 15
+  }
+}`}
+                language="json"
+              />
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <h6 className="font-semibold text-nix-dark mb-2">Sample Response:</h6>
+                <CodeBlock
+                  code={`# Package: ruby
 
-          <div className="overflow-x-auto mb-8 rounded-lg shadow-sm">
+Found 15 versions in NixHub:
+
+## 3.3.6 (Latest)
+- Date: 2025-05-07
+- Platforms: aarch64-darwin, aarch64-linux, x86_64-darwin, x86_64-linux
+- Commit: \`a7117efb3725e6c3d3113b574d8c5014f402e2b2\`
+- Nix expression: \`nix build nixpkgs#ruby --override-input nixpkgs github:NixOS/nixpkgs/a7117efb3725e6c3d3113b574d8c5014f402e2b2\`
+
+## 3.3.5
+- Date: 2025-03-27
+- Platforms: aarch64-darwin, aarch64-linux, x86_64-darwin, x86_64-linux
+- Commit: \`5a237aecb57296f67d7aab035f77f9ef92ebb9c6\`
+- Nix expression: \`nix build nixpkgs#ruby --override-input nixpkgs github:NixOS/nixpkgs/5a237aecb57296f67d7aab035f77f9ef92ebb9c6\`
+
+## 2.7.8
+- Date: 2024-11-28
+- Platforms: aarch64-darwin, aarch64-linux, x86_64-darwin, x86_64-linux
+- Attribute: ruby_2_7
+- Commit: \`057f63143dc45e3b43d9325c4741c26479f4d25e\`
+- Nix expression: \`nix build nixpkgs#ruby_2_7 --override-input nixpkgs github:NixOS/nixpkgs/057f63143dc45e3b43d9325c4741c26479f4d25e\`
+
+[... more versions ...]`}
+                  language="text"
+                />
+              </div>
+            </div>
+            
+            <AnchorHeading level={4} className="text-lg font-semibold mt-8 mb-3 text-nix-primary">nixhub_find_version()</AnchorHeading>
+            <p className="mb-3 text-gray-800">Smart search for a specific package version, automatically increasing search depth if needed.</p>
+            
+            <div className="mb-4 pl-4 border-l-4 border-nix-light">
+              <h5 className="font-semibold text-nix-dark mb-2">Parameters:</h5>
+              <ul className="list-disc list-inside space-y-1 text-gray-700">
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">package_name</code>: Name of the package to query</li>
+                <li><code className="font-mono text-nix-dark bg-gray-100 px-1 py-0.5 rounded">version</code>: Specific version to find</li>
+              </ul>
+            </div>
+            
+            <div className="mt-4 mb-6">
+              <h5 className="text-md font-semibold mb-2 text-nix-primary">
+                <div className="flex items-center">
+                  <svg xmlns={"http://www.w3.org/2000/svg"} className="h-5 w-5 mr-2 text-nix-primary" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d={"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"} clipRule="evenodd" />
+                  </svg>
+                  Example: Find specific version
+                </div>
+              </h5>
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixhub_find_version",
+  "params": {
+    "package_name": "python",
+    "version": "3.5.9"
+  }
+}`}
+                language="json"
+              />
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <h6 className="font-semibold text-nix-dark mb-2">Sample Response:</h6>
+                <CodeBlock
+                  code={`# Found python version 3.5.9!
+
+## Version 3.5.9
+- Date: 2020-04-18
+- Platforms: x86_64-linux
+- Attribute: python35
+- Commit: \`e19054ab3cd5b7cc9a01d0efc71cc937bfb9ce0a\`
+
+### Install with:
+\`\`\`bash
+nix build nixpkgs#python35 --override-input nixpkgs github:NixOS/nixpkgs/e19054ab3cd5b7cc9a01d0efc71cc937bfb9ce0a
+\`\`\`
+
+Note: Searched through 50 versions to find this exact match.`}
+                  language="text"
+                />
+              </div>
+            </div>
+          </section>
+          
+          <AnchorHeading id="configuration" level={2} className="text-2xl font-bold mt-12 mb-6 text-nix-primary border-b border-nix-light pb-2">Configuration</AnchorHeading>
+          <p className="mb-6 text-gray-800 font-medium">
+            <strong>v1.0.0 Update:</strong> Configuration has been dramatically simplified. There&apos;s only one optional environment variable now:
+          </p>
+          
+          <div className="overflow-x-auto mb-12 rounded-lg shadow-sm">
             <div className="min-w-full md:min-w-0">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-nix-primary">
-                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold" colSpan={3}>Advanced Variables (Optional)</th>
-                  </tr>
-                  <tr className="bg-nix-secondary bg-opacity-20">
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Variable</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Description</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Default Value</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold">Variable</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold">Description</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold">Default Value</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
                     <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">ELASTICSEARCH_URL</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Custom Elasticsearch URL <span className="text-xs text-gray-500 italic">(only needed for custom deployments)</span></td>
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Custom NixOS Elasticsearch API URL <span className="text-xs text-gray-500 italic">(only needed for custom deployments)</span></td>
                     <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">https://search.nixos.org/backend</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
-          <div className="overflow-x-auto mb-12 rounded-lg shadow-sm">
-            <div className="min-w-full md:min-w-0">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-nix-primary">
-                    <th className="px-3 sm:px-6 py-3 text-left text-white font-semibold" colSpan={3}>Development Variables</th>
-                  </tr>
-                  <tr className="bg-nix-secondary bg-opacity-20">
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Variable</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Description</th>
-                    <th className="px-3 sm:px-6 py-2 text-left text-nix-dark font-semibold">Default Value</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">MCP_NIXOS_CLEANUP_ORPHANS</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Clean up orphaned cache files</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">true</td>
-                  </tr>
-                  <tr className="hover:bg-nix-light bg-opacity-50 transition-colors duration-150">
-                    <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm font-semibold text-nix-dark break-all">KEEP_TEST_CACHE</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">Keep test cache directory for debugging</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-mono text-gray-700">false</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          
+          <div className="bg-white rounded-lg shadow-sm border-l-4 border-nix-secondary p-5 mb-12">
+            <h3 className="text-lg font-semibold text-nix-dark mb-2 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-nix-secondary" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              What happened to all the configuration options?
+            </h3>
+            <p className="text-gray-700">
+              In v1.0.0, we removed all caching and state management, which eliminated the need for configuration options like:
+            </p>
+            <ul className="list-disc list-inside mt-2 text-gray-700 space-y-1">
+              <li>Cache directories and TTL settings (no more caching)</li>
+              <li>Log levels and log files (simplified logging)</li>
+              <li>Pre-cache options (stateless operation)</li>
+              <li>Clean up settings (nothing to clean up)</li>
+            </ul>
+            <p className="text-gray-700 mt-2">
+              The result? Zero configuration needed for 99% of users. Just install and use.
+            </p>
           </div>
         </div>
       </div>

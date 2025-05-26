@@ -37,10 +37,13 @@ export default function UsagePage() {
                 </span>
               </AnchorHeading>
               <p className="mb-4 text-gray-700">
-                Before using these examples, you&apos;ll need to configure your MCP server. Add the following to your MCP configuration file:
+                Before using these examples, you&apos;ll need to configure your MCP server. Add one of the following to your MCP configuration file:
               </p>
-              <CodeBlock 
-                code={`{
+              
+              <div className="mb-4">
+                <h4 className="font-semibold text-nix-dark mb-2">Option 1: Using uvx (Recommended for most users)</h4>
+                <CodeBlock 
+                  code={`{
   "mcpServers": {
     "nixos": {
       "command": "uvx",
@@ -48,9 +51,29 @@ export default function UsagePage() {
     }
   }
 }`} 
-                language="json" 
-              />
+                  language="json" 
+                />
+              </div>
+              
+              <div className="mb-4">
+                <h4 className="font-semibold text-nix-dark mb-2">Option 2: Using Nix (For Nix users)</h4>
+                <CodeBlock 
+                  code={`{
+  "mcpServers": {
+    "nixos": {
+      "command": "nix",
+      "args": ["run", "github:utensils/mcp-nixos", "--"]
+    }
+  }
+}`} 
+                  language="json" 
+                />
+              </div>
+              
               <p className="mt-4 text-gray-700 text-sm">
+                <strong>Note:</strong> No Nix/NixOS installation required! This tool works on any system (Windows, macOS, Linux) as it just queries web APIs. Choose the method that matches your existing tooling.
+              </p>
+              <p className="mt-2 text-gray-700 text-sm">
                 This configuration enables your AI assistant to access NixOS package information and configuration options through the MCP protocol. For additional configuration options, see the <Link href="/docs#configuration" className="text-nix-primary hover:text-nix-dark underline transition-colors">configuration documentation</Link>.
               </p>
             </div>
@@ -1154,6 +1177,92 @@ SIP must be disabled for this to work. Type: boolea...
                 </p>
               </div>
             </div>
+          </div>
+          
+          {/* Finding Package Versions Example */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div className="flex items-center mb-4">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="h-6 w-6 mr-2 text-nix-primary" 
+                viewBox="0 0 20 20" 
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              <AnchorHeading 
+                level={3} 
+                className="text-xl font-bold text-nix-dark"
+              >
+                Finding Specific Package Versions
+              </AnchorHeading>
+            </div>
+            
+            <div className="flex items-center mb-3">
+              <svg className="w-4 h-4 mr-2 text-nix-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+              <p className="text-md font-semibold text-nix-primary">User Request</p>
+            </div>
+            
+            <p className="text-gray-700 pl-6 mb-4">
+              I need to install Ruby 2.6.7 for a legacy project. Can you help me find the right nixpkgs commit?
+            </p>
+            
+            <CollapsibleSection
+              title="Tool Calls"
+            >
+              <CodeBlock
+                code={`{
+  "type": "call",
+  "tool": "nixhub_find_version",
+  "params": {
+    "package_name": "ruby",
+    "version": "2.6.7"
+  }
+}`}
+                language="json"
+              />
+            </CollapsibleSection>
+            
+            <CollapsibleSection
+              title="Response"
+            >
+              <div className="text-gray-700">
+                <p className="mb-3">
+                  I found Ruby 2.6.7 for you! Here&apos;s how to install it:
+                </p>
+                
+                <CodeBlock
+                  code={`# Install Ruby 2.6.7 using the specific nixpkgs commit
+nix build nixpkgs#ruby_2_6 --override-input nixpkgs github:NixOS/nixpkgs/86752e44440dfcd17f53d08fc117bd96c8bac144
+
+# Or add to your flake.nix:
+{
+  inputs.nixpkgs-ruby26.url = "github:NixOS/nixpkgs/86752e44440dfcd17f53d08fc117bd96c8bac144";
+  
+  # Then use it as:
+  # nixpkgs-ruby26.legacyPackages.\${system}.ruby_2_6
+}`}
+                  language="bash"
+                />
+                
+                <p className="mt-3">
+                  <strong>Version Details:</strong>
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Version: 2.6.7</li>
+                  <li>Date: 2021-04-09</li>
+                  <li>Platforms: aarch64-linux, i686-linux, x86_64-darwin, x86_64-linux</li>
+                  <li>Attribute: ruby_2_6</li>
+                  <li>Commit: <code className="font-mono text-xs">86752e44440dfcd17f53d08fc117bd96c8bac144</code></li>
+                </ul>
+                
+                <p className="mt-3">
+                  This gives you a reproducible way to install exactly Ruby 2.6.7, ensuring your legacy project has the exact version it needs.
+                </p>
+              </div>
+            </CollapsibleSection>
           </div>
         </div>
       </div>

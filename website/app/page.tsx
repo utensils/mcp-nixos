@@ -18,6 +18,11 @@ export default function Home() {
       <section className="bg-gradient-to-b from-nix-primary to-nix-dark text-white py-20 shadow-lg">
         <div className="container-custom text-center">
           <h1 className="text-4xl md:text-6xl font-bold mb-6">MCP-NixOS</h1>
+          <div className="mb-4">
+            <span className="inline-block bg-nix-secondary text-white px-4 py-2 rounded-full text-sm font-semibold">
+              🎉 v1.0.0 - The Great Simplification
+            </span>
+          </div>
           <div className="mb-8 max-w-3xl mx-auto">
             <p className="text-xl md:text-2xl font-medium mb-2">
               <span className="font-bold tracking-wide">Model Context Protocol</span>
@@ -95,8 +100,8 @@ export default function Home() {
               iconName="apple"
             />
             <FeatureCard 
-              title="Fast & Efficient" 
-              description="Multi-level caching with filesystem persistence for optimal performance."
+              title="Fast & Stateless" 
+              description="Direct API calls with no caching complexity. Simple, reliable, and maintainable."
               iconName="bolt"
             />
             <FeatureCard 
@@ -108,6 +113,16 @@ export default function Home() {
               title="Claude Integration" 
               description="Perfect compatibility with Claude and other AI assistants via the MCP protocol."
               iconName="robot"
+            />
+            <FeatureCard 
+              title="Version History" 
+              description="Package version tracking with nixpkgs commit hashes via NixHub.io integration."
+              iconName="history"
+            />
+            <FeatureCard 
+              title="Plain Text Output" 
+              description="Human-readable responses with no XML parsing needed. Just clear, formatted text."
+              iconName="document"
             />
           </div>
         </div>
