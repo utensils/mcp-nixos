@@ -64,10 +64,10 @@
           if command -v uv >/dev/null 2>&1; then
             echo "(Using uv)"
             # Install with all optional dependencies for development
-            uv pip install ".[dev]"
+            uv pip install ".[dev,evals]"
           else
             echo "(Using pip)"
-            python -m pip install ".[dev]"
+            python -m pip install ".[dev,evals]"
           fi
 
           if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
@@ -217,6 +217,7 @@
             # Linters & Formatters
             ps.black
             ps.flake8
+            ps.pylint
             # Standalone pyright package for cross-platform type checking
             pyright
 
@@ -310,12 +311,14 @@
                   echo "Using coverage and JUnit XML (CI environment)"
                 fi
                 
-                # Simple and direct test execution
+                # For local development, always run all tests including evals
+                # In CI, the workflow will handle excluding anthropic tests for external contributors
                 if [ -n "$TEST_ARGS" ]; then
                   echo "Running: pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"
                   eval "pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"
                 else
                   echo "Running: pytest tests/ -v $COVERAGE_ARGS $JUNIT_ARGS $@"
+                  echo "Note: Running all tests including eval tests. In CI, eval tests are skipped for external contributors."
                   pytest tests/ -v $COVERAGE_ARGS $JUNIT_ARGS "$@"
                 fi
                 
@@ -349,7 +352,7 @@
             {
               name = "lint";
               category = "development";
-              help = "Format with Black and then lint code with Flake8 (only checks format in CI)";
+              help = "Format with Black and then lint code with Flake8 and Pylint (only checks format in CI)";
               command = ''
                 # Check if running in CI environment
                 if [ "$(printenv CI 2>/dev/null)" != "" ] || [ "$(printenv GITHUB_ACTIONS 2>/dev/null)" != "" ]; then
@@ -361,6 +364,9 @@
                 fi
                 echo "--- Running Flake8 linter ---"
                 flake8 mcp_nixos/ tests/
+                echo "--- Running Pylint analyzer ---"
+                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+                python -m pylint mcp_nixos/ tests/ || true
               '';
             }
             {
@@ -368,6 +374,18 @@
               category = "development";
               help = "Run pyright type checker";
               command = "pyright"; # Direct command
+            }
+            {
+              name = "check-pylint";
+              category = "development";
+              help = "Run pylint static code analyzer";
+              command = ''
+                echo "--- Running Pylint ---"
+                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+                # Run pylint with reasonable defaults for our project
+                python -m pylint mcp_nixos/ tests/ || true
+                echo "✅ Pylint analysis complete"
+              '';
             }
             {
               name = "format";
@@ -400,29 +418,6 @@
                 echo "--- Uploading to PyPI ---"
                 twine upload dist/*
                 echo "✅ Upload command executed."
-              '';
-            }
-            {
-              name = "sync-rules";
-              category = "development";
-              help = "Sync CLAUDE.md to .windsurfrules, .cursorrules, and .goosehints files";
-              command = ''
-                echo "--- Syncing CLAUDE.md to rule files ---"
-                if [ ! -f "CLAUDE.md" ]; then
-                  echo "❌ Error: CLAUDE.md file not found!"
-                  exit 1
-                fi
-                
-                # Copy content to rule files
-                cat CLAUDE.md > .windsurfrules
-                cat CLAUDE.md > .cursorrules
-                cat CLAUDE.md > .goosehints
-                
-                # Verify sync
-                echo "✅ CLAUDE.md synced to:"
-                echo "   - .windsurfrules"
-                echo "   - .cursorrules"
-                echo "   - .goosehints"
               '';
             }
             {

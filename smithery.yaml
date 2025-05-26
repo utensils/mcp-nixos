@@ -3,27 +3,5 @@
 
 startCommand:
   type: stdio
-  configSchema:
-    type: object
-    properties:
-      MCP_NIXOS_LOG_LEVEL:
-        type: string
-        enum: ["DEBUG", "INFO", "WARNING", "ERROR"]
-        default: "INFO"
-        description: "Logging level for the MCP-NixOS server"
-  commandFunction: |
-    (config) => {
-      const env = {};
-      
-      for (const [key, value] of Object.entries(config)) {
-        if (value !== undefined && value !== null) {
-          env[key] = String(value);
-        }
-      }
-      
-      return {
-        command: "python",
-        args: ["-m", "mcp_nixos"],
-        env
-      };
-    }
+  command: python
+  args: ["-m", "mcp_nixos"]
