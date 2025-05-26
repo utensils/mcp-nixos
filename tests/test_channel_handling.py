@@ -89,16 +89,36 @@ class TestChannelHandling:
         result = validate_channel("totally-invalid")
         assert result is False
 
-    def test_get_channel_suggestions_similar(self):
+    @patch("mcp_nixos.server.get_channels")
+    def test_get_channel_suggestions_similar(self, mock_get_channels):
         """Test getting suggestions for similar channel names."""
+        # Mock the available channels
+        mock_get_channels.return_value = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
+        }
+
         result = get_channel_suggestions("unstabl")
         assert "unstable" in result
 
         result = get_channel_suggestions("24")
         assert "24.11" in result
 
-    def test_get_channel_suggestions_fallback(self):
+    @patch("mcp_nixos.server.get_channels")
+    def test_get_channel_suggestions_fallback(self, mock_get_channels):
         """Test fallback suggestions for completely invalid names."""
+        # Mock the available channels
+        mock_get_channels.return_value = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
+        }
+
         result = get_channel_suggestions("totally-random-xyz")
         assert "unstable" in result
         assert "stable" in result

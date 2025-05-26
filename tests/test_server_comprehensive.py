@@ -187,7 +187,7 @@ class TestHelperFunctions:
         mock_get.return_value = mock_resp
 
         result = parse_html_options("http://test.com")
-        assert result == []
+        assert not result
 
     @patch("mcp_nixos.server.requests.get")
     def test_parse_html_options_connection_error(self, mock_get):
@@ -297,7 +297,7 @@ class TestNixOSTools:
         mock_query.return_value = []
 
         channels = get_channels()
-        for channel in channels.keys():
+        for channel in channels:
             result = nixos_search("test", channel=channel)
             assert result == "No packages found matching 'test'"
 

@@ -58,7 +58,7 @@ class MockMCPClient:
   Packages: default, docs, home-manager
 
 """
-            elif "devenv" in query.lower():
+            if "devenv" in query.lower():
                 return """Found 1 unique flake matching 'devenv':
 
 • cachix/devenv
@@ -67,7 +67,7 @@ class MockMCPClient:
   Packages: default, devenv
 
 """
-            elif "agenix" in query.lower():
+            if "agenix" in query.lower():
                 return """Found 1 unique flake matching 'agenix':
 
 • ryantm/agenix
@@ -76,18 +76,18 @@ class MockMCPClient:
   Packages: default, agenix
 
 """
-            elif "nonexistent" in query.lower():
+            if "nonexistent" in query.lower():
                 return "No flakes found matching 'nonexistent'."
-            else:
-                return (
-                    f"Found 2 unique flakes matching '{query}':\n\n"
-                    "• example/flake1\n  Description: Example flake 1\n"
-                    "  URL: github:example/flake1\n  Packages: default\n\n"
-                    "• example/flake2\n  Description: Example flake 2\n"
-                    "  URL: github:example/flake2\n  Packages: default, lib\n\n"
-                )
+            # Default response
+            return (
+                f"Found 2 unique flakes matching '{query}':\n\n"
+                "• example/flake1\n  Description: Example flake 1\n"
+                "  URL: github:example/flake1\n  Packages: default\n\n"
+                "• example/flake2\n  Description: Example flake 2\n"
+                "  URL: github:example/flake2\n  Packages: default, lib\n\n"
+            )
 
-        elif tool_name == "home_manager_stats":
+        if tool_name == "home_manager_stats":
             return """Home Manager Statistics:
 • Total options: 2129
 • Total categories: 131
@@ -100,7 +100,7 @@ Top categories by option count:
 • home: 46 options (2.2%)
 """
 
-        elif tool_name == "darwin_stats":
+        if tool_name == "darwin_stats":
             return """nix-darwin Statistics:
 • Total options: 348
 • Total categories: 21

@@ -168,7 +168,7 @@ class TestPackageCountsEval:
             url = args[0]
             if "/_count" in url and "25.05" in url:
                 return mock_count_response
-            elif "/_count" in url:
+            if "/_count" in url:
                 # Other channels not found
                 mock_404 = Mock()
                 mock_404.status_code = 404

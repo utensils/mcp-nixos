@@ -89,6 +89,13 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 - `nixos_info(name, type, channel)` - Get package or option details
 - `nixos_stats(channel)` - Get NixOS statistics nobody asked for
 - `nixos_channels()` - List available channels with their status
+- `nixhub_package_versions(package_name, limit)` - Get version history with nixpkgs commit hashes from NixHub
+  - **Pro tip**: Increase `limit` (up to 50) to find older versions like Ruby 2.6 or Python 2.7
+  - Returns commit hashes for reproducible builds
+- `nixhub_find_version(package_name, version)` - Smart search for a specific package version
+  - Automatically tries multiple limits to find the exact version you need
+  - Provides helpful alternatives when a version doesn't exist
+  - Example: `nixhub_find_version("ruby", "2.6.7")` returns the commit hash
 
 **Channels:**
 
@@ -140,6 +147,10 @@ nixos_flakes_search(query="home-manager", limit=20)
 nixos_info(name="firefox", type="package")
 nixos_info(name="services.postgresql.enable", type="option")
 nixos_channels()  # See what channels are available
+nixhub_package_versions("firefox", limit=5)  # Get Firefox version history with commit hashes
+nixhub_package_versions("ruby", limit=50)  # Finding older versions? Use higher limits!
+nixhub_find_version("ruby", "2.6.7")  # Smart search for specific version - finds it automatically!
+nixhub_find_version("python3", "3.5.9")  # Tells you if version is unavailable with alternatives
 
 # Home Manager examples for the domestic configuration enthusiasts
 home_manager_search(query="programs.git")

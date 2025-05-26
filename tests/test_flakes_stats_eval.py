@@ -20,34 +20,34 @@ class TestFlakesStatsEval:
                 mock_response.status_code = 200
                 mock_response.json.return_value = {"count": 4500}
                 return mock_response
-            else:
-                # Search request to get sample documents
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "hits": {
-                        "total": {"value": 4500},
-                        "hits": [
-                            {
-                                "_source": {
-                                    "flake_resolved": {"url": "https://github.com/NixOS/nixpkgs", "type": "github"},
-                                    "package_pname": "hello",
-                                }
-                            },
-                            {
-                                "_source": {
-                                    "flake_resolved": {
-                                        "url": "https://github.com/nix-community/home-manager",
-                                        "type": "github",
-                                    },
-                                    "package_pname": "home-manager",
-                                }
-                            },
-                        ]
-                        * 10,  # Simulate more hits
-                    }
+            # Regular search request
+            # Search request to get sample documents
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "hits": {
+                    "total": {"value": 4500},
+                    "hits": [
+                        {
+                            "_source": {
+                                "flake_resolved": {"url": "https://github.com/NixOS/nixpkgs", "type": "github"},
+                                "package_pname": "hello",
+                            }
+                        },
+                        {
+                            "_source": {
+                                "flake_resolved": {
+                                    "url": "https://github.com/nix-community/home-manager",
+                                    "type": "github",
+                                },
+                                "package_pname": "home-manager",
+                            }
+                        },
+                    ]
+                    * 10,  # Simulate more hits
                 }
-                return mock_response
+            }
+            return mock_response
 
         mock_post.side_effect = side_effect
 
@@ -257,23 +257,22 @@ class TestFlakesStatsEval:
                     mock_response.status_code = 200
                     mock_response.json.return_value = {"count": 4500}
                     return mock_response
-                else:
-                    # Search request - return sample hits
-                    mock_response = Mock()
-                    mock_response.status_code = 200
-                    mock_response.json.return_value = {
-                        "hits": {
-                            "hits": [
-                                {
-                                    "_source": {
-                                        "flake_resolved": {"url": "https://github.com/NixOS/nixpkgs", "type": "github"}
-                                    }
+                # Search request - return sample hits
+                mock_response = Mock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "hits": {
+                        "hits": [
+                            {
+                                "_source": {
+                                    "flake_resolved": {"url": "https://github.com/NixOS/nixpkgs", "type": "github"}
                                 }
-                            ]
-                            * 5
-                        }
+                            }
+                        ]
+                        * 5
                     }
-                    return mock_response
+                }
+                return mock_response
             return mock_packages_response
 
         mock_post.side_effect = side_effect

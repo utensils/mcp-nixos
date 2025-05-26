@@ -293,16 +293,15 @@ class TestPackageDiscoveryEvals:
             query = args[1]
             if "program" in str(query):
                 return [{"_source": {"package_programs": ["git"], "package_pname": "git"}}]
-            else:
-                return [
-                    {
-                        "_source": {
-                            "package_pname": "git",
-                            "package_pversion": "2.43.0",
-                            "package_description": "Distributed version control system",
-                        }
+            return [
+                {
+                    "_source": {
+                        "package_pname": "git",
+                        "package_pversion": "2.43.0",
+                        "package_description": "Distributed version control system",
                     }
-                ]
+                }
+            ]
 
         mock_query.side_effect = query_side_effect
 

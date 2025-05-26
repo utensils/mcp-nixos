@@ -238,6 +238,31 @@ class AnthropicEvaluator:
             },
         ]
 
+    def _execute_single_tool(self, tool_use, tool_calls):
+        """Execute a single tool and return the result."""
+        tool_name = tool_use.name
+        tool_args = tool_use.input
+
+        if tool_name in self.tools:
+            try:
+                result = self.tools[tool_name](**cast(Dict[str, Any], tool_args))
+            except Exception as e:
+                result = f"Error: {str(e)}"
+        else:
+            result = f"Unknown tool: {tool_name}"
+
+        tool_calls.append(ToolCall(name=tool_name, arguments=cast(Dict[str, Any], tool_args), result=result))
+        return {"type": "tool_result", "tool_use_id": tool_use.id, "content": result}
+
+    def _process_tool_calls(self, tool_use_blocks, tool_calls):
+        """Process tool calls and return results."""
+        tool_results = []
+        for tool_use in tool_use_blocks:
+            tool_result = self._execute_single_tool(tool_use, tool_calls)
+            tool_results.append(tool_result)
+
+        return tool_results
+
     def run_scenario(self, scenario: EvalScenario) -> EvalResult:
         """Run a single evaluation scenario."""
         tool_calls: List[ToolCall] = []
@@ -280,23 +305,7 @@ class AnthropicEvaluator:
 
         # If there are tool calls, process them
         if tool_use_blocks:
-            # Execute all tool calls
-            tool_results = []
-            for tool_use in tool_use_blocks:
-                tool_name = tool_use.name
-                tool_args = tool_use.input
-
-                if tool_name in self.tools:
-                    try:
-                        result = self.tools[tool_name](**cast(Dict[str, Any], tool_args))
-                    except Exception as e:
-                        result = f"Error: {str(e)}"
-                else:
-                    result = f"Unknown tool: {tool_name}"
-
-                tool_calls.append(ToolCall(name=tool_name, arguments=cast(Dict[str, Any], tool_args), result=result))
-
-                tool_results.append({"type": "tool_result", "tool_use_id": tool_use.id, "content": result})
+            tool_results = self._process_tool_calls(tool_use_blocks, tool_calls)
 
             # Continue conversation with all tool results
             messages.append({"role": "assistant", "content": response.content})
@@ -326,23 +335,8 @@ class AnthropicEvaluator:
                         ai_response_parts.append(final_content.text)
                     elif final_content.type == "tool_use" and turn < max_turns - 1:
                         has_tool_use = True
-                        # Execute additional tool call
-                        tool_name = final_content.name
-                        tool_args = final_content.input
-
-                        if tool_name in self.tools:
-                            try:
-                                result = self.tools[tool_name](**cast(Dict[str, Any], tool_args))
-                            except Exception as e:
-                                result = f"Error: {str(e)}"
-                        else:
-                            result = f"Unknown tool: {tool_name}"
-
-                        tool_calls.append(
-                            ToolCall(name=tool_name, arguments=cast(Dict[str, Any], tool_args), result=result)
-                        )
-
-                        tool_results.append({"type": "tool_result", "tool_use_id": final_content.id, "content": result})
+                        tool_result = self._execute_single_tool(final_content, tool_calls)
+                        tool_results.append(tool_result)
 
                 if has_tool_use:
                     # Add tool use and results to messages

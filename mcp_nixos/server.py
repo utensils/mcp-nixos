@@ -11,6 +11,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 
 from mcp.server.fastmcp import FastMCP
 import requests
+import re
 from typing import Dict, List
 from bs4 import BeautifulSoup
 
@@ -400,8 +401,6 @@ def nixos_search(query: str, search_type: str = "packages", limit: int = 20, cha
                     # Remove outer rendered-html tags
                     desc = desc.replace("<rendered-html>", "").replace("</rendered-html>", "")
                     # Remove common HTML tags
-                    import re
-
                     desc = re.sub(r"<[^>]+>", "", desc)
                     desc = desc.strip()
                 results.append(f"• {name}")
@@ -493,8 +492,6 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
             # Strip HTML tags from description
             if "<rendered-html>" in desc:
                 desc = desc.replace("<rendered-html>", "").replace("</rendered-html>", "")
-                import re
-
                 desc = re.sub(r"<[^>]+>", "", desc)
                 desc = desc.strip()
             info.append(f"Description: {desc}")
@@ -766,14 +763,58 @@ def home_manager_list_options() -> str:
         categories = {}
 
         for opt in options:
-            cat = opt["name"].split(".")[0]
-            categories[cat] = categories.get(cat, 0) + 1
+            name = opt["name"]
+            # Only process properly formatted option names
+            if "." in name and not name.startswith("."):
+                cat = name.split(".")[0]
+                # Valid categories should:
+                # - Be more than 1 character
+                # - Only contain lowercase letters (no numbers, hyphens, or special chars)
+                # - Not be common value words
+                # - Match typical nix option category patterns
+                if (
+                    len(cat) > 1 and cat.isalpha() and cat.islower() and cat.isidentifier()
+                ):  # This ensures valid Python identifier (no special chars)
+                    # Additional filtering for known valid categories
+                    valid_categories = {
+                        "accounts",
+                        "dconf",
+                        "editorconfig",
+                        "fonts",
+                        "gtk",
+                        "home",
+                        "i18n",
+                        "launchd",
+                        "lib",
+                        "manual",
+                        "news",
+                        "nix",
+                        "nixgl",
+                        "nixpkgs",
+                        "pam",
+                        "programs",
+                        "qt",
+                        "services",
+                        "specialisation",
+                        "systemd",
+                        "targets",
+                        "wayland",
+                        "xdg",
+                        "xresources",
+                        "xsession",
+                    }
+                    # Only include if it's in the known valid list or looks like a typical category
+                    if cat in valid_categories or (len(cat) >= 3 and not any(char.isdigit() for char in cat)):
+                        categories[cat] = categories.get(cat, 0) + 1
 
         results = []
         results.append(f"Home Manager option categories ({len(categories)} total):\n")
 
-        for cat, count in sorted(categories.items()):
-            results.append(f"• {cat} ({count} options)")
+        # Sort by count descending, then alphabetically
+        sorted_cats = sorted(categories.items(), key=lambda x: (-x[1], x[0]))
+
+        for cat, count in sorted_cats:
+            results.append(f"• {cat}: {count} options")
 
         return "\n".join(results)
 
@@ -970,14 +1011,50 @@ def darwin_list_options() -> str:
         categories = {}
 
         for opt in options:
-            cat = opt["name"].split(".")[0]
-            categories[cat] = categories.get(cat, 0) + 1
+            name = opt["name"]
+            # Only process properly formatted option names
+            if "." in name and not name.startswith("."):
+                cat = name.split(".")[0]
+                # Valid categories should:
+                # - Be more than 1 character
+                # - Only contain lowercase letters (no numbers, hyphens, or special chars)
+                # - Not be common value words
+                # - Match typical nix option category patterns
+                if (
+                    len(cat) > 1 and cat.isalpha() and cat.islower() and cat.isidentifier()
+                ):  # This ensures valid Python identifier (no special chars)
+                    # Additional filtering for known valid Darwin categories
+                    valid_categories = {
+                        "documentation",
+                        "environment",
+                        "fonts",
+                        "homebrew",
+                        "ids",
+                        "launchd",
+                        "networking",
+                        "nix",
+                        "nixpkgs",
+                        "power",
+                        "programs",
+                        "security",
+                        "services",
+                        "system",
+                        "targets",
+                        "time",
+                        "users",
+                    }
+                    # Only include if it's in the known valid list or looks like a typical category
+                    if cat in valid_categories or (len(cat) >= 3 and not any(char.isdigit() for char in cat)):
+                        categories[cat] = categories.get(cat, 0) + 1
 
         results = []
         results.append(f"nix-darwin option categories ({len(categories)} total):\n")
 
-        for cat, count in sorted(categories.items()):
-            results.append(f"• {cat} ({count} options)")
+        # Sort by count descending, then alphabetically
+        sorted_cats = sorted(categories.items(), key=lambda x: (-x[1], x[0]))
+
+        for cat, count in sorted_cats:
+            results.append(f"• {cat}: {count} options")
 
         return "\n".join(results)
 
@@ -1351,6 +1428,344 @@ Browse flakes at:
 
     except Exception as e:
         return error(str(e))
+
+
+def _version_key(version_str: str) -> tuple:
+    """Convert version string to tuple for proper sorting."""
+    try:
+        parts = version_str.split(".")
+        # Handle versions like "3.9.9" or "3.10.0-rc1"
+        numeric_parts = []
+        for part in parts[:3]:  # Major.Minor.Patch
+            # Extract numeric part
+            numeric = ""
+            for char in part:
+                if char.isdigit():
+                    numeric += char
+                else:
+                    break
+            if numeric:
+                numeric_parts.append(int(numeric))
+            else:
+                numeric_parts.append(0)
+        # Pad with zeros if needed
+        while len(numeric_parts) < 3:
+            numeric_parts.append(0)
+        return tuple(numeric_parts)
+    except Exception:
+        return (0, 0, 0)
+
+
+def _format_nixhub_found_version(package_name: str, version: str, found_version: Dict) -> str:
+    """Format a found version for display."""
+    results = []
+    results.append(f"✓ Found {package_name} version {version}\n")
+
+    last_updated = found_version.get("last_updated", "")
+    if last_updated:
+        try:
+            from datetime import datetime
+
+            dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+            formatted_date = dt.strftime("%Y-%m-%d %H:%M UTC")
+            results.append(f"Last updated: {formatted_date}")
+        except Exception:
+            results.append(f"Last updated: {last_updated}")
+
+    platforms_summary = found_version.get("platforms_summary", "")
+    if platforms_summary:
+        results.append(f"Platforms: {platforms_summary}")
+
+    # Show commit hashes
+    platforms = found_version.get("platforms", [])
+    if platforms:
+        results.append("\nNixpkgs commits:")
+        seen_commits = set()
+
+        for platform in platforms:
+            attr_path = platform.get("attribute_path", "")
+            commit_hash = platform.get("commit_hash", "")
+
+            if commit_hash and commit_hash not in seen_commits:
+                seen_commits.add(commit_hash)
+                if re.match(r"^[a-fA-F0-9]{40}$", commit_hash):
+                    results.append(f"• {commit_hash}")
+                    if attr_path:
+                        results.append(f"  Attribute: {attr_path}")
+
+    results.append("\nTo use this version:")
+    results.append("1. Pin nixpkgs to one of the commit hashes above")
+    results.append("2. Install using the attribute path")
+
+    return "\n".join(results)
+
+
+def _format_nixhub_release(release: Dict) -> List[str]:
+    """Format a single NixHub release for display."""
+    results = []
+    version = release.get("version", "unknown")
+    last_updated = release.get("last_updated", "")
+    platforms_summary = release.get("platforms_summary", "")
+    platforms = release.get("platforms", [])
+
+    results.append(f"• Version {version}")
+
+    if last_updated:
+        # Format date nicely
+        try:
+            from datetime import datetime
+
+            dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+            formatted_date = dt.strftime("%Y-%m-%d %H:%M UTC")
+            results.append(f"  Last updated: {formatted_date}")
+        except Exception:
+            results.append(f"  Last updated: {last_updated}")
+
+    if platforms_summary:
+        results.append(f"  Platforms: {platforms_summary}")
+
+    # Show commit hashes for each platform (avoid duplicates)
+    if platforms:
+        seen_commits = set()
+        for platform in platforms:
+            commit_hash = platform.get("commit_hash", "")
+
+            if commit_hash and commit_hash not in seen_commits:
+                seen_commits.add(commit_hash)
+                # Validate commit hash format (40 hex chars)
+                if re.match(r"^[a-fA-F0-9]{40}$", commit_hash):
+                    results.append(f"  Nixpkgs commit: {commit_hash}")
+                else:
+                    results.append(f"  Nixpkgs commit: {commit_hash[:40]}... (warning: invalid format)")
+
+    return results
+
+
+@mcp.tool()
+def nixhub_package_versions(package_name: str, limit: int = 10) -> str:
+    """Get version history and nixpkgs commit hashes for a specific package from NixHub.io.
+
+    Use this tool when users need specific package versions or commit hashes for reproducible builds.
+
+    Args:
+        package_name: Name of the package to query (e.g., "firefox", "python")
+        limit: Maximum number of versions to return (default: 10, max: 50)
+
+    Returns:
+        Plain text with package info and version history including commit hashes
+    """
+    # Validate inputs
+    if not package_name or not package_name.strip():
+        return error("Package name is required")
+
+    # Sanitize package name - only allow alphanumeric, hyphens, underscores, dots
+    if not re.match(r"^[a-zA-Z0-9\-_.]+$", package_name):
+        return error("Invalid package name. Only letters, numbers, hyphens, underscores, and dots are allowed")
+
+    if not 1 <= limit <= 50:
+        return error("Limit must be between 1 and 50")
+
+    try:
+        # Construct NixHub API URL with the _data parameter
+        url = f"https://www.nixhub.io/packages/{package_name}?_data=routes%2F_nixhub.packages.%24pkg._index"
+
+        # Make request with timeout and proper headers
+        headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/1.0.0"}  # Identify ourselves
+
+        resp = requests.get(url, headers=headers, timeout=15)
+
+        # Handle different HTTP status codes
+        if resp.status_code == 404:
+            return error(f"Package '{package_name}' not found in NixHub", "NOT_FOUND")
+        if resp.status_code >= 500:
+            return error("NixHub service temporarily unavailable", "SERVICE_ERROR")
+
+        resp.raise_for_status()
+
+        # Parse JSON response
+        data = resp.json()
+
+        # Validate response structure
+        if not isinstance(data, dict):
+            return error("Invalid response format from NixHub")
+
+        # Extract package info
+        name = data.get("name", package_name)
+        summary = data.get("summary", "")
+        releases = data.get("releases", [])
+
+        if not releases:
+            return f"Package: {name}\nNo version history available in NixHub"
+
+        # Build results
+        results = []
+        results.append(f"Package: {name}")
+        if summary:
+            results.append(f"Description: {summary}")
+        results.append(f"Total versions: {len(releases)}")
+        results.append("")
+
+        # Limit results
+        shown_releases = releases[:limit]
+
+        results.append(f"Version history (showing {len(shown_releases)} of {len(releases)}):\n")
+
+        for release in shown_releases:
+            results.extend(_format_nixhub_release(release))
+            results.append("")
+
+        # Add usage hint
+        if shown_releases and any(r.get("platforms", [{}])[0].get("commit_hash") for r in shown_releases):
+            results.append("To use a specific version in your Nix configuration:")
+            results.append("1. Pin nixpkgs to the commit hash")
+            results.append("2. Use the attribute path to install the package")
+
+        return "\n".join(results).strip()
+
+    except requests.Timeout:
+        return error("Request to NixHub timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"Network error accessing NixHub: {str(e)}", "NETWORK_ERROR")
+    except ValueError as e:
+        return error(f"Failed to parse NixHub response: {str(e)}", "PARSE_ERROR")
+    except Exception as e:
+        return error(f"Unexpected error: {str(e)}")
+
+
+@mcp.tool()
+def nixhub_find_version(package_name: str, version: str) -> str:
+    """Find a specific version of a package in NixHub with smart search.
+
+    Automatically searches with increasing limits to find the requested version.
+
+    Args:
+        package_name: Name of the package to query (e.g., "ruby", "python")
+        version: Specific version to find (e.g., "2.6.7", "3.5.9")
+
+    Returns:
+        Plain text with version info and commit hash if found, or helpful message if not
+    """
+    # Validate inputs
+    if not package_name or not package_name.strip():
+        return error("Package name is required")
+
+    if not version or not version.strip():
+        return error("Version is required")
+
+    # Sanitize inputs
+    if not re.match(r"^[a-zA-Z0-9\-_.]+$", package_name):
+        return error("Invalid package name. Only letters, numbers, hyphens, underscores, and dots are allowed")
+
+    # Try with incremental limits
+    limits_to_try = [10, 25, 50]
+    found_version = None
+    all_versions = []
+
+    for limit in limits_to_try:
+        try:
+            # Make request - handle special cases for package names
+            nixhub_name = package_name
+            # Common package name mappings
+            if package_name == "python":
+                nixhub_name = "python3"
+            elif package_name == "python2":
+                nixhub_name = "python"
+
+            url = f"https://www.nixhub.io/packages/{nixhub_name}?_data=routes%2F_nixhub.packages.%24pkg._index"
+            headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/1.0.0"}
+
+            resp = requests.get(url, headers=headers, timeout=15)
+
+            if resp.status_code == 404:
+                return error(f"Package '{package_name}' not found in NixHub", "NOT_FOUND")
+            if resp.status_code >= 500:
+                return error("NixHub service temporarily unavailable", "SERVICE_ERROR")
+
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not isinstance(data, dict):
+                return error("Invalid response format from NixHub")
+
+            releases = data.get("releases", [])
+
+            # Collect all versions seen
+            for release in releases[:limit]:
+                release_version = release.get("version", "")
+                if release_version and release_version not in [v["version"] for v in all_versions]:
+                    all_versions.append({"version": release_version, "release": release})
+
+                # Check if this is the version we're looking for
+                if release_version == version:
+                    found_version = release
+                    break
+
+            if found_version:
+                break
+
+        except requests.Timeout:
+            return error("Request to NixHub timed out", "TIMEOUT")
+        except requests.RequestException as e:
+            return error(f"Network error accessing NixHub: {str(e)}", "NETWORK_ERROR")
+        except Exception as e:
+            return error(f"Unexpected error: {str(e)}")
+
+    # Format response
+    if found_version:
+        return _format_nixhub_found_version(package_name, version, found_version)
+
+    # Version not found - provide helpful information
+    results = []
+    results.append(f"✗ {package_name} version {version} not found in NixHub\n")
+
+    # Show available versions
+    if all_versions:
+        results.append(f"Available versions (checked {len(all_versions)} total):")
+
+        # Sort versions properly using version comparison
+        sorted_versions = sorted(all_versions, key=lambda x: _version_key(x["version"]), reverse=True)
+
+        # Find newest and oldest
+        newest = sorted_versions[0]["version"]
+        oldest = sorted_versions[-1]["version"]
+
+        results.append(f"• Newest: {newest}")
+        results.append(f"• Oldest: {oldest}")
+
+        # Show version range summary
+        major_versions = set()
+        for v in all_versions:
+            parts = v["version"].split(".")
+            if parts:
+                major_versions.add(parts[0])
+
+        if major_versions:
+            results.append(f"• Major versions available: {', '.join(sorted(major_versions, reverse=True))}")
+
+        # Check if requested version is older than available
+        try:
+            requested_parts = version.split(".")
+            oldest_parts = oldest.split(".")
+
+            if len(requested_parts) >= 2 and len(oldest_parts) >= 2:
+                req_major = int(requested_parts[0])
+                req_minor = int(requested_parts[1])
+                old_major = int(oldest_parts[0])
+                old_minor = int(oldest_parts[1])
+
+                if req_major < old_major or (req_major == old_major and req_minor < old_minor):
+                    results.append(f"\nVersion {version} is older than the oldest available ({oldest})")
+                    results.append("This version may have been removed after reaching end-of-life.")
+        except (ValueError, IndexError):
+            pass
+
+        results.append("\nAlternatives:")
+        results.append("• Use a newer version if possible")
+        results.append("• Build from source with a custom derivation")
+        results.append("• Use Docker/containers with the specific version")
+        results.append("• Find an old nixpkgs commit from before the version was removed")
+
+    return "\n".join(results)
 
 
 if __name__ == "__main__":

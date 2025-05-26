@@ -72,7 +72,9 @@ disable=
     # Wrong import order (handled by isort/black)
     C0411,
     # Wrong import position
-    C0413
+    C0413,
+    # Attribute defined outside __init__ (common in pytest setup_method)
+    W0201
 
 [FORMAT]
 # Maximum number of characters on a single line
