@@ -120,7 +120,7 @@ export default function Home() {
           <div className="max-w-2xl mx-auto">
             <AnchorHeading level={3} className="text-2xl font-bold mb-4 text-nix-primary">Configuration</AnchorHeading>
             <p className="mb-6 text-gray-800 font-medium">
-              Add to your Claude Code configuration file:
+              Add to your MCP configuration file:
             </p>
             <CodeBlock 
               code={`{
@@ -134,7 +134,7 @@ export default function Home() {
               language="json" 
             />
             <p className="mt-6 text-gray-800 font-medium">
-              Then start asking Claude about NixOS packages and configuration options!
+              Start leveraging NixOS package information and configuration options in your workflow! For additional configuration options, see the <Link href="/docs#configuration" className="text-nix-primary hover:text-nix-dark underline transition-colors">configuration documentation</Link>.
             </p>
             <div className="text-center mt-12">
               <Link href="/docs" className="btn-primary">

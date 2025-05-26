@@ -63,12 +63,24 @@ const nixosTheme = {
   },
 };
 
+
+
+// Helper function to decode HTML entities
+function decodeHtmlEntities(text: string): string {
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
+}
+
 const CodeBlock: React.FC<CodeBlockProps> = ({ 
   code, 
   language,
   showLineNumbers = false
 }) => {
   const [copied, setCopied] = useState(false);
+  
+  // Decode HTML entities in the code
+  const decodedCode = typeof window !== 'undefined' ? decodeHtmlEntities(code) : code;
 
   const handleCopy = async () => {
     try {
@@ -132,7 +144,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
 
   return (
     <div className="rounded-lg overflow-hidden shadow-md mb-6">
-      <div className="flex justify-between items-center bg-nix-dark px-4 py-2 text-xs text-white font-medium">
+      <div className="flex justify-between items-center bg-nix-primary px-4 py-2 text-xs text-white font-medium">
         <span className="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -165,6 +177,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
         language={mappedLanguage} 
         style={nixosTheme}
         showLineNumbers={showLineNumbers}
+        wrapLongLines={true}
         customStyle={{
           margin: 0,
           borderRadius: 0,
@@ -177,7 +190,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
           }
         }}
       >
-        {code}
+        {decodedCode}
       </SyntaxHighlighter>
     </div>
   );

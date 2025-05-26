@@ -138,7 +138,7 @@ export default function ClientFooter() {
                 />
                 <span className="font-medium">Utensils</span>
               </Link>
-              <span>project</span>
+              <span>Creation</span>
             </div>
             <p className="mt-2 text-sm">
               <Link href="/images/attribution.md" className="hover:text-nix-primary">

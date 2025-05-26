@@ -33,6 +33,9 @@ export default function ClientNavbar() {
             <Link href="/" className="text-gray-700 hover:text-nix-primary">
               Home
             </Link>
+            <Link href="/usage" className="text-gray-700 hover:text-nix-primary">
+              Usage
+            </Link>
             <Link href="/docs" className="text-gray-700 hover:text-nix-primary">
               Documentation
             </Link>
@@ -79,6 +82,13 @@ export default function ClientNavbar() {
                 onClick={closeMenu}
               >
                 Home
+              </Link>
+              <Link
+                href="/usage"
+                className="text-gray-700 hover:text-nix-primary"
+                onClick={closeMenu}
+              >
+                Usage
               </Link>
               <Link
                 href="/docs"

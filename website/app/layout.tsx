@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'Utensils', url: 'https://utensils.io' }],
   creator: 'Utensils',
   publisher: 'Utensils',
-  metadataBase: new URL('https://mcp-nixos.utensils.io'),
+  metadataBase: new URL('https://mcp-nixos.io'),
   alternates: {
     canonical: '/',
   },
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://mcp-nixos.utensils.io',
+    url: 'https://mcp-nixos.io',
     siteName: 'MCP-NixOS',
     title: 'MCP-NixOS | Model Context Protocol for NixOS',
     description: 'MCP resources and tools for NixOS packages, system options, Home Manager configuration, and nix-darwin macOS configuration.',
