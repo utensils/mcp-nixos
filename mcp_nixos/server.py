@@ -891,31 +891,43 @@ def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") 
     try:
         # Flakes are indexed in separate indices with pattern group-*-manual-*
         # We search across all of them
-        flake_index = "group-*-manual-*"
+        flake_index = "group-43-manual-*"  # Updated to use version 43
 
         # Build query for flakes
-        q = {
-            "bool": {
-                "should": [
-                    {"match": {"flake_name": {"query": query, "boost": 3}}},
-                    {"match": {"flake_description": {"query": query, "boost": 2}}},
-                    {"match": {"package_pname": {"query": query, "boost": 1.5}}},
-                    {"match": {"package_description": query}},
-                    {"term": {"flake_resolved.owner": {"value": query, "boost": 2}}},
-                    {"term": {"flake_resolved.repo": {"value": query, "boost": 2}}},
-                ],
-                "minimum_should_match": 1,
+        if query.strip() == "" or query == "*":
+            # Empty or wildcard query - get all flakes
+            q = {"match_all": {}}
+        else:
+            # Search query with multiple fields
+            q = {
+                "bool": {
+                    "should": [
+                        {"match": {"flake_name": {"query": query, "boost": 3}}},
+                        {"match": {"flake_description": {"query": query, "boost": 2}}},
+                        {"match": {"package_pname": {"query": query, "boost": 1.5}}},
+                        {"match": {"package_description": query}},
+                        {"wildcard": {"flake_name": {"value": f"*{query}*", "boost": 2.5}}},
+                        {"wildcard": {"package_pname": {"value": f"*{query}*", "boost": 1}}},
+                        {"prefix": {"flake_name": {"value": query, "boost": 2}}},
+                        {"term": {"flake_resolved.owner": {"value": query.lower(), "boost": 2}}},
+                        {"term": {"flake_resolved.repo": {"value": query.lower(), "boost": 2}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
             }
-        }
 
         # Execute search directly against flake indices
         try:
             resp = requests.post(
-                f"{NIXOS_API}/{flake_index}/_search", json={"query": q, "size": limit}, auth=NIXOS_AUTH, timeout=10
+                f"{NIXOS_API}/{flake_index}/_search",
+                json={"query": q, "size": limit * 5, "track_total_hits": True},  # Get more results
+                auth=NIXOS_AUTH,
+                timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
             hits = data.get("hits", {}).get("hits", [])
+            # total = data.get("hits", {}).get("total", {}).get("value", 0)  # Reserved for future use
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 # No flake indices found
@@ -937,40 +949,86 @@ Browse flakes at:
 
         # Group hits by flake to avoid duplicates
         flakes = {}
+        packages_only = []  # For entries without flake metadata
+
         for hit in hits:
             src = hit.get("_source", {})
-            # Get flake information
-            name = src.get("flake_name", "")
-            if not name:
-                name = src.get("package_pname", "")
 
-            if not name:
+            # Get flake information
+            flake_name = src.get("flake_name", "").strip()
+            package_pname = src.get("package_pname", "")
+            resolved = src.get("flake_resolved", {})
+
+            # Skip entries without any useful name
+            if not flake_name and not package_pname:
                 continue
 
-            # Create unique key for the flake
-            resolved = src.get("flake_resolved", {})
-            if isinstance(resolved, dict):
+            # If we have flake metadata (resolved), use it to create unique key
+            if isinstance(resolved, dict) and (resolved.get("owner") or resolved.get("repo") or resolved.get("url")):
                 owner = resolved.get("owner", "")
                 repo = resolved.get("repo", "")
-                flake_key = f"{owner}/{repo}/{name}" if owner and repo else name
+                url = resolved.get("url", "")
+
+                # Create a unique key based on available info
+                if owner and repo:
+                    flake_key = f"{owner}/{repo}"
+                    display_name = flake_name or repo or package_pname
+                elif url:
+                    # Extract name from URL for git repos
+                    flake_key = url
+                    if "/" in url:
+                        display_name = flake_name or url.rstrip("/").split("/")[-1].replace(".git", "") or package_pname
+                    else:
+                        display_name = flake_name or package_pname
+                else:
+                    flake_key = flake_name or package_pname
+                    display_name = flake_key
+
+                # Initialize flake entry if not seen
+                if flake_key not in flakes:
+                    flakes[flake_key] = {
+                        "name": display_name,
+                        "description": src.get("flake_description") or src.get("package_description", ""),
+                        "owner": owner,
+                        "repo": repo,
+                        "url": url,
+                        "type": resolved.get("type", ""),
+                        "packages": set(),  # Use set to avoid duplicates
+                    }
+
+                # Add package if available
+                attr_name = src.get("package_attr_name", "")
+                if attr_name:
+                    flakes[flake_key]["packages"].add(attr_name)
+
+            elif flake_name:
+                # Has flake_name but no resolved metadata
+                flake_key = flake_name
+
+                if flake_key not in flakes:
+                    flakes[flake_key] = {
+                        "name": flake_name,
+                        "description": src.get("flake_description") or src.get("package_description", ""),
+                        "owner": "",
+                        "repo": "",
+                        "type": "",
+                        "packages": set(),
+                    }
+
+                # Add package if available
+                attr_name = src.get("package_attr_name", "")
+                if attr_name:
+                    flakes[flake_key]["packages"].add(attr_name)
+
             else:
-                flake_key = name
-
-            # Initialize flake entry if not seen
-            if flake_key not in flakes:
-                flakes[flake_key] = {
-                    "name": name,
-                    "description": src.get("flake_description") or src.get("package_description", ""),
-                    "owner": resolved.get("owner", "") if isinstance(resolved, dict) else "",
-                    "repo": resolved.get("repo", "") if isinstance(resolved, dict) else "",
-                    "type": resolved.get("type", "") if isinstance(resolved, dict) else "",
-                    "packages": [],
-                }
-
-            # Add package if available
-            attr_name = src.get("package_attr_name", "")
-            if attr_name and attr_name not in flakes[flake_key]["packages"]:
-                flakes[flake_key]["packages"].append(attr_name)
+                # Package without flake metadata - might still be relevant
+                packages_only.append(
+                    {
+                        "name": package_pname,
+                        "description": src.get("package_description", ""),
+                        "attr_name": src.get("package_attr_name", ""),
+                    }
+                )
 
         # Build results
         results = []
@@ -978,18 +1036,21 @@ Browse flakes at:
 
         for flake in flakes.values():
             results.append(f"• {flake['name']}")
-            if flake["owner"] and flake["repo"]:
+            if flake.get("owner") and flake.get("repo"):
                 results.append(
-                    f"  Repository: {flake['owner']}/{flake['repo']}" + (f" ({flake['type']})" if flake["type"] else "")
+                    f"  Repository: {flake['owner']}/{flake['repo']}"
+                    + (f" ({flake['type']})" if flake.get("type") else "")
                 )
-            if flake["description"]:
+            elif flake.get("url"):
+                results.append(f"  URL: {flake['url']}")
+            if flake.get("description"):
                 desc = flake["description"]
                 if len(desc) > 200:
                     desc = desc[:200] + "..."
                 results.append(f"  {desc}")
             if flake["packages"]:
                 # Show max 5 packages, sorted
-                packages = sorted(flake["packages"])[:5]
+                packages = sorted(list(flake["packages"]))[:5]
                 if len(flake["packages"]) > 5:
                     results.append(f"  Packages: {', '.join(packages)}, ... ({len(flake['packages'])} total)")
                 else:

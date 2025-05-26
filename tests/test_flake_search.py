@@ -158,13 +158,13 @@ class TestFlakeSearch:
         call_args = mock_post.call_args
 
         # Check URL contains flake index pattern
-        assert "group-*-manual-*" in call_args[0][0]
+        assert "group-43-manual-*" in call_args[0][0]
 
         # Check JSON payload
         json_data = call_args[1]["json"]
         assert "query" in json_data
         assert "size" in json_data
-        assert json_data["size"] == 5
+        assert json_data["size"] == 25  # limit * 5 multiplier
 
         # Check query structure
         query = json_data["query"]
