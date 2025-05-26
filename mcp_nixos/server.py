@@ -312,13 +312,13 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
 @mcp.tool()
 def nixos_search(query: str, search_type: str = "packages", limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS packages, options, or programs.
-    
+
     Args:
         query: Search term to look for
         search_type: Type of search - "packages", "options", "programs", or "flakes"
         limit: Maximum number of results to return (1-100)
         channel: NixOS channel to search in (e.g., "unstable", "stable", "25.05")
-    
+
     Returns:
         Plain text results with bullet points or error message
     """
@@ -431,12 +431,12 @@ def nixos_search(query: str, search_type: str = "packages", limit: int = 20, cha
 @mcp.tool()
 def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> str:  # pylint: disable=redefined-builtin
     """Get detailed info about a NixOS package or option.
-    
+
     Args:
         name: Name of the package or option to look up
         type: Type of lookup - "package" or "option"
         channel: NixOS channel to search in (e.g., "unstable", "stable", "25.05")
-    
+
     Returns:
         Plain text details about the package/option or error message
     """
@@ -516,7 +516,7 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
 @mcp.tool()
 def nixos_channels() -> str:
     """List available NixOS channels with their status.
-    
+
     Returns:
         Plain text list showing channel names, versions, and availability
     """
@@ -568,10 +568,10 @@ def nixos_channels() -> str:
 @mcp.tool()
 def nixos_stats(channel: str = "unstable") -> str:
     """Get NixOS statistics for a channel.
-    
+
     Args:
         channel: NixOS channel to get stats for (e.g., "unstable", "stable", "25.05")
-    
+
     Returns:
         Plain text statistics including package/option counts
     """
@@ -613,13 +613,13 @@ def nixos_stats(channel: str = "unstable") -> str:
 @mcp.tool()
 def home_manager_search(query: str, limit: int = 20) -> str:
     """Search Home Manager configuration options.
-    
+
     Searches through available Home Manager options by name and description.
-    
+
     Args:
         query: The search query string to match against option names and descriptions
         limit: Maximum number of results to return (default: 20, max: 100)
-        
+
     Returns:
         Plain text list of matching options with name, type, and description
     """
@@ -652,12 +652,12 @@ def home_manager_search(query: str, limit: int = 20) -> str:
 @mcp.tool()
 def home_manager_info(name: str) -> str:
     """Get detailed information about a specific Home Manager option.
-    
+
     Requires an exact option name match. If not found, suggests similar options.
-    
+
     Args:
         name: The exact option name (e.g., 'programs.git.enable')
-        
+
     Returns:
         Plain text with option details (name, type, description) or error with suggestions
     """
@@ -704,9 +704,9 @@ def home_manager_info(name: str) -> str:
 @mcp.tool()
 def home_manager_stats() -> str:
     """Get statistics about Home Manager options.
-    
+
     Retrieves overall statistics including total options, categories, and top categories.
-    
+
     Returns:
         Plain text summary with total options, category count, and top 5 categories
     """
@@ -754,9 +754,9 @@ def home_manager_stats() -> str:
 @mcp.tool()
 def home_manager_list_options() -> str:
     """List all Home Manager option categories.
-    
+
     Enumerates all top-level categories with their option counts.
-    
+
     Returns:
         Plain text list of categories sorted alphabetically with option counts
     """
@@ -784,12 +784,12 @@ def home_manager_list_options() -> str:
 @mcp.tool()
 def home_manager_options_by_prefix(option_prefix: str) -> str:
     """Get Home Manager options matching a specific prefix.
-    
+
     Useful for browsing options under a category or finding exact option names.
-    
+
     Args:
         option_prefix: The prefix to match (e.g., 'programs.git' or 'services')
-        
+
     Returns:
         Plain text list of options with the given prefix, including descriptions
     """
@@ -817,13 +817,13 @@ def home_manager_options_by_prefix(option_prefix: str) -> str:
 @mcp.tool()
 def darwin_search(query: str, limit: int = 20) -> str:
     """Search nix-darwin (macOS) configuration options.
-    
+
     Searches through available nix-darwin options by name and description.
-    
+
     Args:
         query: The search query string to match against option names and descriptions
         limit: Maximum number of results to return (default: 20, max: 100)
-        
+
     Returns:
         Plain text list of matching options with name, type, and description
     """
@@ -856,12 +856,12 @@ def darwin_search(query: str, limit: int = 20) -> str:
 @mcp.tool()
 def darwin_info(name: str) -> str:
     """Get detailed information about a specific nix-darwin option.
-    
+
     Requires an exact option name match. If not found, suggests similar options.
-    
+
     Args:
         name: The exact option name (e.g., 'system.defaults.dock.autohide')
-        
+
     Returns:
         Plain text with option details (name, type, description) or error with suggestions
     """
@@ -908,9 +908,9 @@ def darwin_info(name: str) -> str:
 @mcp.tool()
 def darwin_stats() -> str:
     """Get statistics about nix-darwin options.
-    
+
     Retrieves overall statistics including total options, categories, and top categories.
-    
+
     Returns:
         Plain text summary with total options, category count, and top 5 categories
     """
@@ -958,9 +958,9 @@ def darwin_stats() -> str:
 @mcp.tool()
 def darwin_list_options() -> str:
     """List all nix-darwin option categories.
-    
+
     Enumerates all top-level categories with their option counts.
-    
+
     Returns:
         Plain text list of categories sorted alphabetically with option counts
     """
@@ -988,12 +988,12 @@ def darwin_list_options() -> str:
 @mcp.tool()
 def darwin_options_by_prefix(option_prefix: str) -> str:
     """Get nix-darwin options matching a specific prefix.
-    
+
     Useful for browsing options under a category or finding exact option names.
-    
+
     Args:
         option_prefix: The prefix to match (e.g., 'system.defaults' or 'services')
-        
+
     Returns:
         Plain text list of options with the given prefix, including descriptions
     """
@@ -1021,10 +1021,10 @@ def darwin_options_by_prefix(option_prefix: str) -> str:
 @mcp.tool()
 def nixos_flakes_stats() -> str:
     """Get statistics about available NixOS flakes.
-    
+
     Retrieves statistics from the flake search index including total packages,
     unique repositories, flake types, and top contributors.
-    
+
     Returns:
         Plain text summary with flake statistics and top contributors
     """
@@ -1145,15 +1145,15 @@ def nixos_flakes_stats() -> str:
 @mcp.tool()
 def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS flakes by name, description, owner, or repository.
-    
+
     Searches the flake index for community-contributed packages and configurations.
     Flakes are indexed separately from official packages.
-    
+
     Args:
         query: The search query (flake name, description, owner, or repository)
         limit: Maximum number of results to return (default: 20, max: 100)
         channel: Ignored - flakes use a separate indexing system
-        
+
     Returns:
         Plain text list of unique flakes with their packages and metadata
     """
