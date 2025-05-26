@@ -11,7 +11,7 @@
 >
 > **📢 RENAMED**: This package was renamed from `nixmcp` to `mcp-nixos` in version 0.2.0. Update your references accordingly or continue living in the past—your choice.
 >
-> **🐛 FIXED**: Version 1.0.1 fixes NixOS option lookups that were failing due to incorrect Elasticsearch field names. Your AI can now actually tell you about `services.nginx.enable` without throwing a tantrum.
+> **🐛 FIXED**: Version 1.0.0 fixes NixOS option lookups that were failing due to incorrect Elasticsearch field names. Your AI can now actually tell you about `services.nginx.enable` without throwing a tantrum.
 
 ## What The Hell Is This Thing?
 
@@ -91,7 +91,7 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 **Channels:**
 
 - `unstable` (default) - Living on the edge where nothing is stable, including your sanity
-- `stable` (24.11) - For those who prefer their breakage on a schedule
+- `stable` (dynamically resolved) - For those who prefer their breakage on a schedule
 - Old versions - For when you're feeling nostalgic about earlier failures
 
 ### Home Manager: Because System-Wide Configuration Wasn't Complicated Enough
@@ -106,7 +106,7 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 **Tools:**
 
 - `home_manager_search(query)` - Search configuration options
-- `home_manager_info(name)` - Get option details with actual explanation
+- `home_manager_info(name)` - Get option details (exact name required, but we'll suggest alternatives)
 - `home_manager_options_by_prefix(option_prefix)` - Get options by prefix
 - `home_manager_list_options()` - List all option categories when overwhelmed
 
@@ -122,7 +122,7 @@ That's it. That's the list. We removed all the complexity because, let's be hone
 **Tools:**
 
 - `darwin_search(query)` - Search macOS configuration options
-- `darwin_info(name)` - Get option details Apple doesn't want you to know
+- `darwin_info(name)` - Get option details (exact name required, suggestions provided)
 - `darwin_options_by_prefix(option_prefix)` - Get options by prefix
 - `darwin_list_options()` - List all option categories
 
@@ -231,8 +231,8 @@ For development with the source code (for those who enjoy punishment):
 **NixOS Channels:**
 
 - `unstable`: Latest NixOS unstable (for daredevils)
-- `stable`: Current stable release (for the risk-averse)
-- `24.11`: Specific version reference (for the historically inclined)
+- `stable`: Current stable release, dynamically resolved (currently 25.05)
+- Version numbers: `25.05`, `24.11`, etc. (for specific version needs)
 
 ## Development: For Those Not Content With Just Using Things
 

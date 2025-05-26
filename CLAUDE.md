@@ -195,13 +195,21 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - **Pass Criteria**: 80% of expected behaviors must be observed
 - **Security**: Never commit API keys; use environment variables in CI/CD
 
-### Key Implementation Fixes (v1.0.1)
-- **NixOS Option Info**: Fixed `option_name.keyword` → `option_name` field for exact matches
-- **Elasticsearch Queries**: Added `minimum_should_match: 1` to prevent unrelated results
-- **Option Search**: Uses wildcard queries (`*{query}*`) for hierarchical option names
-- **HTML Stripping**: Removes `<rendered-html>` tags and nested HTML from descriptions
-- **Home Manager Parsing**: Extracts option names from anchor IDs (format: `opt-programs.git.enable`)
-- **List Limits**: Increased to 4000 for Home Manager and 2000 for Darwin to see all categories
+### Key Implementation Improvements
+- **Dynamic Channel Resolution**: Automatically discovers available channels and determines current stable
+  - Resolves `stable` to current release (25.05 as of Jan 2025, not deprecated 24.11)
+  - Future-proof: adapts to new releases without code changes
+  - Caches results for performance
+- **Enhanced Error Messages**: Option info functions now suggest similar options when exact match fails
+  - Shows up to 5 suggestions with helpful tips
+  - Guides users to use prefix browsing functions
+- **v1.0.0 Fixes**:
+  - NixOS Option Info: Fixed `option_name.keyword` → `option_name` field
+  - Elasticsearch Queries: Added `minimum_should_match: 1`
+  - Option Search: Uses wildcard queries for hierarchical names
+  - HTML Stripping: Removes `<rendered-html>` tags
+  - Home Manager Parsing: Extracts from anchor IDs
+  - List Limits: 4000 for Home Manager, 2000 for Darwin
 
 ## API Reference (v1.0.0 - Tools Only)
 
@@ -212,21 +220,21 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - Returns: Key-value pairs (Package:, Version:, etc.)
 - `nixos_stats(channel)` - Get statistics
   - Returns: Formatted statistics with bullet points
-- Channels: unstable (default), stable/24.11, beta/25.05
+- Channels: unstable (default), stable (dynamically resolved), beta (alias for stable), version numbers
 
 ### Home Manager Tools (HTML Parsing)
 - `home_manager_search(query)` - Search configuration options
-- `home_manager_info(name)` - Get specific option details
-- `home_manager_stats()` - Returns informational message
-- `home_manager_list_options()` - List all option categories
-- `home_manager_options_by_prefix(prefix)` - Get options under a prefix
+- `home_manager_info(name)` - Get specific option details (requires exact name, provides suggestions)
+- `home_manager_stats()` - Returns informational message (redirects to list_options)
+- `home_manager_list_options()` - List all option categories (131 categories, 2129+ options)
+- `home_manager_options_by_prefix(prefix)` - Get options under a prefix (use to find exact names)
 
 ### nix-darwin Tools (HTML Parsing)
 - `darwin_search(query)` - Search macOS configuration options
-- `darwin_info(name)` - Get specific option details  
-- `darwin_stats()` - Returns informational message
-- `darwin_list_options()` - List all option categories
-- `darwin_options_by_prefix(prefix)` - Get options under a prefix
+- `darwin_info(name)` - Get specific option details (requires exact name, provides suggestions)
+- `darwin_stats()` - Returns informational message (redirects to list_options)
+- `darwin_list_options()` - List all option categories (21 categories)
+- `darwin_options_by_prefix(prefix)` - Get options under a prefix (use to find exact names)
 
 All tools return human-readable plain text, not XML or JSON.
 
@@ -260,9 +268,11 @@ All tools return human-readable plain text, not XML or JSON.
 - `test_plain_text_output.py` - Validates all outputs are plain text
 - `test_real_integration.py` - Tests against real APIs
 - `test_server_comprehensive.py` - Comprehensive unit tests
-- `test_main.py` - Entry point tests
-- `test_nixos_option_info.py` - NixOS option lookup tests
-- `test_nixos_info_option_evals.py` - Option evaluation tests
+- `test_dynamic_channels.py` - Dynamic channel resolution tests (16 tests)
+- `test_option_info_improvements.py` - Option info error message tests (9 tests)
+- `test_mcp_behavior_comprehensive.py` - Real-world usage patterns (13 tests)
+- `test_real_world_scenarios.py` - Complete user workflows (10 tests)
+- `test_channel_handling.py` - Channel validation and suggestions
 - `test_evals_anthropic.py` - Anthropic API evaluation tests (requires API key)
 
 **Running Tests**
@@ -290,7 +300,7 @@ run-tests -- --cov=mcp_nixos
 - No filesystem dependencies (stateless)
 
 
-### Dependency Management (v1.0.1 - Lean & Mean)
+### Dependency Management (v1.0.0 - Lean & Mean)
 - Project uses `pyproject.toml` for dependency specification (PEP 621)
 - Core dependencies (reduced from 5 to 3):
   - `mcp>=1.6.0`: Base MCP framework

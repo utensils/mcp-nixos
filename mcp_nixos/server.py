@@ -12,13 +12,17 @@ mcp = FastMCP("mcp-nixos")
 # API Configuration
 NIXOS_API = "https://search.nixos.org/backend"
 NIXOS_AUTH = ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
-CHANNELS = {
-    "unstable": "latest-43-nixos-unstable",
-    "stable": "latest-43-nixos-24.11",
-    "24.11": "latest-43-nixos-24.11",
-    "25.05": "latest-43-nixos-25.05",
-    "beta": "latest-43-nixos-25.05",
+
+# Base channel patterns - these are dynamic and auto-discovered
+BASE_CHANNELS = {
+    "unstable": "nixos-unstable",
+    "24.11": "nixos-24.11",
+    "25.05": "nixos-25.05",
 }
+
+# Cache for discovered channels and resolved mappings
+_available_channels_cache = None
+_resolved_channels_cache = None
 HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 
@@ -30,6 +34,146 @@ def error(msg: str, code: str = "ERROR") -> str:
     return f"Error ({code}): {msg}"
 
 
+def discover_available_channels() -> Dict[str, str]:
+    """Discover available NixOS channels by testing API patterns."""
+    global _available_channels_cache
+
+    if _available_channels_cache is not None:
+        return _available_channels_cache
+
+    # Test multiple generation patterns (43, 44, 45) and versions
+    generations = [43, 44, 45, 46]  # Future-proof
+    versions = ["unstable", "20.09", "24.11", "25.05", "25.11", "26.05", "30.05"]  # Past, current and future
+
+    available = {}
+    for gen in generations:
+        for version in versions:
+            pattern = f"latest-{gen}-nixos-{version}"
+            try:
+                resp = requests.post(
+                    f"{NIXOS_API}/{pattern}/_count",
+                    json={"query": {"match_all": {}}},
+                    auth=NIXOS_AUTH,
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    count = resp.json().get("count", 0)
+                    if count > 0:
+                        available[pattern] = f"{count:,} documents"
+            except Exception:
+                continue
+
+    _available_channels_cache = available
+    return available
+
+
+def resolve_channels() -> Dict[str, str]:
+    """Resolve user-friendly channel names to actual indices."""
+    global _resolved_channels_cache
+
+    if _resolved_channels_cache is not None:
+        return _resolved_channels_cache
+
+    available = discover_available_channels()
+    resolved = {}
+
+    # Find unstable (should be consistent)
+    unstable_pattern = None
+    for pattern in available.keys():
+        if "unstable" in pattern:
+            unstable_pattern = pattern
+            break
+
+    if unstable_pattern:
+        resolved["unstable"] = unstable_pattern
+
+    # Find stable release (highest version number with most documents)
+    stable_candidates = []
+    for pattern in available.keys():
+        if "unstable" not in pattern:
+            # Extract version (e.g., "25.05" from "latest-43-nixos-25.05")
+            parts = pattern.split("-")
+            if len(parts) >= 4:
+                version = parts[3]  # "25.05"
+                try:
+                    # Parse version for comparison (25.05 -> 25.05)
+                    major, minor = map(int, version.split("."))
+                    count_str = available[pattern]
+                    count = int(count_str.replace(",", "").replace(" documents", ""))
+                    stable_candidates.append((major, minor, version, pattern, count))
+                except (ValueError, IndexError):
+                    continue
+
+    if stable_candidates:
+        # Sort by version (descending), then by document count (descending) as tiebreaker
+        stable_candidates.sort(key=lambda x: (x[0], x[1], x[4]), reverse=True)
+        current_stable = stable_candidates[0]
+
+        resolved["stable"] = current_stable[3]  # pattern
+        resolved[current_stable[2]] = current_stable[3]  # version -> pattern
+
+        # Add other version mappings (prefer higher generation/count for same version)
+        version_patterns = {}
+        for major, minor, version, pattern, count in stable_candidates:
+            if version not in version_patterns or count > version_patterns[version][1]:
+                version_patterns[version] = (pattern, count)
+
+        for version, (pattern, count) in version_patterns.items():
+            resolved[version] = pattern
+
+    # Add beta (alias for stable)
+    if "stable" in resolved:
+        resolved["beta"] = resolved["stable"]
+
+    _resolved_channels_cache = resolved
+    return resolved
+
+
+def get_channels() -> Dict[str, str]:
+    """Get current channel mappings (cached and resolved)."""
+    return resolve_channels()
+
+
+def validate_channel(channel: str) -> bool:
+    """Validate if a channel exists and is accessible."""
+    channels = get_channels()
+    if channel in channels:
+        index = channels[channel]
+        try:
+            resp = requests.post(
+                f"{NIXOS_API}/{index}/_count", json={"query": {"match_all": {}}}, auth=NIXOS_AUTH, timeout=5
+            )
+            return resp.status_code == 200 and resp.json().get("count", 0) > 0
+        except Exception:
+            return False
+    return False
+
+
+def get_channel_suggestions(invalid_channel: str) -> str:
+    """Get helpful suggestions for invalid channels."""
+    channels = get_channels()
+    available = list(channels.keys())
+    suggestions = []
+
+    # Find similar channel names
+    invalid_lower = invalid_channel.lower()
+    for channel in available:
+        if invalid_lower in channel.lower() or channel.lower() in invalid_lower:
+            suggestions.append(channel)
+
+    if not suggestions:
+        # Fallback to most common channels
+        common = ["unstable", "stable", "beta"]
+        # Also include version numbers
+        version_channels = [ch for ch in available if "." in ch and ch.replace(".", "").isdigit()]
+        common.extend(version_channels[:2])  # Add up to 2 version channels
+        suggestions = [ch for ch in common if ch in available]
+        if not suggestions:
+            suggestions = available[:4]  # First 4 available
+
+    return f"Available channels: {', '.join(suggestions)}"
+
+
 def es_query(index: str, query: dict, size: int = 20) -> List[dict]:
     """Execute Elasticsearch query."""
     try:
@@ -37,7 +181,17 @@ def es_query(index: str, query: dict, size: int = 20) -> List[dict]:
             f"{NIXOS_API}/{index}/_search", json={"query": query, "size": size}, auth=NIXOS_AUTH, timeout=10
         )
         resp.raise_for_status()
-        return resp.json().get("hits", {}).get("hits", [])
+        data = resp.json()
+        # Handle malformed responses gracefully
+        if isinstance(data, dict) and "hits" in data:
+            hits = data.get("hits", {})
+            if isinstance(hits, dict) and "hits" in hits:
+                return hits.get("hits", [])
+        return []
+    except requests.Timeout:
+        raise Exception("API error: Connection timed out")
+    except requests.HTTPError as e:
+        raise Exception(f"API error: {str(e)}")
     except Exception as e:
         raise Exception(f"API error: {str(e)}")
 
@@ -68,13 +222,18 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
                         name = name.replace("_name_", "<name>")
                 else:
                     # Fallback to text content
-                    name = dt.get_text(strip=True)
+                    name_elem = dt.find(string=True, recursive=False)
+                    if name_elem:
+                        name = name_elem.strip()
+                    else:
+                        name = dt.get_text(strip=True)
             else:
                 # Darwin and fallback - use text content
                 name = dt.get_text(strip=True)
 
             # Skip if it doesn't look like an option (must contain a dot)
-            if "." not in name:
+            # But allow single-word options in some cases
+            if "." not in name and len(name.split()) > 1:
                 continue
 
             # Filter by query or prefix
@@ -91,8 +250,9 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
                 if desc_elem:
                     description = desc_elem.get_text(strip=True)
                 else:
-                    # Get first text node
-                    description = dd.get_text(strip=True).split("\n")[0]
+                    # Get first text node, handle None case
+                    text = dd.get_text(strip=True)
+                    description = text.split("\n")[0] if text else ""
 
                 # Extract type info - look for various patterns
                 type_info = ""
@@ -130,8 +290,10 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
     """Search NixOS packages, options, or programs."""
     if type not in ["packages", "options", "programs"]:
         return error(f"Invalid type '{type}'")
-    if channel not in CHANNELS:
-        return error(f"Invalid channel '{channel}'")
+    channels = get_channels()
+    if channel not in channels:
+        suggestions = get_channel_suggestions(channel)
+        return error(f"Invalid channel '{channel}'. {suggestions}")
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -172,7 +334,7 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
                 }
             }
 
-        hits = es_query(CHANNELS[channel], q, limit)
+        hits = es_query(channels[channel], q, limit)
 
         # Format results as plain text
         if not hits:
@@ -211,11 +373,15 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
                     results.append(f"  {desc}")
                 results.append("")
             else:  # programs
-                # For programs, show the package that provides them
                 programs = src.get("package_programs", [])
-                if programs and query.lower() in [p.lower() for p in programs]:
-                    pkg_name = src.get("package_pname", "")
-                    results.append(f"• {query} (provided by {pkg_name})")
+                pkg_name = src.get("package_pname", "")
+
+                # Check if query matches any program exactly (case-insensitive)
+                query_lower = query.lower()
+                matched_programs = [p for p in programs if p.lower() == query_lower]
+
+                for prog in matched_programs:
+                    results.append(f"• {prog} (provided by {pkg_name})")
                     results.append("")
 
         return "\n".join(results).strip()
@@ -229,14 +395,16 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
     """Get detailed info about a NixOS package or option."""
     if type not in ["package", "option"]:
         return error("Type must be 'package' or 'option'")
-    if channel not in CHANNELS:
-        return error(f"Invalid channel '{channel}'")
+    channels = get_channels()
+    if channel not in channels:
+        suggestions = get_channel_suggestions(channel)
+        return error(f"Invalid channel '{channel}'. {suggestions}")
 
     try:
         # Exact match query with correct field names
         field = "package_pname" if type == "package" else "option_name"
         query = {"bool": {"must": [{"term": {"type": type}}, {"term": {field: name}}]}}
-        hits = es_query(CHANNELS[channel], query, 1)
+        hits = es_query(channels[channel], query, 1)
 
         if not hits:
             return error(f"{type.capitalize()} '{name}' not found", "NOT_FOUND")
@@ -297,21 +465,82 @@ def nixos_info(name: str, type: str = "package", channel: str = "unstable") -> s
 
 
 @mcp.tool()
+def nixos_channels() -> str:
+    """List available NixOS channels with their status."""
+    try:
+        # Get resolved channels and available raw data
+        configured = get_channels()
+        available = discover_available_channels()
+
+        results = []
+        results.append("NixOS Channels (auto-discovered):\n")
+
+        # Show user-friendly channel names
+        for name, index in sorted(configured.items()):
+            status = "✓ Available" if index in available else "✗ Unavailable"
+            doc_count = available.get(index, "Unknown")
+
+            # Mark stable channel clearly
+            label = f"• {name}"
+            if name == "stable":
+                # Extract version from index
+                parts = index.split("-")
+                if len(parts) >= 4:
+                    version = parts[3]
+                    label = f"• {name} (current: {version})"
+
+            results.append(f"{label} → {index}")
+            if index in available:
+                results.append(f"  Status: {status} ({doc_count})")
+            else:
+                results.append(f"  Status: {status}")
+            results.append("")
+
+        # Show additional discovered channels not in our mapping
+        discovered_only = set(available.keys()) - set(configured.values())
+        if discovered_only:
+            results.append("Additional available channels:")
+            for index in sorted(discovered_only):
+                results.append(f"• {index} ({available[index]})")
+
+        # Add deprecation warnings
+        results.append("\nNote: Channels are dynamically discovered.")
+        results.append("'stable' always points to the current stable release.")
+
+        return "\n".join(results).strip()
+    except Exception as e:
+        return error(str(e))
+
+
+@mcp.tool()
 def nixos_stats(channel: str = "unstable") -> str:
     """Get NixOS statistics."""
-    if channel not in CHANNELS:
-        return error(f"Invalid channel '{channel}'")
+    channels = get_channels()
+    if channel not in channels:
+        suggestions = get_channel_suggestions(channel)
+        return error(f"Invalid channel '{channel}'. {suggestions}")
 
     try:
-        index = CHANNELS[channel]
+        index = channels[channel]
         url = f"{NIXOS_API}/{index}/_count"
 
-        # Get counts
-        pkg_resp = requests.post(url, json={"query": {"term": {"type": "package"}}}, auth=NIXOS_AUTH, timeout=10)
-        opt_resp = requests.post(url, json={"query": {"term": {"type": "option"}}}, auth=NIXOS_AUTH, timeout=10)
+        # Get counts with error handling
+        try:
+            pkg_resp = requests.post(url, json={"query": {"term": {"type": "package"}}}, auth=NIXOS_AUTH, timeout=10)
+            pkg_resp.raise_for_status()
+            pkg_count = pkg_resp.json().get("count", 0)
+        except Exception:
+            pkg_count = 0
 
-        pkg_count = pkg_resp.json().get("count", 0)
-        opt_count = opt_resp.json().get("count", 0)
+        try:
+            opt_resp = requests.post(url, json={"query": {"term": {"type": "option"}}}, auth=NIXOS_AUTH, timeout=10)
+            opt_resp.raise_for_status()
+            opt_count = opt_resp.json().get("count", 0)
+        except Exception:
+            opt_count = 0
+
+        if pkg_count == 0 and opt_count == 0:
+            return error("Failed to retrieve statistics")
 
         return f"""NixOS Statistics for {channel} channel:
 • Packages: {pkg_count:,}
@@ -354,8 +583,10 @@ def home_manager_search(query: str, limit: int = 20) -> str:
 def home_manager_info(name: str) -> str:
     """Get Home Manager option details."""
     try:
-        options = parse_html_options(HOME_MANAGER_URL, name, "", 1)
+        # Search more broadly first
+        options = parse_html_options(HOME_MANAGER_URL, name, "", 100)
 
+        # Look for exact match
         for opt in options:
             if opt["name"] == name:
                 info = []
@@ -366,7 +597,26 @@ def home_manager_info(name: str) -> str:
                     info.append(f"Description: {opt['description']}")
                 return "\n".join(info)
 
-        return error(f"Option '{name}' not found", "NOT_FOUND")
+        # If not found, check if there are similar options to suggest
+        if options:
+            suggestions = []
+            for opt in options[:5]:  # Show up to 5 suggestions
+                if name in opt["name"] or opt["name"].startswith(name + "."):
+                    suggestions.append(opt["name"])
+
+            if suggestions:
+                return error(
+                    f"Option '{name}' not found. Did you mean one of these?\n"
+                    + "\n".join(f"  • {s}" for s in suggestions)
+                    + f"\n\nTip: Use home_manager_options_by_prefix('{name}') to browse all options with this prefix.",
+                    "NOT_FOUND",
+                )
+
+        return error(
+            f"Option '{name}' not found.\n"
+            + f"Tip: Use home_manager_options_by_prefix('{name}') to browse available options.",
+            "NOT_FOUND",
+        )
 
     except Exception as e:
         return error(str(e))
@@ -460,8 +710,10 @@ def darwin_search(query: str, limit: int = 20) -> str:
 def darwin_info(name: str) -> str:
     """Get nix-darwin option details."""
     try:
-        options = parse_html_options(DARWIN_URL, name, "", 1)
+        # Search more broadly first
+        options = parse_html_options(DARWIN_URL, name, "", 100)
 
+        # Look for exact match
         for opt in options:
             if opt["name"] == name:
                 info = []
@@ -472,7 +724,26 @@ def darwin_info(name: str) -> str:
                     info.append(f"Description: {opt['description']}")
                 return "\n".join(info)
 
-        return error(f"Option '{name}' not found", "NOT_FOUND")
+        # If not found, check if there are similar options to suggest
+        if options:
+            suggestions = []
+            for opt in options[:5]:  # Show up to 5 suggestions
+                if name in opt["name"] or opt["name"].startswith(name + "."):
+                    suggestions.append(opt["name"])
+
+            if suggestions:
+                return error(
+                    f"Option '{name}' not found. Did you mean one of these?\n"
+                    + "\n".join(f"  • {s}" for s in suggestions)
+                    + f"\n\nTip: Use darwin_options_by_prefix('{name}') to browse all options with this prefix.",
+                    "NOT_FOUND",
+                )
+
+        return error(
+            f"Option '{name}' not found.\n"
+            + f"Tip: Use darwin_options_by_prefix('{name}') to browse available options.",
+            "NOT_FOUND",
+        )
 
     except Exception as e:
         return error(str(e))

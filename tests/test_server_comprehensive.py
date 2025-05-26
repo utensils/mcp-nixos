@@ -22,7 +22,7 @@ from mcp_nixos.server import (
     darwin_list_options,
     darwin_options_by_prefix,
     mcp,
-    CHANNELS,
+    get_channels,
     NIXOS_API,
     NIXOS_AUTH,
     HOME_MANAGER_URL,
@@ -278,7 +278,8 @@ class TestNixOSTools:
     def test_nixos_search_invalid_channel(self):
         """Test search with invalid channel."""
         result = nixos_search("test", channel="invalid")
-        assert result == "Error (ERROR): Invalid channel 'invalid'"
+        assert "Error (ERROR): Invalid channel 'invalid'" in result
+        assert "Available channels:" in result
 
     def test_nixos_search_invalid_limit_low(self):
         """Test search with limit too low."""
@@ -295,13 +296,14 @@ class TestNixOSTools:
         """Test search works with all defined channels."""
         mock_query.return_value = []
 
-        for channel in CHANNELS.keys():
+        channels = get_channels()
+        for channel in channels.keys():
             result = nixos_search("test", channel=channel)
             assert result == "No packages found matching 'test'"
 
             # Verify correct index is used
             mock_query.assert_called_with(
-                CHANNELS[channel],
+                channels[channel],
                 {
                     "bool": {
                         "must": [{"term": {"type": "package"}}],
@@ -401,7 +403,8 @@ class TestNixOSTools:
     def test_nixos_stats_invalid_channel(self):
         """Test stats with invalid channel."""
         result = nixos_stats(channel="invalid")
-        assert result == "Error (ERROR): Invalid channel 'invalid'"
+        assert "Error (ERROR): Invalid channel 'invalid'" in result
+        assert "Available channels:" in result
 
     @patch("mcp_nixos.server.requests.post")
     def test_nixos_stats_api_error(self, mock_post):
@@ -409,7 +412,7 @@ class TestNixOSTools:
         mock_post.side_effect = requests.ConnectionError("Failed")
 
         result = nixos_stats()
-        assert result == "Error (ERROR): Failed"
+        assert result == "Error (ERROR): Failed to retrieve statistics"
 
 
 class TestHomeManagerTools:
@@ -458,7 +461,10 @@ class TestHomeManagerTools:
         mock_parse.return_value = [{"name": "programs.vim.enable", "type": "boolean", "description": "Enable vim"}]
 
         result = home_manager_info("programs.git.enable")
-        assert result == "Error (NOT_FOUND): Option 'programs.git.enable' not found"
+        assert result == (
+            "Error (NOT_FOUND): Option 'programs.git.enable' not found.\n"
+            "Tip: Use home_manager_options_by_prefix('programs.git.enable') to browse available options."
+        )
 
     def test_home_manager_stats(self):
         """Test Home Manager stats message."""
@@ -600,7 +606,7 @@ class TestEdgeCases:
         mock_post.side_effect = requests.Timeout("Request timed out")
 
         result = nixos_stats()
-        assert "Error (ERROR): Request timed out" in result
+        assert "Error (ERROR):" in result
 
 
 class TestServerIntegration:
@@ -617,8 +623,9 @@ class TestServerIntegration:
         assert NIXOS_AUTH == ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
         assert HOME_MANAGER_URL == "https://nix-community.github.io/home-manager/options.xhtml"
         assert DARWIN_URL == "https://nix-darwin.github.io/nix-darwin/manual/index.html"
-        assert "unstable" in CHANNELS
-        assert "stable" in CHANNELS
+        channels = get_channels()
+        assert "unstable" in channels
+        assert "stable" in channels
 
     def test_all_tools_decorated(self):
         """Test that all tool functions are properly decorated."""

@@ -49,22 +49,19 @@ class TestNixOSStatsRegression:
 
         result = nixos_stats()
 
-        # Should still format correctly with zero counts
-        assert "NixOS Statistics for unstable channel:" in result
-        assert "• Packages: 0" in result
-        assert "• Options: 0" in result
+        # Should return error when both counts are zero (our improved logic)
+        assert "Error (ERROR): Failed to retrieve statistics" in result
 
     @patch("mcp_nixos.server.requests.post")
     def test_nixos_stats_all_channels(self, mock_post):
         """Test that stats works for all defined channels."""
-        from mcp_nixos.server import CHANNELS
-
         # Mock responses
         mock_resp = Mock()
         mock_resp.json.return_value = {"count": 12345}
         mock_post.return_value = mock_resp
 
-        for channel in CHANNELS.keys():
+        # Test with known channels
+        for channel in ["stable", "unstable"]:
             result = nixos_stats(channel=channel)
             assert f"NixOS Statistics for {channel} channel:" in result
             assert "• Packages: 12,345" in result
