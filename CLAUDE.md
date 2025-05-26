@@ -261,6 +261,17 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 - `darwin_list_options()` - List all option categories (21 categories)
 - `darwin_options_by_prefix(prefix)` - Get options under a prefix (use to find exact names)
 
+### NixHub Tools (REST API)
+- `nixhub_package_versions(package_name, limit)` - Get package version history
+  - Returns: Version list with dates, platforms, and nixpkgs commit hashes
+  - Limit: 1-50 versions (default 10)
+  - Shows attribute paths when different from package name
+  - Use higher limits to find older versions (e.g., Ruby 2.6 requires limit > 15)
+- `nixhub_find_version(package_name, version)` - Smart search for specific version
+  - Automatically tries increasing limits (10, 25, 50) to find exact version
+  - Returns: Found version details or helpful alternatives
+  - Example: `nixhub_find_version("ruby", "2.6.7")` finds the exact commit
+
 All tools return human-readable plain text, not XML or JSON.
 
 ## System Requirements
@@ -277,6 +288,10 @@ All tools return human-readable plain text, not XML or JSON.
     - Manual counting reveals only ~6-8 unique flake repositories providing all 894 packages
 - **Home Manager**: HTML docs at https://nix-community.github.io/home-manager/options.xhtml
 - **nix-darwin**: HTML docs at https://nix-darwin.github.io/nix-darwin/manual/index.html
+- **NixHub**: REST API at https://www.nixhub.io/packages/{package}
+  - Provides package version history with nixpkgs commit hashes
+  - Created by Jetify (makers of Devbox)
+  - Returns 500 errors for non-existent packages (API quirk)
 
 ### Configuration (v1.0.0 - Minimal)
 - `ELASTICSEARCH_URL` - Override default NixOS API URL (optional)
