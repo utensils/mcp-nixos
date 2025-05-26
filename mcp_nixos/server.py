@@ -1544,7 +1544,7 @@ def _format_nixhub_release(release: Dict, package_name: Optional[str] = None) ->
                     results.append(f"  Nixpkgs commit: {commit_hash}")
                 else:
                     results.append(f"  Nixpkgs commit: {commit_hash} (warning: invalid format)")
-                
+
                 # Show attribute path if different from package name
                 if attr_path and package_name and attr_path != package_name:
                     results.append(f"  Attribute: {attr_path}")
