@@ -187,19 +187,6 @@ Just one. We're minimalists now:
 |----------|-------------|---------|
 | `ELASTICSEARCH_URL` | NixOS API endpoint | https://search.nixos.org/backend |
 
-## Common Issues & Solutions
-
-**Q: Why is it so fast now?**  
-A: We removed thousands of lines of code. Turns out most of it was just slowing things down.
-
-**Q: Where's the cache?**  
-A: Gone. Reduced to atoms. We operate statelessly now.
-
-**Q: Can I use old Ruby/Python versions?**  
-A: Yes! Use `nixhub_package_versions` with higher limits or `nixhub_find_version` for smart search.
-
-**Q: Why plain text output?**  
-A: Because XML is for people who hate themselves and others.
 
 ## Acknowledgments
 
