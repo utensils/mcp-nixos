@@ -1,6 +1,5 @@
 """Test eval for package counts per channel functionality."""
 
-import pytest
 from unittest.mock import patch, Mock
 from mcp_nixos.server import nixos_channels, nixos_stats
 
@@ -87,18 +86,18 @@ class TestPackageCountsEval:
                 mock_response = Mock()
                 mock_response.status_code = 404
                 return mock_response
-            
+
             # Handle stats count requests (with type filter)
             json_data = kwargs.get("json", {})
             query = json_data.get("query", {})
-            
+
             # Determine which channel from URL
             for channel in ["unstable", "25.05", "24.11"]:
                 if f"nixos-{channel}" in url:
                     stats = mock_stats_responses.get(channel, mock_stats_responses["unstable"])
                     mock_response = Mock()
                     mock_response.status_code = 200
-                    
+
                     # Check if it's a package or option count
                     if query.get("term", {}).get("type") == "package":
                         mock_response.json.return_value = {"count": stats["aggregations"]["attr_count"]["value"]}
@@ -107,9 +106,9 @@ class TestPackageCountsEval:
                     else:
                         # General count
                         mock_response.json.return_value = {"count": stats["aggregations"]["attr_count"]["value"]}
-                    
+
                     return mock_response
-            
+
             # Default response
             mock_response = Mock()
             mock_response.json.return_value = mock_stats_responses["unstable"]
@@ -140,7 +139,7 @@ class TestPackageCountsEval:
         # unstable should have the most packages
         # 25.05 (current stable) should be close to unstable
         # 24.11 should have fewer packages
-        
+
     @patch("mcp_nixos.server.requests.post")
     def test_package_counts_with_beta_alias(self, mock_post):
         """Eval: User asks about beta channel package count."""
@@ -177,10 +176,10 @@ class TestPackageCountsEval:
             # Stats request
             json_data = kwargs.get("json", {})
             query = json_data.get("query", {})
-            
+
             mock_response = Mock()
             mock_response.status_code = 200
-            
+
             # Check if it's a package or option count
             if query.get("term", {}).get("type") == "package":
                 mock_response.json.return_value = {"count": 151698}
@@ -189,7 +188,7 @@ class TestPackageCountsEval:
             else:
                 # General count
                 mock_response.json.return_value = {"count": 151698}
-            
+
             return mock_response
 
         mock_post.side_effect = side_effect
@@ -231,17 +230,17 @@ class TestPackageCountsEval:
                 mock_response = Mock()
                 mock_response.status_code = 404
                 return mock_response
-            
+
             # Handle stats count requests (with type filter)
             json_data = kwargs.get("json", {})
             query = json_data.get("query", {})
-            
+
             # Extract channel from URL and return appropriate stats
             for channel, count in channel_stats.items():
                 if f"nixos-{channel}" in url:
                     mock_response = Mock()
                     mock_response.status_code = 200
-                    
+
                     # Check if it's a package or option count
                     if query.get("term", {}).get("type") == "package":
                         mock_response.json.return_value = {"count": count}
@@ -250,9 +249,9 @@ class TestPackageCountsEval:
                     else:
                         # General count
                         mock_response.json.return_value = {"count": count}
-                    
+
                     return mock_response
-            
+
             # Default to unstable
             mock_response = Mock()
             mock_response.status_code = 200

@@ -288,7 +288,7 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
 @mcp.tool()
 def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS packages, options, or programs."""
-    if type not in ["packages", "options", "programs"]:
+    if type not in ["packages", "options", "programs", "flakes"]:
         return error(f"Invalid type '{type}'")
     channels = get_channels()
     if channel not in channels:
@@ -296,6 +296,10 @@ def nixos_search(query: str, type: str = "packages", limit: int = 20, channel: s
         return error(f"Invalid channel '{channel}'. {suggestions}")
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
+
+    # Redirect flakes to dedicated function
+    if type == "flakes":
+        return nixos_flakes_search(query, limit)
 
     try:
         # Build query with correct field names
@@ -882,103 +886,115 @@ def darwin_options_by_prefix(option_prefix: str) -> str:
 def nixos_flakes_stats() -> str:
     """Get statistics about available flakes in the search index."""
     try:
-        # Flakes are indexed in separate indices with pattern group-*-manual-*
-        flake_index = "group-43-manual-*"  # Same pattern as flakes_search
-        
-        # Get total count of all flakes
+        # Use the same alias as the web UI for accurate counts
+        flake_index = "latest-43-group-manual"
+
+        # Get total count of flake packages (not options or apps)
         try:
             resp = requests.post(
                 f"{NIXOS_API}/{flake_index}/_count",
-                json={"query": {"match_all": {}}},
+                json={"query": {"term": {"type": "package"}}},
                 auth=NIXOS_AUTH,
                 timeout=10,
             )
             resp.raise_for_status()
-            total_docs = resp.json().get("count", 0)
+            total_packages = resp.json().get("count", 0)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 return error("Flake indices not found. Flake search may be temporarily unavailable.")
             raise
-        
-        # Get count of unique flakes by aggregating on flake_name
+
+        # Get unique flakes by sampling documents
+        # Since aggregations on text fields don't work, we'll sample and count manually
+        unique_urls = set()
+        type_counts = {}
+        contributor_counts = {}
+
         try:
+            # Get a large sample of documents to count unique flakes
             resp = requests.post(
                 f"{NIXOS_API}/{flake_index}/_search",
                 json={
-                    "size": 0,
-                    "aggs": {
-                        "unique_flakes": {
-                            "cardinality": {
-                                "field": "flake_name.keyword",
-                                "precision_threshold": 10000
-                            }
-                        },
-                        "flake_types": {
-                            "terms": {
-                                "field": "flake_resolved.type.keyword",
-                                "size": 20
-                            }
-                        },
-                        "top_owners": {
-                            "terms": {
-                                "field": "flake_resolved.owner.keyword",
-                                "size": 10
-                            }
-                        }
-                    }
+                    "size": 10000,  # Get a large sample
+                    "query": {"term": {"type": "package"}},  # Only packages
+                    "_source": ["flake_resolved", "flake_name", "package_pname"],
                 },
                 auth=NIXOS_AUTH,
                 timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
-            
-            aggs = data.get("aggregations", {})
-            unique_count = aggs.get("unique_flakes", {}).get("value", 0)
-            
-            # Get type distribution
-            types = aggs.get("flake_types", {}).get("buckets", [])
+            hits = data.get("hits", {}).get("hits", [])
+
+            # Process hits to extract unique URLs
+            for hit in hits:
+                src = hit.get("_source", {})
+                resolved = src.get("flake_resolved", {})
+
+                if isinstance(resolved, dict) and "url" in resolved:
+                    url = resolved["url"]
+                    unique_urls.add(url)
+
+                    # Count types
+                    flake_type = resolved.get("type", "unknown")
+                    type_counts[flake_type] = type_counts.get(flake_type, 0) + 1
+
+                    # Extract contributor from URL
+                    contributor = None
+                    if "github.com/" in url:
+                        parts = url.split("github.com/")[1].split("/")
+                        if parts:
+                            contributor = parts[0]
+                    elif "codeberg.org/" in url:
+                        parts = url.split("codeberg.org/")[1].split("/")
+                        if parts:
+                            contributor = parts[0]
+                    elif "sr.ht/~" in url:
+                        parts = url.split("sr.ht/~")[1].split("/")
+                        if parts:
+                            contributor = parts[0]
+
+                    if contributor:
+                        contributor_counts[contributor] = contributor_counts.get(contributor, 0) + 1
+
+            unique_count = len(unique_urls)
+
+            # Format type info
             type_info = []
-            for t in types[:5]:  # Top 5 types
-                type_name = t.get("key", "unknown")
-                count = t.get("doc_count", 0)
+            for type_name, count in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
                 if type_name:
                     type_info.append(f"  - {type_name}: {count:,}")
-            
-            # Get top owners
-            owners = aggs.get("top_owners", {}).get("buckets", [])
+
+            # Format contributor info
             owner_info = []
-            for o in owners[:5]:  # Top 5 owners
-                owner_name = o.get("key", "")
-                count = o.get("doc_count", 0)
-                if owner_name:
-                    owner_info.append(f"  - {owner_name}: {count:,} packages")
-            
+            for contributor, count in sorted(contributor_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                owner_info.append(f"  - {contributor}: {count:,} packages")
+
         except Exception:
-            # Fallback if aggregations fail
+            # Fallback if query fails
             unique_count = 0
             type_info = []
             owner_info = []
-        
+
         # Build statistics
         results = []
         results.append("NixOS Flakes Statistics:")
-        results.append(f"• Total indexed documents: {total_docs:,}")
+        results.append(f"• Available flakes: {total_packages:,}")
         if unique_count > 0:
-            results.append(f"• Unique flakes: ~{unique_count:,}")
-        
+            results.append(f"• Unique repositories: {unique_count:,}")
+
         if type_info:
             results.append("• Flake types:")
             results.extend(type_info)
-        
+
         if owner_info:
             results.append("• Top contributors:")
             results.extend(owner_info)
-        
+
         results.append("\nNote: Flakes are community-contributed and indexed separately from official packages.")
-        
+
         return "\n".join(results)
-        
+
     except Exception as e:
         return error(str(e))
 
@@ -994,16 +1010,15 @@ def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") 
         return error("Limit must be 1-100")
 
     try:
-        # Flakes are indexed in separate indices with pattern group-*-manual-*
-        # We search across all of them
-        flake_index = "group-43-manual-*"  # Updated to use version 43
+        # Use the same alias as the web UI to get only flake packages
+        flake_index = "latest-43-group-manual"
 
         # Build query for flakes
         if query.strip() == "" or query == "*":
             # Empty or wildcard query - get all flakes
             q = {"match_all": {}}
         else:
-            # Search query with multiple fields
+            # Search query with multiple fields, including nested queries for flake_resolved
             q = {
                 "bool": {
                     "should": [
@@ -1014,18 +1029,33 @@ def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") 
                         {"wildcard": {"flake_name": {"value": f"*{query}*", "boost": 2.5}}},
                         {"wildcard": {"package_pname": {"value": f"*{query}*", "boost": 1}}},
                         {"prefix": {"flake_name": {"value": query, "boost": 2}}},
-                        {"term": {"flake_resolved.owner": {"value": query.lower(), "boost": 2}}},
-                        {"term": {"flake_resolved.repo": {"value": query.lower(), "boost": 2}}},
+                        # Nested queries for flake_resolved fields
+                        {
+                            "nested": {
+                                "path": "flake_resolved",
+                                "query": {"term": {"flake_resolved.owner": query.lower()}},
+                                "boost": 2,
+                            }
+                        },
+                        {
+                            "nested": {
+                                "path": "flake_resolved",
+                                "query": {"term": {"flake_resolved.repo": query.lower()}},
+                                "boost": 2,
+                            }
+                        },
                     ],
                     "minimum_should_match": 1,
                 }
             }
 
-        # Execute search directly against flake indices
+        # Execute search with package filter to match web UI
+        search_query = {"bool": {"filter": [{"term": {"type": "package"}}], "must": [q]}}
+
         try:
             resp = requests.post(
                 f"{NIXOS_API}/{flake_index}/_search",
-                json={"query": q, "size": limit * 5, "track_total_hits": True},  # Get more results
+                json={"query": search_query, "size": limit * 5, "track_total_hits": True},  # Get more results
                 auth=NIXOS_AUTH,
                 timeout=10,
             )

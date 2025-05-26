@@ -223,7 +223,12 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - Type "flakes" redirects to nixos_flakes_search
 - `nixos_flakes_search(query, limit)` - Search NixOS flakes
   - Returns: Deduplicated list of unique flakes with aggregated packages
-  - Searches across flake indices (group-*-manual-*)
+  - **Important**: Uses `latest-43-group-manual` index (not `group-43-manual-*`)
+  - Filters by `type: package` to match web UI (894 packages from ~6 unique repositories)
+- `nixos_flakes_stats()` - Get flake statistics
+  - Shows "Available flakes: 894" to match what users see on search.nixos.org
+  - Also shows "Unique repositories: X" for actual repository count
+  - **Note**: The 894 number represents packages from flakes, not unique flakes
 - `nixos_info(name, type, channel)` - Get package or option details  
   - Returns: Key-value pairs (Package:, Version:, etc.)
 - `nixos_stats(channel)` - Get statistics
@@ -255,6 +260,13 @@ All tools return human-readable plain text, not XML or JSON.
 ### APIs & External Dependencies
 - **NixOS**: Elasticsearch API at https://search.nixos.org/backend
   - Authenticated with hardcoded credentials (public API)
+  - **Flakes Index Discovery**:
+    - Web UI uses `latest-43-group-manual` alias (contains ~1,781 docs)
+    - This index has packages (894), options (852), and apps (35)
+    - Must filter by `type: package` to get the 894 flakes shown on website
+    - The broader `group-43-manual-*` pattern contains 452K+ docs (too many)
+    - Elasticsearch field `flake_resolved.url` is not mapped as keyword, preventing aggregations
+    - Manual counting reveals only ~6-8 unique flake repositories providing all 894 packages
 - **Home Manager**: HTML docs at https://nix-community.github.io/home-manager/options.xhtml
 - **nix-darwin**: HTML docs at https://nix-darwin.github.io/nix-darwin/manual/index.html
 
@@ -398,3 +410,5 @@ tests/
 - Darwin: https://nix-darwin.github.io/nix-darwin/manual/index.html
 
 Remember: Less code = fewer bugs. Keep it simple!
+
+- **Critical Guideline**: Never bump our version unless explicitly requested
