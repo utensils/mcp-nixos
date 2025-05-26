@@ -879,6 +879,111 @@ def darwin_options_by_prefix(option_prefix: str) -> str:
 
 
 @mcp.tool()
+def nixos_flakes_stats() -> str:
+    """Get statistics about available flakes in the search index."""
+    try:
+        # Flakes are indexed in separate indices with pattern group-*-manual-*
+        flake_index = "group-43-manual-*"  # Same pattern as flakes_search
+        
+        # Get total count of all flakes
+        try:
+            resp = requests.post(
+                f"{NIXOS_API}/{flake_index}/_count",
+                json={"query": {"match_all": {}}},
+                auth=NIXOS_AUTH,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            total_docs = resp.json().get("count", 0)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                return error("Flake indices not found. Flake search may be temporarily unavailable.")
+            raise
+        
+        # Get count of unique flakes by aggregating on flake_name
+        try:
+            resp = requests.post(
+                f"{NIXOS_API}/{flake_index}/_search",
+                json={
+                    "size": 0,
+                    "aggs": {
+                        "unique_flakes": {
+                            "cardinality": {
+                                "field": "flake_name.keyword",
+                                "precision_threshold": 10000
+                            }
+                        },
+                        "flake_types": {
+                            "terms": {
+                                "field": "flake_resolved.type.keyword",
+                                "size": 20
+                            }
+                        },
+                        "top_owners": {
+                            "terms": {
+                                "field": "flake_resolved.owner.keyword",
+                                "size": 10
+                            }
+                        }
+                    }
+                },
+                auth=NIXOS_AUTH,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            
+            aggs = data.get("aggregations", {})
+            unique_count = aggs.get("unique_flakes", {}).get("value", 0)
+            
+            # Get type distribution
+            types = aggs.get("flake_types", {}).get("buckets", [])
+            type_info = []
+            for t in types[:5]:  # Top 5 types
+                type_name = t.get("key", "unknown")
+                count = t.get("doc_count", 0)
+                if type_name:
+                    type_info.append(f"  - {type_name}: {count:,}")
+            
+            # Get top owners
+            owners = aggs.get("top_owners", {}).get("buckets", [])
+            owner_info = []
+            for o in owners[:5]:  # Top 5 owners
+                owner_name = o.get("key", "")
+                count = o.get("doc_count", 0)
+                if owner_name:
+                    owner_info.append(f"  - {owner_name}: {count:,} packages")
+            
+        except Exception:
+            # Fallback if aggregations fail
+            unique_count = 0
+            type_info = []
+            owner_info = []
+        
+        # Build statistics
+        results = []
+        results.append("NixOS Flakes Statistics:")
+        results.append(f"• Total indexed documents: {total_docs:,}")
+        if unique_count > 0:
+            results.append(f"• Unique flakes: ~{unique_count:,}")
+        
+        if type_info:
+            results.append("• Flake types:")
+            results.extend(type_info)
+        
+        if owner_info:
+            results.append("• Top contributors:")
+            results.extend(owner_info)
+        
+        results.append("\nNote: Flakes are community-contributed and indexed separately from official packages.")
+        
+        return "\n".join(results)
+        
+    except Exception as e:
+        return error(str(e))
+
+
+@mcp.tool()
 def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS flakes by name, description, owner, or repository.
 
@@ -927,7 +1032,7 @@ def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") 
             resp.raise_for_status()
             data = resp.json()
             hits = data.get("hits", {}).get("hits", [])
-            # total = data.get("hits", {}).get("total", {}).get("value", 0)  # Reserved for future use
+            total = data.get("hits", {}).get("total", {}).get("value", 0)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 # No flake indices found
@@ -1032,7 +1137,11 @@ Browse flakes at:
 
         # Build results
         results = []
-        results.append(f"Found {len(flakes)} unique flakes matching '{query}':\n")
+        # Show both total hits and unique flakes
+        if total > len(flakes):
+            results.append(f"Found {total:,} total matches ({len(flakes)} unique flakes) matching '{query}':\n")
+        else:
+            results.append(f"Found {len(flakes)} unique flakes matching '{query}':\n")
 
         for flake in flakes.values():
             results.append(f"• {flake['name']}")
