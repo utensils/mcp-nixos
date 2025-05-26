@@ -76,35 +76,6 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `darwin_list_options()` - Browse all 21 categories
 - `darwin_options_by_prefix(prefix)` - Explore macOS options
 
-## Real Examples (Copy/Paste These)
-
-```python
-# Find Firefox in different channels
-nixos_search("firefox", "packages", "unstable")
-nixos_search("firefox", "packages", "stable")
-
-# Get nginx configuration options
-nixos_search("nginx", "options")
-nixos_info("services.nginx.enable", "option")
-
-# Check available channels
-nixos_channels()
-
-# Find specific package versions with commit hashes
-nixhub_package_versions("ruby", limit=50)  # Find Ruby 2.6.7
-nixhub_find_version("python", "3.5.9")     # Smart search for Python 3.5.9
-
-# Configure git in Home Manager
-home_manager_search("git")
-home_manager_info("programs.git.enable")
-home_manager_options_by_prefix("programs.git")
-
-# Configure macOS dock behavior
-darwin_search("dock")
-darwin_info("system.defaults.dock.autohide")
-darwin_options_by_prefix("system.defaults.dock")
-```
-
 ## Installation Options
 
 **Remember: You DON'T need Nix/NixOS installed!** This tool runs anywhere Python runs.
