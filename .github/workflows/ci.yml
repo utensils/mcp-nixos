@@ -1,9 +1,9 @@
 # .github/workflows/ci.yml
 #
-# CI/CD workflow with smart test execution:
+# Simplified CI/CD workflow that actually works:
 # - Always excludes eval tests (expensive - run locally when needed)
-# - Skips tests for documentation-only changes
-# - Handles releases via commit message trigger to avoid duplicate runs
+# - Skips tests for documentation-only changes (on branches only)
+# - Publishes to PyPI on any version tag (v*)
 
 name: CI
 
@@ -15,7 +15,7 @@ on:
   # Pull requests - only when targeting main branch
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   # Manual trigger
   workflow_dispatch:
 
@@ -25,10 +25,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Detect what changed to determine if we need to run tests
+  # Detect what changed to determine if we need to run tests (for branches only)
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    # Only run change detection for non-tag events
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     outputs:
       code: ${{ steps.filter.outputs.code }}
       docs: ${{ steps.filter.outputs.docs }}
@@ -58,19 +60,17 @@ jobs:
             website:
               - 'website/**'
 
-  # Single test job using Nix flake
+  # Test job - runs for all tags and for code changes on branches
   test:
     name: Test & Lint
-    needs: changes
+    needs: [changes]
     runs-on: ubuntu-latest
-    # Skip tests if only docs changed, or on merge commits that were already tested
+    # Run for all tags OR when code changes on branches
     if: |
-      needs.changes.outputs.code == 'true' &&
-      (github.event_name != 'push' || 
-       !contains(github.event.head_commit.message, 'Merge pull request'))
-    permissions:
-      contents: read
-      pull-requests: read
+      startsWith(github.ref, 'refs/tags/') ||
+      (needs.changes.outputs.code == 'true' &&
+       (github.event_name != 'push' || 
+        !contains(github.event.head_commit.message, 'Merge pull request')))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -127,47 +127,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./junit.xml
 
-  # Complexity analysis for PRs only
-  analyze:
-    name: Code Complexity
-    needs: changes
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'pull_request' &&
-      needs.changes.outputs.code == 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      
-      - name: Setup and analyze
-        run: |
-          nix develop --command setup
-          nix develop --command bash -c 'source .venv/bin/activate && pip install wily'
-          nix develop --command bash -c 'source .venv/bin/activate && wily build mcp_nixos tests'
-          
-          mkdir -p complexity-report
-          nix develop --command bash -c 'source .venv/bin/activate && wily diff mcp_nixos tests -r origin/${{ github.event.pull_request.base.ref }}' > complexity-report/diff.txt || true
-      
-      - name: Upload complexity report
-        uses: actions/upload-artifact@v4
-        with:
-          name: complexity-report
-          path: complexity-report/
-
   # Website deployment - only on main branch pushes with changes
   deploy-website:
     name: Deploy Website
-    needs: changes
+    needs: [changes]
     runs-on: ubuntu-latest
     if: |
       github.ref == 'refs/heads/main' && 
@@ -208,59 +171,6 @@ jobs:
           aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
           aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
 
-  # Create GitHub Release when PR with release label is merged
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'push' && 
-      github.ref == 'refs/heads/main' &&
-      contains(github.event.head_commit.message, 'release:')
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Extract version from commit message
-        id: extract_version
-        run: |
-          # Extract version from commit message like "release: v1.0.0"
-          # Use head instead of grep -P for better compatibility
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          VERSION=$(echo "$COMMIT_MSG" | head -n 1 | sed -n 's/.*release:[[:space:]]*v\?\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
-          if [ -z "$VERSION" ]; then
-            echo "No version found in commit message: $COMMIT_MSG"
-            exit 1
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Create and push tag
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag -a ${{ steps.extract_version.outputs.tag }} -m "Release ${{ steps.extract_version.outputs.tag }}"
-          git push origin ${{ steps.extract_version.outputs.tag }}
-      
-      - name: Extract release notes
-        id: extract_notes
-        run: |
-          # Extract release notes for this version from RELEASE_NOTES.md
-          awk '/^# MCP-NixOS: v${{ steps.extract_version.outputs.version }}/ {flag=1; next} /^# MCP-NixOS: v[0-9]/ {if(flag) exit} flag' RELEASE_NOTES.md > release_notes.txt
-          echo "Release notes extracted"
-      
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.extract_version.outputs.tag }}
-          release_name: Release ${{ steps.extract_version.outputs.tag }}
-          body_path: release_notes.txt
-          draft: false
-          prerelease: false
-
   # PyPI publishing - only on version tags
   publish:
     name: Publish to PyPI
@@ -272,6 +182,7 @@ jobs:
       url: https://pypi.org/p/mcp-nixos
     permissions:
       id-token: write
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -298,3 +209,27 @@ jobs:
       
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+      
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Extract release notes
+        id: extract_notes
+        run: |
+          # Extract release notes for this version from RELEASE_NOTES.md
+          awk '/^# MCP-NixOS: v${{ steps.version.outputs.version }}/ {flag=1; next} /^# MCP-NixOS: v[0-9]/ {if(flag) exit} flag' RELEASE_NOTES.md > release_notes.txt
+          echo "Release notes extracted"
+      
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
