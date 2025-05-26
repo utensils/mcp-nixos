@@ -90,7 +90,7 @@ class TestOptionInfoImprovements:
             ("services.gpg", "services.gpg-agent.enable"),
         ]
 
-        for wrong_name, correct_name in mistakes:
+        for wrong_name, _ in mistakes:
             # Wrong name returns not found
             with patch("mcp_nixos.server.parse_html_options") as mock_parse:
                 mock_parse.return_value = []

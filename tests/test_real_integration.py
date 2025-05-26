@@ -17,7 +17,7 @@ class TestRealIntegration:
 
     def test_nixos_search_real(self):
         """Test real NixOS package search."""
-        result = nixos_search("firefox", type="packages", limit=3)
+        result = nixos_search("firefox", search_type="packages", limit=3)
         assert "Found" in result
         assert "firefox" in result
         assert "•" in result  # Bullet point
@@ -34,7 +34,7 @@ class TestRealIntegration:
 
     def test_nixos_option_search_real(self):
         """Test real NixOS option search."""
-        result = nixos_search("nginx", type="options", limit=3)
+        result = nixos_search("nginx", search_type="options", limit=3)
         # Should find nginx options (now using wildcard, may find options with nginx anywhere)
         assert "nginx" in result.lower() or "No options found" in result
         assert "<" not in result  # No XML
@@ -88,7 +88,7 @@ class TestRealIntegration:
         """Ensure all outputs follow consistent plain text format."""
         # Test various searches
         results = [
-            nixos_search("python", type="packages", limit=2),
+            nixos_search("python", search_type="packages", limit=2),
             home_manager_search("shell", limit=2),
             darwin_search("system", limit=2),
         ]
@@ -108,7 +108,7 @@ class TestRealIntegration:
     def test_error_handling_plain_text(self):
         """Test error messages are plain text."""
         # Test with invalid type
-        result = nixos_search("test", type="invalid")
+        result = nixos_search("test", search_type="invalid")
         assert "Error" in result
         assert "<" not in result
 

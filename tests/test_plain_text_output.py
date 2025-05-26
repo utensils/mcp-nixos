@@ -51,7 +51,7 @@ class TestPlainTextOutput:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = nixos_search("firefox", type="packages", limit=5)
+        result = nixos_search("firefox", search_type="packages", limit=5)
         assert "Found 1 packages matching 'firefox':" in result
         assert "• firefox (123.0)" in result
         assert "  A web browser" in result
@@ -241,6 +241,6 @@ class TestPlainTextOutput:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = nixos_search("nonexistent", type="packages")
+        result = nixos_search("nonexistent", search_type="packages")
         assert result == "No packages found matching 'nonexistent'"
         assert "<" not in result

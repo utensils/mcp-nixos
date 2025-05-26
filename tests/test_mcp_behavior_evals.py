@@ -45,7 +45,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Step 1: Search for the package
-        response1 = assistant.use_tool("nixos_search", query="neovim", type="packages", limit=5)
+        response1 = assistant.use_tool("nixos_search", query="neovim", search_type="packages", limit=5)
         analysis1 = assistant.analyze_response(response1)
 
         assert analysis1["has_results"] or analysis1["mentions_not_found"]
@@ -53,7 +53,7 @@ class TestMCPBehaviorEvals:
 
         # Step 2: Get detailed info if found
         if analysis1["has_results"]:
-            response2 = assistant.use_tool("nixos_info", name="neovim", type="package")
+            response2 = assistant.use_tool("nixos_info", name="neovim", search_type="package")
             analysis2 = assistant.analyze_response(response2)
 
             assert "Package:" in response2
@@ -69,11 +69,11 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Step 1: Search for service options
-        response1 = assistant.use_tool("nixos_search", query="nginx", type="options", limit=10)
+        response1 = assistant.use_tool("nixos_search", query="nginx", search_type="options", limit=10)
 
         # Step 2: Get specific option details
         if "services.nginx.enable" in response1:
-            response2 = assistant.use_tool("nixos_info", name="services.nginx.enable", type="option")
+            response2 = assistant.use_tool("nixos_info", name="services.nginx.enable", search_type="option")
 
             assert "Type: boolean" in response2
             assert "Default:" in response2
@@ -126,7 +126,7 @@ class TestMCPBehaviorEvals:
 
         results = {}
         for channel in channels:
-            response = assistant.use_tool("nixos_info", name=package, type="package", channel=channel)
+            response = assistant.use_tool("nixos_info", name=package, search_type="package", channel=channel)
             if "Version:" in response:
                 # Extract version
                 for line in response.split("\n"):
@@ -141,7 +141,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Search for package that provides 'gcc'
-        response = assistant.use_tool("nixos_search", query="gcc", type="programs", limit=10)
+        response = assistant.use_tool("nixos_search", query="gcc", search_type="programs", limit=10)
 
         analysis = assistant.analyze_response(response)
         if analysis["has_results"]:
@@ -153,14 +153,14 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Look for virtualisation options
-        response1 = assistant.use_tool("nixos_search", query="virtualisation.docker", type="options", limit=20)
+        response1 = assistant.use_tool("nixos_search", query="virtualisation.docker", search_type="options", limit=20)
 
         if "virtualisation.docker.enable" in response1:
             # Get details on enable option
-            assistant.use_tool("nixos_info", name="virtualisation.docker.enable", type="option")
+            assistant.use_tool("nixos_info", name="virtualisation.docker.enable", search_type="option")
 
             # Search for related options
-            assistant.use_tool("nixos_search", query="docker", type="options", limit=10)
+            assistant.use_tool("nixos_search", query="docker", search_type="options", limit=10)
 
             # Verify we get comprehensive docker configuration options
             assert any(r for r in assistant.responses if "docker" in r.lower())
@@ -191,11 +191,11 @@ class TestMCPBehaviorEvals:
         assert "Invalid channel" in response1
 
         # Try non-existent package
-        response2 = assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", type="package")
+        response2 = assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", search_type="package")
         assert "not found" in response2.lower()
 
         # Try invalid type
-        response3 = assistant.use_tool("nixos_search", query="test", type="invalid-type")
+        response3 = assistant.use_tool("nixos_search", query="test", search_type="invalid-type")
         assert "Error" in response3
         assert "Invalid type" in response3
 
@@ -204,7 +204,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Search for all nginx options
-        response1 = assistant.use_tool("nixos_search", query="services.nginx", type="options", limit=50)
+        response1 = assistant.use_tool("nixos_search", query="services.nginx", search_type="options", limit=50)
 
         if "Found" in response1:
             # Count unique option types
@@ -230,7 +230,7 @@ class TestMCPBehaviorEvals:
         # 2. Search for development tools
         dev_tools = ["vscode", "git", "docker", "nodejs"]
         for tool in dev_tools[:2]:  # Test first two to save time
-            response = assistant.use_tool("nixos_search", query=tool, type="packages", limit=3)
+            response = assistant.use_tool("nixos_search", query=tool, search_type="packages", limit=3)
             if "Found" in response:
                 # Get info on first result
                 package_name = None
@@ -241,7 +241,7 @@ class TestMCPBehaviorEvals:
                         break
 
                 if package_name:
-                    info = assistant.use_tool("nixos_info", name=package_name, type="package")
+                    info = assistant.use_tool("nixos_info", name=package_name, search_type="package")
                     assert "Package:" in info
 
         # 3. Configure git in Home Manager
@@ -294,7 +294,7 @@ class TestMCPBehaviorEvals:
 
         found_types = {}
         for type_name, search_term in type_examples.items():
-            response = assistant.use_tool("nixos_search", query=search_term, type="options", limit=5)
+            response = assistant.use_tool("nixos_search", query=search_term, search_type="options", limit=5)
             if "Type:" in response:
                 found_types[type_name] = response
 

@@ -38,7 +38,7 @@ class TestNixOSSearchIssues:
             },
         ]
 
-        result = nixos_search("services.nginx", type="options", limit=2, channel="stable")
+        result = nixos_search("services.nginx", search_type="options", limit=2, channel="stable")
 
         # After fix, should return nginx-related options
         assert "services.nginx.enable" in result
@@ -172,7 +172,7 @@ class TestElasticsearchQueryIssues:
         mock_post.return_value = mock_response
 
         # Test options search
-        nixos_search("nginx", type="options", limit=1)
+        nixos_search("nginx", search_type="options", limit=1)
 
         # Check the query sent to ES
         call_args = mock_post.call_args
@@ -224,7 +224,7 @@ class TestPlainTextFormatting:
             }
         ]
 
-        result = nixos_search("test", type="options")
+        result = nixos_search("test", search_type="options")
 
         # Should not contain HTML tags
         assert "<rendered-html>" not in result
@@ -241,7 +241,7 @@ class TestErrorHandling:
     def test_nixos_search_invalid_parameters(self):
         """Test parameter validation in nixos_search."""
         # Invalid type
-        result = nixos_search("test", type="invalid")
+        result = nixos_search("test", search_type="invalid")
         assert "Error" in result
         assert "Invalid type" in result
 
@@ -272,7 +272,7 @@ class TestRealAPIBehavior:
     def test_real_nixos_option_search(self):
         """Test real NixOS API option search behavior."""
         # This would make actual API calls to verify the issue
-        result = nixos_search("services.nginx.enable", type="options", channel="stable")
+        result = nixos_search("services.nginx.enable", search_type="options", channel="stable")
 
         # The search should return nginx-related options, not random ones
         if "appstream.enable" in result:
@@ -326,7 +326,7 @@ class TestOutputFormat:
             }
         ]
 
-        result = nixos_search("nginx", type="packages", limit=1)
+        result = nixos_search("nginx", search_type="packages", limit=1)
 
         # Check format
         assert "Found 1 packages matching" in result

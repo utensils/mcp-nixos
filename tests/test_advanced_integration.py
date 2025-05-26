@@ -23,24 +23,24 @@ class TestAdvancedIntegration:
     def test_nixos_search_special_characters(self):
         """Test searching with special characters and symbols."""
         # Test with hyphens
-        result = nixos_search("ruby-build", type="packages")
+        result = nixos_search("ruby-build", search_type="packages")
         assert "ruby-build" in result or "No packages found" in result
 
         # Test with dots
-        result = nixos_search("lib.so", type="packages")
+        result = nixos_search("lib.so", search_type="packages")
         # Should handle dots in search gracefully
         assert "Error" not in result
 
         # Test with underscores
-        result = nixos_search("python3_12", type="packages")
+        result = nixos_search("python3_12", search_type="packages")
         assert "Error" not in result
 
     def test_nixos_search_case_sensitivity(self):
         """Test case sensitivity in searches."""
         # Search with different cases
-        result_lower = nixos_search("firefox", type="packages", limit=5)
-        result_upper = nixos_search("FIREFOX", type="packages", limit=5)
-        result_mixed = nixos_search("FireFox", type="packages", limit=5)
+        result_lower = nixos_search("firefox", search_type="packages", limit=5)
+        result_upper = nixos_search("FIREFOX", search_type="packages", limit=5)
+        result_mixed = nixos_search("FireFox", search_type="packages", limit=5)
 
         # All should find firefox (case-insensitive search)
         assert "firefox" in result_lower.lower()
@@ -50,11 +50,11 @@ class TestAdvancedIntegration:
     def test_nixos_option_hierarchical_search(self):
         """Test searching hierarchical option names."""
         # Search for nested options
-        result = nixos_search("systemd.services", type="options", limit=10)
+        result = nixos_search("systemd.services", search_type="options", limit=10)
         assert "systemd.services" in result or "No options found" in result
 
         # Search for deeply nested options
-        result = nixos_search("networking.firewall.allowedTCPPorts", type="options", limit=5)
+        result = nixos_search("networking.firewall.allowedTCPPorts", search_type="options", limit=5)
         # Should handle long option names
         assert "Error" not in result
 
@@ -70,7 +70,7 @@ class TestAdvancedIntegration:
             assert "Error" not in stats
 
             # Search should return same structure
-            search = nixos_search("git", type="packages", channel=channel, limit=3)
+            search = nixos_search("git", search_type="packages", channel=channel, limit=3)
             if "Found" in search:
                 assert "•" in search  # Bullet points
                 assert "(" in search  # Version in parentheses
@@ -187,7 +187,7 @@ class TestAdvancedIntegration:
 
         # NixOS large search
         start = time.time()
-        result = nixos_search("lib", type="packages", limit=100)
+        result = nixos_search("lib", search_type="packages", limit=100)
         elapsed = time.time() - start
         assert elapsed < 30  # Should complete within 30 seconds
         assert "Error" not in result
@@ -217,7 +217,7 @@ class TestAdvancedIntegration:
     def test_unicode_handling(self):
         """Test handling of unicode in searches and results."""
         # Search with unicode
-        result = nixos_search("文字", type="packages", limit=5)
+        result = nixos_search("文字", search_type="packages", limit=5)
         # Should handle unicode gracefully
         assert "Error" not in result
 
@@ -230,7 +230,7 @@ class TestAdvancedIntegration:
     def test_empty_and_whitespace_queries(self):
         """Test handling of empty and whitespace-only queries."""
         # Empty string
-        result = nixos_search("", type="packages", limit=5)
+        result = nixos_search("", search_type="packages", limit=5)
         assert "No packages found" in result or "Found" in result
 
         # Whitespace only
@@ -244,7 +244,7 @@ class TestAdvancedIntegration:
     def test_option_type_complexity(self):
         """Test handling of complex option types."""
         # Search for options with complex types
-        result = nixos_search("extraConfig", type="options", limit=10)
+        result = nixos_search("extraConfig", search_type="options", limit=10)
 
         if "Found" in result and "Type:" in result:
             # Complex types like "null or string" should be handled
@@ -254,7 +254,7 @@ class TestAdvancedIntegration:
         """Test behavior with slow API responses."""
         # This might occasionally fail if API is very slow
         # Using programs type which might have more processing
-        result = nixos_search("compiler", type="programs", limit=50)
+        result = nixos_search("compiler", search_type="programs", limit=50)
 
         # Should either succeed or timeout gracefully
         assert "packages found" in result or "programs found" in result or "Error" in result

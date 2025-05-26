@@ -14,21 +14,24 @@ This project underwent a massive refactoring in v1.0.0, reducing the codebase fr
 
 ## 🛠️ Essential Development Commands (Quick Reference)
 
-- **Develop environment**: `nix develop`
-- **Run the server**: `run` (in nix shell)
+**IMPORTANT: Always run commands through `nix develop -c <command>` to ensure proper environment setup!**
+
+- **Enter development shell**: `nix develop`
+- **Run the server**: `nix develop -c run`
 - **Test commands**:
-  - All tests: `run-tests`
-  - Unit tests only: `run-tests -- --unit`
-  - Integration tests only: `run-tests -- --integration`
-  - Single test: `run-tests -- tests/path/to/test_file.py::TestClass::test_function -v`
-  - With coverage: `run-tests -- --cov=mcp_nixos`
+  - All tests: `nix develop -c run-tests`
+  - Unit tests only: `nix develop -c run-tests -- --unit`
+  - Integration tests only: `nix develop -c run-tests -- --integration`
+  - Single test: `nix develop -c run-tests -- tests/path/to/test_file.py::TestClass::test_function -v`
+  - With coverage: `nix develop -c run-tests -- --cov=mcp_nixos`
 - **Code quality**:
-  - Format code: `format`
-  - Lint code: `lint`
-  - Type check: `typecheck`
+  - Format code: `nix develop -c format`
+  - Lint code: `nix develop -c lint`
+  - Type check: `nix develop -c typecheck`
+  - Pylint check: `nix develop -c check-pylint`
 - **Package management**:
-  - Build: `build`
-  - Publish to PyPI: `publish`
+  - Build: `nix develop -c build`
+  - Publish to PyPI: `nix develop -c publish`
 
 ## 🔧 MCP Development Setup
 
@@ -190,7 +193,12 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
 ### Evaluation Testing with Anthropic API
 - **Purpose**: Test MCP tools with real AI behavior to ensure practical usability
 - **Setup**: Copy `.env.example` to `.env` and add your Anthropic API key
-- **Run**: `python run_evals.py` or `pytest tests/test_evals_anthropic.py -v`
+- **Local Development**: `run-tests` always includes eval tests (all tests run)
+- **CI/CD Behavior**:
+  - **Repository members**: All tests run including eval tests
+  - **External contributors**: Eval tests are skipped to prevent API credit abuse
+  - Detection is automatic based on GitHub permissions
+- **Run Manually**: `python run_evals.py` or `pytest tests/test_evals_anthropic.py -v`
 - **Scenarios**: Package installation, service configuration, Home Manager integration
 - **Pass Criteria**: 80% of expected behaviors must be observed
 - **Security**: Never commit API keys; use environment variables in CI/CD
@@ -305,20 +313,22 @@ All tools return human-readable plain text, not XML or JSON.
 
 **Running Tests**
 ```bash
-# All tests (excludes Anthropic evals)
-run-tests
+# IMPORTANT: Always use 'nix develop -c' to ensure proper environment!
+
+# All tests (includes Anthropic evals in local development)
+nix develop -c run-tests
 
 # Specific test file
-run-tests -- tests/test_plain_text_output.py -v
+nix develop -c run-tests -- tests/test_plain_text_output.py -v
 
 # Integration tests only
-run-tests -- --integration
+nix develop -c run-tests -- --integration
 
-# Include Anthropic evaluation tests (requires API key)
-run-tests -m "anthropic"
+# Include Anthropic evaluation tests explicitly (requires API key)
+nix develop -c run-tests -- -m "anthropic"
 
 # With coverage
-run-tests -- --cov=mcp_nixos
+nix develop -c run-tests -- --cov=mcp_nixos
 ```
 
 **Test Best Practices**
@@ -349,12 +359,12 @@ run-tests -- --cov=mcp_nixos
   - Deployed on Smithery.ai as a hosted service
 - Development:
   - Environment: `nix develop` (includes all dev and eval dependencies)
-  - Run server: `run`
-  - Tests: `run-tests`, `run-tests --unit`, `run-tests --integration`
-  - Evaluation tests: `run-tests -m "anthropic"` (requires `ANTHROPIC_API_KEY`)
-  - Code quality: `lint`, `typecheck`, `format`
-  - Stats: `loc`
-  - Package: `build`, `publish`
+  - Run server: `nix develop -c run`
+  - Tests: `nix develop -c run-tests`, `nix develop -c run-tests -- --unit`, `nix develop -c run-tests -- --integration`
+  - Evaluation tests: `nix develop -c run-tests -- -m "anthropic"` (requires `ANTHROPIC_API_KEY`)
+  - Code quality: `nix develop -c lint`, `nix develop -c typecheck`, `nix develop -c format`, `nix develop -c check-pylint`
+  - Stats: `nix develop -c loc`
+  - Package: `nix develop -c build`, `nix develop -c publish`
   - GitHub operations: Use `gh` tool for repository management and troubleshooting
 
 ### Code Style

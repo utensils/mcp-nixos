@@ -311,12 +311,14 @@
                   echo "Using coverage and JUnit XML (CI environment)"
                 fi
                 
-                # Simple and direct test execution
+                # For local development, always run all tests including evals
+                # In CI, the workflow will handle excluding anthropic tests for external contributors
                 if [ -n "$TEST_ARGS" ]; then
                   echo "Running: pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"
                   eval "pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"
                 else
                   echo "Running: pytest tests/ -v $COVERAGE_ARGS $JUNIT_ARGS $@"
+                  echo "Note: Running all tests including eval tests. In CI, eval tests are skipped for external contributors."
                   pytest tests/ -v $COVERAGE_ARGS $JUNIT_ARGS "$@"
                 fi
                 
@@ -364,7 +366,7 @@
                 flake8 mcp_nixos/ tests/
                 echo "--- Running Pylint analyzer ---"
                 if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
-                pylint mcp_nixos/ tests/ || true
+                python -m pylint mcp_nixos/ tests/ || true
               '';
             }
             {
@@ -381,7 +383,7 @@
                 echo "--- Running Pylint ---"
                 if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
                 # Run pylint with reasonable defaults for our project
-                pylint mcp_nixos/ tests/ --disable=R0903,R0801,C0103 --max-line-length=120 || true
+                python -m pylint mcp_nixos/ tests/ || true
                 echo "✅ Pylint analysis complete"
               '';
             }

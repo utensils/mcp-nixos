@@ -1,6 +1,6 @@
 """Minimal test configuration for refactored MCP-NixOS."""
 
-import pytest
+import pytest  # pylint: disable=unused-import
 
 
 def pytest_addoption(parser):

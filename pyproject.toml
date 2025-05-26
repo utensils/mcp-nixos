@@ -32,6 +32,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "flake8>=7.1.2",
     "black>=25.1.0",
+    "pylint>=3.0.0",
     "types-beautifulsoup4>=4.12.0.20240229",
     "types-requests>=2.32.0",
     "wily>=1.25.0",

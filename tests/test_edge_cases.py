@@ -161,7 +161,7 @@ class TestEdgeCases:
     def test_nixos_search_invalid_parameters(self):
         """Test nixos_search with various invalid parameters."""
         # Invalid type
-        result = nixos_search("test", type="invalid")
+        result = nixos_search("test", search_type="invalid")
         assert "Error (ERROR): Invalid type 'invalid'" in result
 
         # Invalid channel
@@ -192,11 +192,11 @@ class TestEdgeCases:
         ]
 
         # Search for 'ls' should find it in programs
-        result = nixos_search("ls", type="programs")
+        result = nixos_search("ls", search_type="programs")
         assert "ls (provided by coreutils)" in result
 
         # Search for 'grep' should not show coreutils
-        result = nixos_search("grep", type="programs")
+        result = nixos_search("grep", search_type="programs")
         assert "coreutils" not in result
 
     @patch("mcp_nixos.server.es_query")

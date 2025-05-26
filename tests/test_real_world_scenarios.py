@@ -85,7 +85,7 @@ class TestRealWorldScenarios:
     def test_scenario_migrating_nixos_channels(self):
         """User wants to understand and migrate between NixOS channels."""
         # Step 1: Check available channels
-        with patch("mcp_nixos.server.discover_available_channels") as mock_discover:
+        with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
             mock_discover.return_value = {
                 "latest-43-nixos-25.05": "151,698 documents",
                 "latest-43-nixos-24.11": "142,034 documents",
@@ -178,7 +178,7 @@ class TestRealWorldScenarios:
             ("system", "system.defaults"),  # Too generic
         ]
 
-        for invalid_name, suggestion in test_cases:
+        for invalid_name, _ in test_cases:
             with patch("mcp_nixos.server.parse_html_options") as mock_parse:
                 mock_parse.return_value = []  # No exact match
 
@@ -278,7 +278,7 @@ class TestRealWorldScenarios:
             ]
 
             # Search for options with wildcards
-            result = nixos_search("*.nginx.*", type="options")
+            result = nixos_search("*.nginx.*", search_type="options")
             assert "services.nginx.enable" in result
 
     def test_scenario_stats_usage_patterns(self):

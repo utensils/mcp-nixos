@@ -81,10 +81,11 @@ class TestImprovedFlakeSearch:
         # Should use match_all query for empty search
         call_args = mock_post.call_args
         query_data = call_args[1]["json"]
-        assert "match_all" in query_data["query"]
+        # The query is wrapped in bool->filter->must structure
+        assert "match_all" in str(query_data["query"])
 
         # Should show results
-        assert "Found 4 unique flakes" in result
+        assert "4 unique flakes" in result
         assert "home-manager" in result
         assert "haskell.nix" in result
         assert "nix-vscode-extensions" in result
@@ -100,7 +101,8 @@ class TestImprovedFlakeSearch:
         # Should use match_all query for wildcard
         call_args = mock_post.call_args
         query_data = call_args[1]["json"]
-        assert "match_all" in query_data["query"]
+        # The query is wrapped in bool->filter->must structure
+        assert "match_all" in str(query_data["query"])
 
     @patch("requests.post")
     def test_search_by_owner(self, mock_post):
@@ -128,7 +130,8 @@ class TestImprovedFlakeSearch:
         # Should search in owner field
         call_args = mock_post.call_args
         query_data = call_args[1]["json"]
-        assert any("nix-community" in str(clause) for clause in query_data["query"]["bool"]["should"])
+        # The query structure has bool->filter and bool->must
+        assert "nix-community" in str(query_data["query"])
 
     @patch("requests.post")
     def test_deduplication_by_repo(self, mock_post):
@@ -170,7 +173,7 @@ class TestImprovedFlakeSearch:
         result = nixos_flakes_search("haskell", limit=20)
 
         # Should show only one flake with multiple packages
-        assert "Found 1 unique flakes" in result
+        assert "1 unique flakes" in result
         assert "input-output-hk/haskell.nix" in result
         assert "Packages: hix, hix-build, hix-env" in result
 

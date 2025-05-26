@@ -310,11 +310,8 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
 
 
 @mcp.tool()
-def nixos_search(
-    query: str, type: str = "packages", limit: int = 20, channel: str = "unstable"
-) -> str:  # pylint: disable=redefined-builtin
+def nixos_search(query: str, search_type: str = "packages", limit: int = 20, channel: str = "unstable") -> str:
     """Search NixOS packages, options, or programs."""
-    search_type = type  # Avoid shadowing built-in
     if search_type not in ["packages", "options", "programs", "flakes"]:
         return error(f"Invalid type '{search_type}'")
     channels = get_channels()
@@ -1093,7 +1090,7 @@ def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") 
             hits = data.get("hits", {}).get("hits", [])
             total = data.get("hits", {}).get("total", {}).get("value", 0)
         except requests.HTTPError as e:
-            if e.response.status_code == 404:
+            if e.response and e.response.status_code == 404:
                 # No flake indices found
                 return error("Flake indices not found. Flake search may be temporarily unavailable.")
             raise

@@ -109,11 +109,11 @@ class MockAIAssistant:
 
         if package:
             # Search for the package
-            self._make_tool_call("nixos_search", query=package, type="packages")
+            self._make_tool_call("nixos_search", query=package, search_type="packages")
 
             # If it's a command, also search programs
             if package == "git":
-                self._make_tool_call("nixos_search", query=package, type="programs")
+                self._make_tool_call("nixos_search", query=package, search_type="programs")
 
             # Get detailed info
             self._make_tool_call("nixos_info", name=package, type="package")
@@ -122,7 +122,7 @@ class MockAIAssistant:
         """Handle service configuration queries."""
         if "nginx" in query.lower():
             # Search for nginx options
-            self._make_tool_call("nixos_search", query="services.nginx", type="options")
+            self._make_tool_call("nixos_search", query="services.nginx", search_type="options")
             # Get specific option info
             self._make_tool_call("nixos_info", name="services.nginx.enable", type="option")
             self._make_tool_call("nixos_info", name="services.nginx.virtualHosts", type="option")
@@ -131,7 +131,7 @@ class MockAIAssistant:
         """Handle Home Manager related queries."""
         if "git" in query.lower():
             # Search both system and user options
-            self._make_tool_call("nixos_search", query="git", type="packages")
+            self._make_tool_call("nixos_search", query="git", search_type="packages")
             self._make_tool_call("home_manager_search", query="programs.git")
             self._make_tool_call("home_manager_info", name="programs.git.enable")
         elif "shell" in query.lower():
@@ -150,7 +150,7 @@ class MockAIAssistant:
     def _handle_comparison_query(self, query: str):
         """Handle package comparison queries."""
         if "firefox" in query.lower():
-            self._make_tool_call("nixos_search", query="firefox", type="packages")
+            self._make_tool_call("nixos_search", query="firefox", search_type="packages")
             self._make_tool_call("nixos_info", name="firefox", type="package")
             self._make_tool_call("nixos_info", name="firefox-esr", type="package")
 
@@ -270,7 +270,7 @@ class TestPackageDiscoveryEvals:
             name="find_vscode",
             user_query="I want to install VSCode on NixOS",
             expected_tool_calls=[
-                "nixos_search(query='vscode', type='packages')",
+                "nixos_search(query='vscode', search_type='packages')",
                 "nixos_info(name='vscode', type='package')",
             ],
             success_criteria=["finds vscode package", "mentions configuration.nix", "provides installation syntax"],
@@ -310,7 +310,7 @@ class TestPackageDiscoveryEvals:
             name="find_git_command",
             user_query="How do I get the 'git' command on NixOS?",
             expected_tool_calls=[
-                "nixos_search(query='git', type='programs')",
+                "nixos_search(query='git', search_type='programs')",
                 "nixos_info(name='git', type='package')",
             ],
             success_criteria=[
@@ -349,7 +349,7 @@ class TestPackageDiscoveryEvals:
             name="compare_firefox_variants",
             user_query="What's the difference between firefox and firefox-esr?",
             expected_tool_calls=[
-                "nixos_search(query='firefox', type='packages')",
+                "nixos_search(query='firefox', search_type='packages')",
                 "nixos_info(name='firefox', type='package')",
                 "nixos_info(name='firefox-esr', type='package')",
             ],
@@ -390,7 +390,7 @@ class TestServiceConfigurationEvals:
             name="nginx_setup",
             user_query="How do I set up nginx on NixOS to serve static files?",
             expected_tool_calls=[
-                "nixos_search(query='services.nginx', type='options')",
+                "nixos_search(query='services.nginx', search_type='options')",
                 "nixos_info(name='services.nginx.enable', type='option')",
                 "nixos_info(name='services.nginx.virtualHosts', type='option')",
             ],
@@ -427,7 +427,7 @@ class TestServiceConfigurationEvals:
             name="postgresql_setup",
             user_query="Set up PostgreSQL with a database for my app",
             expected_tool_calls=[
-                "nixos_search(query='services.postgresql', type='options')",
+                "nixos_search(query='services.postgresql', search_type='options')",
                 "nixos_info(name='services.postgresql.enable', type='option')",
                 "nixos_info(name='services.postgresql.ensureDatabases', type='option')",
                 "nixos_info(name='services.postgresql.ensureUsers', type='option')",
@@ -480,7 +480,7 @@ class TestHomeManagerIntegrationEvals:
             name="git_config_location",
             user_query="Should I configure git in NixOS or Home Manager?",
             expected_tool_calls=[
-                "nixos_search(query='git', type='packages')",
+                "nixos_search(query='git', search_type='packages')",
                 "home_manager_search(query='programs.git')",
                 "home_manager_info(name='programs.git.enable')",
             ],
@@ -651,7 +651,7 @@ class TestCompleteEvalSuite:
             EvalScenario(
                 name="service_config",
                 user_query="Configure nginx web server",
-                expected_tool_calls=["nixos_search(query='nginx', type='options')"],
+                expected_tool_calls=["nixos_search(query='nginx', search_type='options')"],
                 success_criteria=["finds nginx options"],
             ),
             EvalScenario(

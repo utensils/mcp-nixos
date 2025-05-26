@@ -241,6 +241,6 @@ class TestChannelHandling:
         result = channel_cache.get_available()
 
         # Should not include any indices with 0 documents
-        for channel, info in result.items():
+        for _, info in result.items():
             # Check that it doesn't start with "0 documents"
             assert not info.startswith("0 documents")

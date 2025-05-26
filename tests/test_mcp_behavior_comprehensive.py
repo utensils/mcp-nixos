@@ -73,7 +73,7 @@ class TestMCPBehaviorComprehensive:
     def test_nixos_channel_awareness(self):
         """Test channel discovery and usage."""
         # 1. List available channels
-        with patch("mcp_nixos.server.discover_available_channels") as mock_discover:
+        with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
             mock_discover.return_value = {
                 "latest-43-nixos-unstable": "151,798 documents",
                 "latest-43-nixos-25.05": "151,698 documents",

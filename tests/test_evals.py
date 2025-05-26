@@ -1,11 +1,22 @@
 """Basic evaluation tests for MCP-NixOS to validate AI usability."""
 
+import pytest
 from unittest.mock import patch, Mock
 from mcp_nixos.server import nixos_search, nixos_info, home_manager_search, darwin_search
 
 
 class TestPackageDiscoveryEvals:
     """Evaluations for package discovery scenarios."""
+
+    @pytest.fixture(autouse=True)
+    def mock_channel_validation(self):
+        """Mock channel validation to always pass for 'unstable'."""
+        with patch("mcp_nixos.server.channel_cache") as mock_cache:
+            mock_cache.get_available.return_value = {"unstable": "latest-45-nixos-unstable"}
+            mock_cache.get_resolved.return_value = {"unstable": "latest-45-nixos-unstable"}
+            with patch("mcp_nixos.server.validate_channel") as mock_validate:
+                mock_validate.return_value = True
+                yield mock_cache
 
     @patch("mcp_nixos.server.requests.post")
     def test_find_vscode_package(self, mock_post):
@@ -29,7 +40,7 @@ class TestPackageDiscoveryEvals:
         mock_post.return_value = mock_response
 
         # Simulate tool call that AI would make
-        result = nixos_search("vscode", type="packages")
+        result = nixos_search("vscode", search_type="packages")
 
         # Verify AI would get useful results
         assert "Found 1 packages matching 'vscode':" in result
@@ -76,7 +87,7 @@ class TestPackageDiscoveryEvals:
         mock_post.side_effect = [search_response, info_response]
 
         # AI would first search for the program
-        result1 = nixos_search("git", type="programs")
+        result1 = nixos_search("git", search_type="programs")
         assert "Found 1 programs matching 'git':" in result1
         assert "• git (provided by git)" in result1
 
@@ -89,6 +100,16 @@ class TestPackageDiscoveryEvals:
 
 class TestServiceConfigurationEvals:
     """Evaluations for service configuration scenarios."""
+
+    @pytest.fixture(autouse=True)
+    def mock_channel_validation(self):
+        """Mock channel validation to always pass for 'unstable'."""
+        with patch("mcp_nixos.server.channel_cache") as mock_cache:
+            mock_cache.get_available.return_value = {"unstable": "latest-45-nixos-unstable"}
+            mock_cache.get_resolved.return_value = {"unstable": "latest-45-nixos-unstable"}
+            with patch("mcp_nixos.server.validate_channel") as mock_validate:
+                mock_validate.return_value = True
+                yield mock_cache
 
     @patch("mcp_nixos.server.requests.post")
     def test_nginx_setup(self, mock_post):
@@ -119,7 +140,7 @@ class TestServiceConfigurationEvals:
         mock_post.return_value = mock_response
 
         # AI searches for nginx options
-        result = nixos_search("nginx", type="options")
+        result = nixos_search("nginx", search_type="options")
 
         # Should get service configuration options
         assert "Found 2 options matching 'nginx':" in result
@@ -203,6 +224,16 @@ class TestDarwinPlatformEvals:
 class TestErrorHandlingEvals:
     """Evaluations for error scenarios."""
 
+    @pytest.fixture(autouse=True)
+    def mock_channel_validation(self):
+        """Mock channel validation to always pass for 'unstable'."""
+        with patch("mcp_nixos.server.channel_cache") as mock_cache:
+            mock_cache.get_available.return_value = {"unstable": "latest-45-nixos-unstable"}
+            mock_cache.get_resolved.return_value = {"unstable": "latest-45-nixos-unstable"}
+            with patch("mcp_nixos.server.validate_channel") as mock_validate:
+                mock_validate.return_value = True
+                yield mock_cache
+
     def test_invalid_channel_error(self):
         """User specifies invalid channel - should get clear error."""
         result = nixos_search("firefox", channel="invalid-channel")
@@ -226,6 +257,16 @@ class TestErrorHandlingEvals:
 
 class TestCompleteScenarioEval:
     """End-to-end scenario evaluation."""
+
+    @pytest.fixture(autouse=True)
+    def mock_channel_validation(self):
+        """Mock channel validation to always pass for 'unstable'."""
+        with patch("mcp_nixos.server.channel_cache") as mock_cache:
+            mock_cache.get_available.return_value = {"unstable": "latest-45-nixos-unstable"}
+            mock_cache.get_resolved.return_value = {"unstable": "latest-45-nixos-unstable"}
+            with patch("mcp_nixos.server.validate_channel") as mock_validate:
+                mock_validate.return_value = True
+                yield mock_cache
 
     @patch("mcp_nixos.server.requests.post")
     @patch("mcp_nixos.server.requests.get")

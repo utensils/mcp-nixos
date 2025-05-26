@@ -229,7 +229,7 @@ class TestNixOSTools:
             }
         ]
 
-        result = nixos_search("firefox", type="packages", limit=5)
+        result = nixos_search("firefox", search_type="packages", limit=5)
         assert "Found 1 packages matching 'firefox':" in result
         assert "• firefox (123.0)" in result
         assert "  A web browser" in result
@@ -247,7 +247,7 @@ class TestNixOSTools:
             }
         ]
 
-        result = nixos_search("nginx", type="options")
+        result = nixos_search("nginx", search_type="options")
         assert "Found 1 options matching 'nginx':" in result
         assert "• services.nginx.enable" in result
         assert "  Type: boolean" in result
@@ -258,7 +258,7 @@ class TestNixOSTools:
         """Test successful program search."""
         mock_query.return_value = [{"_source": {"package_pname": "vim", "package_programs": ["vim", "vi"]}}]
 
-        result = nixos_search("vim", type="programs")
+        result = nixos_search("vim", search_type="programs")
         assert "Found 1 programs matching 'vim':" in result
         assert "• vim (provided by vim)" in result
 
@@ -272,7 +272,7 @@ class TestNixOSTools:
 
     def test_nixos_search_invalid_type(self):
         """Test search with invalid type."""
-        result = nixos_search("test", type="invalid")
+        result = nixos_search("test", search_type="invalid")
         assert result == "Error (ERROR): Invalid type 'invalid'"
 
     def test_nixos_search_invalid_channel(self):
