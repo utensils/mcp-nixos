@@ -304,6 +304,20 @@ class TestRealWorldScenarios:
                 assert "129,865" in result  # Formatted number
                 assert "21,933" in result
 
-        # Stats functions that require full parsing
-        result = home_manager_stats()
-        assert "home_manager_list_options" in result  # Redirects to list
+        # Stats functions now return actual statistics
+        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+            # Mock parsed options
+            mock_parse.return_value = [
+                {"name": "programs.git.enable", "type": "boolean", "description": "Enable git"},
+                {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+                {"name": "services.gpg-agent.enable", "type": "boolean", "description": "Enable GPG agent"},
+                {"name": "home.packages", "type": "list", "description": "Packages to install"},
+                {"name": "wayland.windowManager.sway.enable", "type": "boolean", "description": "Enable Sway"},
+                {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
+            ]
+
+            result = home_manager_stats()
+            assert "Home Manager Statistics:" in result
+            assert "Total options:" in result
+            assert "Categories:" in result
+            assert "Top categories:" in result

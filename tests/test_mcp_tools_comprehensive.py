@@ -77,23 +77,50 @@ class TestHomeManagerIssues:
         # Should have many more categories
         assert "(2 total)" in result  # Only 2 categories found
 
-    def test_home_manager_stats_placeholder(self):
-        """Test that home_manager_stats returns only a placeholder message."""
+    @patch("mcp_nixos.server.parse_html_options")
+    def test_home_manager_stats_placeholder(self, mock_parse):
+        """Test that home_manager_stats returns actual statistics."""
+        # Mock parsed options
+        mock_parse.return_value = [
+            {"name": "programs.git.enable", "type": "boolean", "description": "Enable git"},
+            {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+            {"name": "services.gpg-agent.enable", "type": "boolean", "description": "Enable GPG agent"},
+            {"name": "home.packages", "type": "list", "description": "Packages to install"},
+            {"name": "wayland.windowManager.sway.enable", "type": "boolean", "description": "Enable Sway"},
+            {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
+        ]
+
         result = home_manager_stats()
-        assert "Home Manager statistics require parsing the full documentation" in result
-        assert "Use home_manager_list_options" in result
-        # No actual statistics provided
+        assert "Home Manager Statistics:" in result
+        assert "Total options: 6" in result
+        assert "Categories: 5" in result
+        assert "Top categories:" in result
+        assert "programs: 2 options" in result
+        assert "services: 1 options" in result
 
 
 class TestDarwinIssues:
     """Test issues with nix-darwin tools."""
 
-    def test_darwin_stats_placeholder(self):
-        """Test that darwin_stats returns only a placeholder message."""
+    @patch("mcp_nixos.server.parse_html_options")
+    def test_darwin_stats_placeholder(self, mock_parse):
+        """Test that darwin_stats returns actual statistics."""
+        # Mock parsed options
+        mock_parse.return_value = [
+            {"name": "services.nix-daemon.enable", "type": "boolean", "description": "Enable nix-daemon"},
+            {"name": "system.defaults.dock.autohide", "type": "boolean", "description": "Auto-hide dock"},
+            {"name": "launchd.agents.test", "type": "attribute set", "description": "Launchd agents"},
+            {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+            {"name": "homebrew.enable", "type": "boolean", "description": "Enable Homebrew"},
+        ]
+
         result = darwin_stats()
-        assert "nix-darwin statistics require parsing the full documentation" in result
-        assert "Use darwin_list_options" in result
-        # No actual statistics provided
+        assert "nix-darwin Statistics:" in result
+        assert "Total options: 5" in result
+        assert "Categories: 5" in result
+        assert "Top categories:" in result
+        assert "services: 1 options" in result
+        assert "system: 1 options" in result
 
 
 class TestHTMLParsingIssues:

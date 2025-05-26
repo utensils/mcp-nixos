@@ -411,14 +411,38 @@ class TestMCPBehaviorComprehensive:
                 result = home_manager_info(option_name)
                 assert f"Type: {type_str}" in result
 
-    def test_stats_functions_limitations(self):
-        """Test that stats functions handle their limitations gracefully."""
-        # Home Manager stats redirect to list
-        result = home_manager_stats()
-        assert "parsing the full documentation" in result
-        assert "home_manager_list_options" in result
+    @patch("mcp_nixos.server.parse_html_options")
+    def test_stats_functions_limitations(self, mock_parse):
+        """Test that stats functions return actual statistics now."""
+        # Mock parsed options for Home Manager
+        mock_parse.return_value = [
+            {"name": "programs.git.enable", "type": "boolean", "description": "Enable git"},
+            {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+            {"name": "services.gpg-agent.enable", "type": "boolean", "description": "Enable GPG agent"},
+            {"name": "home.packages", "type": "list", "description": "Packages to install"},
+            {"name": "wayland.windowManager.sway.enable", "type": "boolean", "description": "Enable Sway"},
+            {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
+        ]
 
-        # Darwin stats have same limitation
+        # Home Manager stats now return actual statistics
+        result = home_manager_stats()
+        assert "Home Manager Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
+        assert "Top categories:" in result
+
+        # Mock parsed options for Darwin
+        mock_parse.return_value = [
+            {"name": "services.nix-daemon.enable", "type": "boolean", "description": "Enable nix-daemon"},
+            {"name": "system.defaults.dock.autohide", "type": "boolean", "description": "Auto-hide dock"},
+            {"name": "launchd.agents.test", "type": "attribute set", "description": "Launchd agents"},
+            {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+            {"name": "homebrew.enable", "type": "boolean", "description": "Enable Homebrew"},
+        ]
+
+        # Darwin stats now return actual statistics
         result = darwin_stats()
-        assert "parsing the full documentation" in result
-        assert "darwin_list_options" in result
+        assert "nix-darwin Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
+        assert "Top categories:" in result

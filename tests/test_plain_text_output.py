@@ -151,11 +151,26 @@ class TestPlainTextOutput:
         assert "Description: Enable git" in result
         assert "<option_info>" not in result
 
-    def test_home_manager_stats_plain_text(self):
+    @patch("mcp_nixos.server.parse_html_options")
+    def test_home_manager_stats_plain_text(self, mock_parse):
         """Test home_manager_stats returns plain text."""
+        # Mock parsed options
+        mock_parse.return_value = [
+            {"name": "programs.git.enable", "type": "boolean", "description": "Enable git"},
+            {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
+            {"name": "services.gpg-agent.enable", "type": "boolean", "description": "Enable GPG agent"},
+            {"name": "home.packages", "type": "list", "description": "Packages to install"},
+            {"name": "wayland.windowManager.sway.enable", "type": "boolean", "description": "Enable Sway"},
+            {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
+        ]
+
         result = home_manager_stats()
-        assert "Home Manager statistics require parsing" in result
-        assert "Use home_manager_list_options" in result
+        assert "Home Manager Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
+        assert "Top categories:" in result
+        assert "programs:" in result
+        assert "services:" in result
         assert "<home_manager_stats>" not in result
 
     @patch("mcp_nixos.server.requests.get")

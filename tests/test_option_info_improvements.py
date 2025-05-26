@@ -163,10 +163,14 @@ class TestOptionInfoImprovements:
 
         # Home Manager stats
         result = home_manager_stats()
-        assert "parsing the full documentation" in result
-        assert "home_manager_list_options" in result
+        assert "Home Manager Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
+        assert "Top categories:" in result
 
         # Darwin stats
         result = darwin_stats()
-        assert "parsing the full documentation" in result
-        assert "darwin_list_options" in result
+        assert "nix-darwin Statistics:" in result
+        assert "Total options:" in result
+        assert "Categories:" in result
+        assert "Top categories:" in result
