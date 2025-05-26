@@ -80,6 +80,14 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 
 **Remember: You DON'T need Nix/NixOS installed!** This tool runs anywhere Python runs.
 
+### Installing via Smithery
+
+To install mcp-nixos for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@utensils/mcp-nixos):
+
+```bash
+npx -y @smithery/cli install @utensils/mcp-nixos --client claude
+```
+
 ### For Regular Humans (Windows/Mac/Linux)
 ```bash
 # Run directly with uvx (no installation needed)
