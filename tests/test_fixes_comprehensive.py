@@ -326,16 +326,41 @@ if __name__ == "__main__":
 
     # Test flake deduplication
     test = TestFlakeSearchDeduplication()
-    test.test_flake_search_deduplicates_packages()
+    with patch("requests.post") as mock_post:
+        # Set up mock response
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "hits": {
+                "hits": [
+                    {"_source": {"flake_resolved": {"url": "github:user/repo1"}, "package_pname": "pkg1"}},
+                    {"_source": {"flake_resolved": {"url": "github:user/repo1"}, "package_pname": "pkg2"}},
+                    {"_source": {"flake_resolved": {"url": "github:user/repo2"}, "package_pname": "pkg3"}},
+                ]
+            }
+        }
+        test.test_flake_search_deduplicates_packages(mock_post)
     print("✓ Flake deduplication test passed")
 
     # Test stats improvements
     test_hm = TestHomeManagerStats()
-    test_hm.test_home_manager_stats_returns_statistics()
+    with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        # Set up mock response
+        mock_parse.return_value = [
+            {"name": "programs.git.enable", "type": "boolean"},
+            {"name": "programs.neovim.enable", "type": "boolean"},
+            {"name": "services.gpg-agent.enable", "type": "boolean"},
+        ]
+        test_hm.test_home_manager_stats_returns_statistics(mock_parse)
     print("✓ Home Manager stats test passed")
 
     test_darwin = TestDarwinStats()
-    test_darwin.test_darwin_stats_returns_statistics()
+    with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        # Set up mock response
+        mock_parse.return_value = [
+            {"name": "system.defaults.dock.autohide", "type": "boolean"},
+            {"name": "services.nix-daemon.enable", "type": "boolean"},
+        ]
+        test_darwin.test_darwin_stats_returns_statistics(mock_parse)
     print("✓ Darwin stats test passed")
 
     print("\nAll tests passed!")

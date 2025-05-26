@@ -217,6 +217,7 @@
             # Linters & Formatters
             ps.black
             ps.flake8
+            ps.pylint
             # Standalone pyright package for cross-platform type checking
             pyright
 
@@ -349,7 +350,7 @@
             {
               name = "lint";
               category = "development";
-              help = "Format with Black and then lint code with Flake8 (only checks format in CI)";
+              help = "Format with Black and then lint code with Flake8 and Pylint (only checks format in CI)";
               command = ''
                 # Check if running in CI environment
                 if [ "$(printenv CI 2>/dev/null)" != "" ] || [ "$(printenv GITHUB_ACTIONS 2>/dev/null)" != "" ]; then
@@ -361,6 +362,9 @@
                 fi
                 echo "--- Running Flake8 linter ---"
                 flake8 mcp_nixos/ tests/
+                echo "--- Running Pylint analyzer ---"
+                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+                pylint mcp_nixos/ tests/ || true
               '';
             }
             {
@@ -368,6 +372,18 @@
               category = "development";
               help = "Run pyright type checker";
               command = "pyright"; # Direct command
+            }
+            {
+              name = "pylint";
+              category = "development";
+              help = "Run pylint static code analyzer";
+              command = ''
+                echo "--- Running Pylint ---"
+                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+                # Run pylint with reasonable defaults for our project
+                pylint mcp_nixos/ tests/ --disable=R0903,R0801,C0103 --max-line-length=120 || true
+                echo "✅ Pylint analysis complete"
+              '';
             }
             {
               name = "format";

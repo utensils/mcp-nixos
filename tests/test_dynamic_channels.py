@@ -4,8 +4,7 @@
 from unittest.mock import Mock, patch
 import requests
 from mcp_nixos.server import (
-    discover_available_channels,
-    resolve_channels,
+    channel_cache,
     get_channels,
     nixos_channels,
     nixos_stats,
@@ -19,10 +18,8 @@ class TestDynamicChannelLifecycle:
 
     def setup_method(self):
         """Clear caches before each test."""
-        import mcp_nixos.server
-
-        mcp_nixos.server._available_channels_cache = None
-        mcp_nixos.server._resolved_channels_cache = None
+        channel_cache.available_channels = None
+        channel_cache.resolved_channels = None
 
     @patch("requests.post")
     def test_channel_discovery_future_proof(self, mock_post):
@@ -48,12 +45,12 @@ class TestDynamicChannelLifecycle:
         mock_post.side_effect = side_effect
 
         # Test discovery
-        available = discover_available_channels()
+        available = channel_cache.get_available()
         assert "latest-44-nixos-unstable" in available
         assert "latest-44-nixos-25.11" in available
 
         # Test resolution - should pick 25.11 as new stable
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         assert channels["stable"] == "latest-44-nixos-25.11"
         assert channels["unstable"] == "latest-44-nixos-unstable"
         assert channels["25.11"] == "latest-44-nixos-25.11"
@@ -81,7 +78,7 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         # Should pick 25.05 despite lower count (higher version)
         assert channels["stable"] == "latest-43-nixos-25.05"
 
@@ -106,7 +103,7 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         # Should pick higher count for same version
         assert channels["stable"] == "latest-44-nixos-25.05"
 
@@ -115,10 +112,10 @@ class TestDynamicChannelLifecycle:
         """Test graceful handling when no channels are available."""
         mock_post.return_value = Mock(status_code=404)
 
-        available = discover_available_channels()
+        available = channel_cache.get_available()
         assert available == {}
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         assert channels == {}
 
     @patch("requests.post")
@@ -141,11 +138,11 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         assert channels["unstable"] == "latest-43-nixos-unstable"
         assert "stable" not in channels  # No stable release found
 
-    @patch("mcp_nixos.server.resolve_channels")
+    @patch("mcp_nixos.server.channel_cache.get_resolved")
     def test_nixos_stats_with_dynamic_channels(self, mock_resolve):
         """Test nixos_stats works with dynamically resolved channels."""
         mock_resolve.return_value = {
@@ -169,7 +166,7 @@ class TestDynamicChannelLifecycle:
             # Should have made API calls
             assert mock_post.called
 
-    @patch("mcp_nixos.server.resolve_channels")
+    @patch("mcp_nixos.server.channel_cache.get_resolved")
     def test_nixos_search_with_dynamic_channels(self, mock_resolve):
         """Test nixos_search works with dynamically resolved channels."""
         mock_resolve.return_value = {
@@ -183,7 +180,7 @@ class TestDynamicChannelLifecycle:
             result = nixos_search("test", channel="stable")
             assert "No packages found" in result
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_nixos_channels_tool_shows_current_stable(self, mock_discover):
         """Test nixos_channels tool clearly shows current stable version."""
         mock_discover.return_value = {
@@ -191,7 +188,7 @@ class TestDynamicChannelLifecycle:
             "latest-44-nixos-unstable": "160,000 documents",
         }
 
-        with patch("mcp_nixos.server.resolve_channels") as mock_resolve:
+        with patch("mcp_nixos.server.channel_cache.get_resolved") as mock_resolve:
             mock_resolve.return_value = {
                 "stable": "latest-44-nixos-25.11",
                 "25.11": "latest-44-nixos-25.11",
@@ -272,7 +269,7 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         # Should ignore malformed version and use valid one
         assert channels["stable"] == "latest-43-nixos-25.05"
         assert "badversion" not in channels
@@ -282,10 +279,10 @@ class TestDynamicChannelLifecycle:
         """Test handling of network errors during discovery."""
         mock_post.side_effect = requests.ConnectionError("Network error")
 
-        available = discover_available_channels()
+        available = channel_cache.get_available()
         assert available == {}
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         assert channels == {}
 
     @patch("requests.post")
@@ -309,7 +306,7 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        available = discover_available_channels()
+        available = channel_cache.get_available()
         assert "latest-43-nixos-unstable" in available
         assert "latest-43-nixos-25.05" not in available  # Filtered out
         assert "latest-43-nixos-24.11" in available
@@ -336,14 +333,14 @@ class TestDynamicChannelLifecycle:
 
         mock_post.side_effect = side_effect
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         # Should pick highest version (30.05)
         assert channels["stable"] == "latest-43-nixos-30.05"
         assert "20.09" in channels  # Old versions still mapped
         assert "25.05" in channels
         assert "30.05" in channels
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_beta_alias_behavior(self, mock_discover):
         """Test that beta is always an alias for stable."""
         mock_discover.return_value = {
@@ -351,7 +348,7 @@ class TestDynamicChannelLifecycle:
             "latest-44-nixos-unstable": "160,000 documents",
         }
 
-        channels = resolve_channels()
+        channels = channel_cache.get_resolved()
         assert "beta" in channels
         assert channels["beta"] == channels["stable"]
 

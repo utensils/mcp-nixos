@@ -15,9 +15,6 @@ def main():
     except KeyboardInterrupt:
         # Handle keyboard interrupt for cleaner exit
         sys.exit(0)
-    except SystemExit:
-        # Re-raise SystemExit to preserve exit codes
-        raise
     except Exception as e:
         # Log unexpected errors and exit with error code
         print(f"Server error: {e}", file=sys.stderr)

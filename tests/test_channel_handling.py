@@ -4,7 +4,7 @@
 from unittest.mock import Mock, patch
 import requests
 from mcp_nixos.server import (
-    discover_available_channels,
+    channel_cache,
     validate_channel,
     get_channel_suggestions,
     nixos_channels,
@@ -41,11 +41,9 @@ class TestChannelHandling:
         mock_post.side_effect = side_effect
 
         # Clear cache first
-        import mcp_nixos.server
+        channel_cache.available_channels = None
 
-        mcp_nixos.server._available_channels_cache = None
-
-        result = discover_available_channels()
+        result = channel_cache.get_available()
 
         assert "latest-43-nixos-unstable" in result
         assert "latest-43-nixos-25.05" in result
@@ -56,11 +54,9 @@ class TestChannelHandling:
     def test_discover_available_channels_with_cache(self, mock_post):
         """Test that channel discovery uses cache."""
         # Set up cache
-        import mcp_nixos.server
+        channel_cache.available_channels = {"test": "cached"}
 
-        mcp_nixos.server._available_channels_cache = {"test": "cached"}
-
-        result = discover_available_channels()
+        result = channel_cache.get_available()
 
         # Should return cached result without making API calls
         assert result == {"test": "cached"}
@@ -108,7 +104,7 @@ class TestChannelHandling:
         assert "stable" in result
         assert "25.05" in result
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_nixos_channels_tool(self, mock_discover):
         """Test nixos_channels tool output."""
         mock_discover.return_value = {
@@ -125,7 +121,7 @@ class TestChannelHandling:
         assert "✓ Available" in result
         assert "151,798 documents" in result
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_nixos_channels_with_unavailable(self, mock_discover):
         """Test nixos_channels tool with some unavailable channels."""
         # Only return some channels as available
@@ -136,7 +132,7 @@ class TestChannelHandling:
         assert "✓ Available" in result
         assert "✗ Unavailable" in result
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_nixos_channels_with_extra_discovered(self, mock_discover):
         """Test nixos_channels with extra discovered channels."""
         mock_discover.return_value = {
@@ -188,11 +184,9 @@ class TestChannelHandling:
         mock_post.side_effect = requests.ConnectionError("Network error")
 
         # Clear cache
-        import mcp_nixos.server
+        channel_cache.available_channels = None
 
-        mcp_nixos.server._available_channels_cache = None
-
-        result = discover_available_channels()
+        result = channel_cache.get_available()
 
         # Should return empty dict when all requests fail
         assert result == {}
@@ -205,7 +199,7 @@ class TestChannelHandling:
         result = validate_channel("stable")
         assert result is False
 
-    @patch("mcp_nixos.server.discover_available_channels")
+    @patch("mcp_nixos.server.channel_cache.get_available")
     def test_nixos_channels_handles_exceptions(self, mock_discover):
         """Test nixos_channels tool handles exceptions gracefully."""
         mock_discover.side_effect = Exception("Discovery failed")
@@ -241,12 +235,10 @@ class TestChannelHandling:
         mock_post.side_effect = side_effect
 
         # Clear cache
-        import mcp_nixos.server
-
-        mcp_nixos.server._available_channels_cache = None
+        channel_cache.available_channels = None
 
         # This should work with the actual test patterns
-        result = discover_available_channels()
+        result = channel_cache.get_available()
 
         # Should not include any indices with 0 documents
         for channel, info in result.items():
