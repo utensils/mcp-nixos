@@ -1,4 +1,6 @@
 name: Claude Code
+# This workflow enables interactive Claude Code usage via @claude mentions
+# It responds to comments in issues and pull requests
 
 on:
   issue_comment:
@@ -10,6 +12,10 @@ on:
   pull_request_review:
     types: [submitted]
 
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   claude:
     if: |
@@ -18,9 +24,10 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
-      contents: read
-      pull-requests: read
+      contents: write
+      pull-requests: write
       issues: read
       id-token: write
     steps:
