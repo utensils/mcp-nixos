@@ -117,26 +117,28 @@ class TestMCPBehaviorEvals:
             response4 = await assistant.use_tool("home_manager_info", name="programs.firefox.enable")
             assert "Option:" in response4
 
-    def test_scenario_macos_configuration(self):
+    @pytest.mark.asyncio
+    async def test_scenario_macos_configuration(self):
         """User wants to configure macOS with nix-darwin."""
         assistant = MockAssistant()
 
         # Step 1: Search for Homebrew integration
-        assistant.use_tool("darwin_search", query="homebrew", limit=10)
+        await assistant.use_tool("darwin_search", query="homebrew", limit=10)
 
         # Step 2: Explore system defaults
-        response2 = assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults")
+        response2 = await assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults")
 
         # Step 3: Get specific dock settings
         if "system.defaults.dock" in response2:
-            response3 = assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults.dock")
+            response3 = await assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults.dock")
 
             # Check for autohide option
             if "autohide" in response3:
-                response4 = assistant.use_tool("darwin_info", name="system.defaults.dock.autohide")
+                response4 = await assistant.use_tool("darwin_info", name="system.defaults.dock.autohide")
                 assert "Option:" in response4
 
-    def test_scenario_compare_channels(self):
+    @pytest.mark.asyncio
+    async def test_scenario_compare_channels(self):
         """User wants to compare packages across channels."""
         assistant = MockAssistant()
 
@@ -145,7 +147,7 @@ class TestMCPBehaviorEvals:
 
         results = {}
         for channel in channels:
-            response = assistant.use_tool("nixos_info", name=package, type="package", channel=channel)
+            response = await assistant.use_tool("nixos_info", name=package, type="package", channel=channel)
             if "Version:" in response:
                 # Extract version
                 for line in response.split("\n"):
@@ -155,12 +157,13 @@ class TestMCPBehaviorEvals:
         # User can now compare versions across channels
         assert len(assistant.tool_calls) == len(channels)
 
-    def test_scenario_find_package_by_program(self):
+    @pytest.mark.asyncio
+    async def test_scenario_find_package_by_program(self):
         """User wants to find which package provides a specific program."""
         assistant = MockAssistant()
 
         # Search for package that provides 'gcc'
-        response = assistant.use_tool("nixos_search", query="gcc", search_type="programs", limit=10)
+        response = await assistant.use_tool("nixos_search", query="gcc", search_type="programs", limit=10)
 
         analysis = assistant.analyze_response(response)
         if analysis["has_results"]:
