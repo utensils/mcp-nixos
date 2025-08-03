@@ -560,8 +560,6 @@ class TestOptionInfoImprovements:
     @pytest.mark.asyncio
     async def test_stats_limitations_are_clear(self):
         """Test that stats function limitations are clearly communicated."""
-        from mcp_nixos.server import darwin_stats, home_manager_stats
-
         # Home Manager stats
         result = await home_manager_stats()
         assert "Home Manager Statistics:" in result

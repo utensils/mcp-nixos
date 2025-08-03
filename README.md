@@ -129,6 +129,35 @@ nix profile install github:utensils/mcp-nixos
 
 ## For Developers (The Brave Ones)
 
+### Local Development Setup
+
+Want to test your changes in Claude Code or another MCP client? Create a `.mcp.json` file in your project directory:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/home/hackerman/Projects/mcp-nixos",
+        "mcp-nixos"
+      ]
+    }
+  }
+}
+```
+
+Replace `/home/hackerman/Projects/mcp-nixos` with your actual project path (yes, even you, Windows users with your `C:\Users\CoolDev\...` paths).
+
+This `.mcp.json` file:
+- **Automatically activates** when you launch Claude Code from the project directory
+- **Uses your local code** instead of the installed package
+- **Enables real-time testing** - just restart Claude Code after changes
+- **Already in .gitignore** so you won't accidentally commit your path
+
 ### With Nix (The Blessed Path)
 ```bash
 nix develop
@@ -139,15 +168,27 @@ run        # Start the server (now with FastMCP!)
 run-tests  # Run all tests (now async!)
 lint       # Format and check code (ruff replaced black/flake8)
 typecheck  # Check types (mypy still judges you)
+build      # Build the package
+publish    # Upload to PyPI (requires credentials)
 ```
 
 ### Without Nix (The Path of Pain)
 ```bash
-pip install -e ".[dev]"
+# Install development dependencies
+uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
+
+# Run the server locally
+uv run mcp-nixos  # or python -m mcp_nixos.server
+
+# Development commands
 pytest tests/          # Now with asyncio goodness
 ruff format mcp_nixos/ # black is so 2023
 ruff check mcp_nixos/  # flake8 is for boomers
 mypy mcp_nixos/        # Still pedantic as ever
+
+# Build and publish
+python -m build        # Build distributions
+twine upload dist/*    # Upload to PyPI
 ```
 
 ### Testing Philosophy
