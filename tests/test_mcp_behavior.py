@@ -56,12 +56,13 @@ class MockAssistant:
 class TestMCPBehaviorEvals:
     """Test MCP tool behavior in realistic scenarios."""
 
-    def test_scenario_install_package(self):
+    @pytest.mark.asyncio
+    async def test_scenario_install_package(self):
         """User wants to install a specific package."""
         assistant = MockAssistant()
 
         # Step 1: Search for the package
-        response1 = assistant.use_tool("nixos_search", query="neovim", search_type="packages", limit=5)
+        response1 = await assistant.use_tool("nixos_search", query="neovim", search_type="packages", limit=5)
         analysis1 = assistant.analyze_response(response1)
 
         assert analysis1["has_results"] or analysis1["mentions_not_found"]
@@ -69,7 +70,7 @@ class TestMCPBehaviorEvals:
 
         # Step 2: Get detailed info if found
         if analysis1["has_results"]:
-            response2 = assistant.use_tool("nixos_info", name="neovim", type="package")
+            response2 = await assistant.use_tool("nixos_info", name="neovim", type="package")
             analysis2 = assistant.analyze_response(response2)
 
             assert "Package:" in response2
@@ -80,38 +81,40 @@ class TestMCPBehaviorEvals:
         assert len(assistant.tool_calls) >= 1
         assert assistant.tool_calls[0]["tool"] == "nixos_search"
 
-    def test_scenario_configure_service(self):
+    @pytest.mark.asyncio
+    async def test_scenario_configure_service(self):
         """User wants to configure a NixOS service."""
         assistant = MockAssistant()
 
         # Step 1: Search for service options
-        response1 = assistant.use_tool("nixos_search", query="nginx", search_type="options", limit=10)
+        response1 = await assistant.use_tool("nixos_search", query="nginx", search_type="options", limit=10)
 
         # Step 2: Get specific option details
         if "services.nginx.enable" in response1:
-            response2 = assistant.use_tool("nixos_info", name="services.nginx.enable", type="option")
+            response2 = await assistant.use_tool("nixos_info", name="services.nginx.enable", type="option")
 
             assert "Type: boolean" in response2
             assert "Default:" in response2
 
-    def test_scenario_explore_home_manager(self):
+    @pytest.mark.asyncio
+    async def test_scenario_explore_home_manager(self):
         """User wants to explore Home Manager configuration."""
         assistant = MockAssistant()
 
         # Step 1: List categories
-        response1 = assistant.use_tool("home_manager_list_options")
+        response1 = await assistant.use_tool("home_manager_list_options")
         assert "programs" in response1
         assert "services" in response1
 
         # Step 2: Explore programs category
-        assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs")
+        await assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs")
 
         # Step 3: Search for specific program
-        response3 = assistant.use_tool("home_manager_search", query="firefox", limit=5)
+        response3 = await assistant.use_tool("home_manager_search", query="firefox", limit=5)
 
         # Step 4: Get details on specific option
         if "programs.firefox.enable" in response3:
-            response4 = assistant.use_tool("home_manager_info", name="programs.firefox.enable")
+            response4 = await assistant.use_tool("home_manager_info", name="programs.firefox.enable")
             assert "Option:" in response4
 
     def test_scenario_macos_configuration(self):
