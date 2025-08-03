@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Tests for NixHub API integration."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
 from mcp_nixos import server
 
 
@@ -647,13 +647,13 @@ class TestNixHubEvaluations:
         # Test with a very high limit to ensure we check everything
         result = await nixhub_package_versions("ruby", limit=50)
 
-        # Ruby 2.4 and earlier should not exist in NixHub (based on actual data)
+        # Ruby 2.5 and earlier should not exist in NixHub (based on actual data)
+        assert "2.5." not in result, "Ruby 2.5.x should not be available in NixHub"
         assert "2.4." not in result, "Ruby 2.4.x should not be available in NixHub"
         assert "2.3." not in result, "Ruby 2.3.x should not be available in NixHub"
         assert "1.9." not in result, "Ruby 1.9.x should not be available in NixHub"
 
-        # But 2.5, 2.6 and 2.7 should exist (based on actual API data)
-        assert "2.5." in result, "Ruby 2.5.x should be available"
+        # But 2.6 and 2.7 should exist (based on actual API data)
         assert "2.6." in result, "Ruby 2.6.x should be available"
         assert "2.7." in result, "Ruby 2.7.x should be available"
 

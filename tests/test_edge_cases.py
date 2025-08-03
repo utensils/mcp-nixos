@@ -3,9 +3,9 @@
 
 from unittest.mock import Mock, patch
 
+import mcp_nixos.server as server
 import pytest
 import requests
-import mcp_nixos.server as server
 from mcp_nixos.server import (
     error,
     es_query,

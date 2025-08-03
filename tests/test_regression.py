@@ -4,7 +4,21 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from mcp_nixos.server import darwin_stats, home_manager_stats, nixos_flakes_search
+from mcp_nixos import server
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+darwin_stats = get_tool_function("darwin_stats")
+home_manager_stats = get_tool_function("home_manager_stats")
+nixos_flakes_search = get_tool_function("nixos_flakes_search")
 
 
 class TestFlakeSearchDeduplication:

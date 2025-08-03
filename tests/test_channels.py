@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Tests for robust channel handling functionality."""
 
-import asyncio
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
 import requests
 from mcp_nixos import server
 from mcp_nixos.server import (

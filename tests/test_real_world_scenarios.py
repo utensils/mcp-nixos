@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
 """Real-world scenario tests based on actual MCP tool usage patterns."""
 
-import pytest
 from unittest.mock import Mock, patch
 
-from mcp_nixos.server import (
-    darwin_options_by_prefix,
-    darwin_search,
-    home_manager_info,
-    home_manager_options_by_prefix,
-    home_manager_search,
-    home_manager_stats,
-    nixos_channels,
-    nixos_info,
-    nixos_search,
-    nixos_stats,
-)
+import pytest
+from mcp_nixos import server
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
+darwin_search = get_tool_function("darwin_search")
+home_manager_info = get_tool_function("home_manager_info")
+home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
+home_manager_search = get_tool_function("home_manager_search")
+home_manager_stats = get_tool_function("home_manager_stats")
+nixos_channels = get_tool_function("nixos_channels")
+nixos_info = get_tool_function("nixos_info")
+nixos_search = get_tool_function("nixos_search")
+nixos_stats = get_tool_function("nixos_stats")
 
 
 class TestRealWorldScenarios:

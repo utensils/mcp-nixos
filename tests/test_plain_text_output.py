@@ -3,17 +3,27 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from mcp_nixos.server import (
-    darwin_search,
-    error,
-    home_manager_info,
-    home_manager_list_options,
-    home_manager_search,
-    home_manager_stats,
-    nixos_info,
-    nixos_search,
-    nixos_stats,
-)
+from mcp_nixos import server
+from mcp_nixos.server import error
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+darwin_search = get_tool_function("darwin_search")
+home_manager_info = get_tool_function("home_manager_info")
+home_manager_list_options = get_tool_function("home_manager_list_options")
+home_manager_search = get_tool_function("home_manager_search")
+home_manager_stats = get_tool_function("home_manager_stats")
+nixos_info = get_tool_function("nixos_info")
+nixos_search = get_tool_function("nixos_search")
+nixos_stats = get_tool_function("nixos_stats")
 
 
 @pytest.fixture(autouse=True)

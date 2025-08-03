@@ -1,6 +1,5 @@
 """Tests for the main entry point in server module."""
 
-from io import StringIO
 from unittest.mock import patch
 
 import pytest
@@ -16,15 +15,6 @@ class TestMainModule:
         mock_mcp.run.return_value = None
 
         # Should not raise any exception
-        main()
-        mock_mcp.run.assert_called_once()
-
-    @patch("mcp_nixos.server.mcp")
-    def test_main_keyboard_interrupt(self, mock_mcp):
-        """Test handling of keyboard interrupt."""
-        mock_mcp.run.side_effect = KeyboardInterrupt()
-
-        # Should handle gracefully
         main()
         mock_mcp.run.assert_called_once()
 

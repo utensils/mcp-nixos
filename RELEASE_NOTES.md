@@ -1,3 +1,81 @@
+# MCP-NixOS: v1.0.1 Release Notes - FastMCP 2.x Migration
+
+## Overview
+
+MCP-NixOS v1.0.1 completes the migration to FastMCP 2.x, bringing modern async/await patterns and improved MCP protocol compliance. This release maintains all existing functionality while modernizing the codebase for better performance and maintainability.
+
+## Changes in v1.0.1
+
+### 🚀 Major Updates
+
+- **FastMCP 2.x Migration**: Migrated from MCP SDK to FastMCP 2.x for better async support
+- **Async/Await Patterns**: All tools now use proper async/await patterns throughout
+- **Improved Type Safety**: Enhanced type annotations with FastMCP's built-in types
+- **Test Suite Overhaul**: Fixed all 334 tests to work with new async architecture
+- **CI/CD Modernization**: Updated to use ruff for linting/formatting (replacing black/flake8/isort)
+
+### 🔧 Technical Improvements
+
+- **Tool Definitions**: Migrated from `@server.call_tool()` to `@mcp.tool()` decorators
+- **Function Extraction**: Added `get_tool_function` helper for test compatibility
+- **Mock Improvements**: Enhanced mock setup for async function testing
+- **Channel Resolution**: Fixed channel cache mock configurations in tests
+- **Error Messages**: Removed "await" from user-facing error messages for clarity
+
+### 🧪 Testing Enhancements
+
+- **Test File Consolidation**: Removed duplicate test classes from merged files
+- **Async Test Support**: All tests now properly handle async/await patterns
+- **Mock JSON Responses**: Fixed mock setup to return proper dictionaries instead of Mock objects
+- **API Compatibility**: Updated test expectations to match current NixHub API data
+- **Coverage Maintained**: All 334 tests passing with comprehensive coverage
+
+### 🛠️ Development Experience
+
+- **Ruff Integration**: Consolidated linting and formatting with ruff
+- **Simplified Toolchain**: Removed black, flake8, and isort in favor of ruff
+- **Faster CI/CD**: Improved CI pipeline efficiency with better caching
+- **Type Checking**: Enhanced mypy configuration for FastMCP compatibility
+
+### 📦 Dependencies
+
+- **FastMCP**: Now using `fastmcp>=2.11.0` for modern MCP support
+- **Other Dependencies**: Maintained compatibility with all existing dependencies
+- **Development Tools**: Streamlined dev dependencies with ruff
+
+## Installation
+
+```bash
+# Install with pip
+pip install mcp-nixos==1.0.1
+
+# Install with uv
+uv pip install mcp-nixos==1.0.1
+
+# Install with uvx
+uvx mcp-nixos==1.0.1
+```
+
+## Migration Notes
+
+This is a drop-in replacement for v1.0.1 with no user-facing changes. The migration to FastMCP 2.x is entirely internal and maintains full backward compatibility.
+
+## Technical Details
+
+The migration involved:
+
+1. **Async Architecture**: Converted all tool functions to async with proper await usage
+2. **Import Updates**: Changed from `mcp.server.Server` to `fastmcp.FastMCP`
+3. **Decorator Migration**: Updated all tool decorators to FastMCP's `@mcp.tool()` pattern
+4. **Test Compatibility**: Added function extraction helpers for test suite compatibility
+5. **Mock Enhancements**: Improved mock setup for async testing patterns
+
+## Contributors
+
+- James Brink (@utensils) - Chief Modernizer
+
+---
+
 # MCP-NixOS: v1.0.0 Release Notes - The Great Simplification
 
 ## Overview

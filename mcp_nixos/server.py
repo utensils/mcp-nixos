@@ -47,20 +47,20 @@ class ChannelCache:
 
     def __init__(self) -> None:
         """Initialize empty cache."""
-        self.available_channels = None
-        self.resolved_channels = None
+        self.available_channels: dict[str, str] | None = None
+        self.resolved_channels: dict[str, str] | None = None
 
     def get_available(self) -> dict[str, str]:
         """Get available channels, discovering if needed."""
         if self.available_channels is None:
             self.available_channels = self._discover_available_channels()
-        return self.available_channels
+        return self.available_channels if self.available_channels is not None else {}
 
     def get_resolved(self) -> dict[str, str]:
         """Get resolved channel mappings, resolving if needed."""
         if self.resolved_channels is None:
             self.resolved_channels = self._resolve_channels()
-        return self.resolved_channels
+        return self.resolved_channels if self.resolved_channels is not None else {}
 
     def _discover_available_channels(self) -> dict[str, str]:
         """Discover available NixOS channels by testing API patterns."""
@@ -211,7 +211,7 @@ def es_query(index: str, query: dict[str, Any], size: int = 20) -> list[dict[str
         if isinstance(data, dict) and "hits" in data:
             hits = data.get("hits", {})
             if isinstance(hits, dict) and "hits" in hits:
-                return hits.get("hits", [])
+                return list(hits.get("hits", []))
         return []
     except requests.Timeout as exc:
         raise APIError("API error: Connection timed out") from exc
@@ -1444,7 +1444,7 @@ def _version_key(version_str: str) -> tuple[int, int, int]:
         # Pad with zeros if needed
         while len(numeric_parts) < 3:
             numeric_parts.append(0)
-        return tuple(numeric_parts)
+        return (numeric_parts[0], numeric_parts[1], numeric_parts[2])
     except Exception:
         return (0, 0, 0)
 

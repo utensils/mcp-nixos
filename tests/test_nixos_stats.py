@@ -1,18 +1,51 @@
 """Regression test for NixOS stats to ensure correct field names are used."""
 
-import pytest
 from unittest.mock import Mock, patch
 
-from mcp_nixos.server import nixos_stats
+import pytest
+from mcp_nixos import server
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+nixos_channels = get_tool_function("nixos_channels")
+nixos_stats = get_tool_function("nixos_stats")
+
+
+def setup_channel_mocks(mock_cache, mock_validate, channels=None):
+    """Setup channel mocks with default or custom channels."""
+    if channels is None:
+        channels = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
+        }
+    mock_cache.get_available.return_value = {v: f"{v.split('-')[-1]} docs" for v in channels.values() if v}
+    mock_cache.get_resolved.return_value = channels
+    mock_validate.side_effect = lambda channel: channel in channels
 
 
 class TestNixOSStatsRegression:
     """Ensure NixOS stats uses correct field names in queries."""
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_uses_correct_query_fields(self, mock_post):
+    async def test_nixos_stats_uses_correct_query_fields(self, mock_post, mock_cache, mock_validate):
         """Test that stats uses 'type' field with term query, not 'package'/'option' with exists query."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
+
         # Mock responses
         pkg_resp = Mock()
         pkg_resp.json.return_value = {"count": 129865}
@@ -41,10 +74,15 @@ class TestNixOSStatsRegression:
         opt_call = mock_post.call_args_list[1]
         assert opt_call[1]["json"]["query"] == {"term": {"type": "option"}}
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_handles_zero_counts(self, mock_post):
+    async def test_nixos_stats_handles_zero_counts(self, mock_post, mock_cache, mock_validate):
         """Test that stats correctly handles zero counts."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
+
         # Mock responses with zero counts
         mock_resp = Mock()
         mock_resp.json.return_value = {"count": 0}
@@ -55,10 +93,15 @@ class TestNixOSStatsRegression:
         # Should return error when both counts are zero (our improved logic)
         assert "Error (ERROR): Failed to retrieve statistics" in result
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_all_channels(self, mock_post):
+    async def test_nixos_stats_all_channels(self, mock_post, mock_cache, mock_validate):
         """Test that stats works for all defined channels."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
+
         # Mock responses
         mock_resp = Mock()
         mock_resp.json.return_value = {"count": 12345}
@@ -76,10 +119,15 @@ class TestNixOSStatsRegression:
 class TestPackageCountsEval:
     """Test evaluations for getting package counts per NixOS channel."""
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_get_package_counts_per_channel(self, mock_post):
+    async def test_get_package_counts_per_channel(self, mock_post, mock_cache, mock_validate):
         """Eval: User wants package counts for each NixOS channel."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
+
         # Mock channel discovery responses
         mock_count_responses = {
             "latest-43-nixos-unstable": {"count": 151798},
@@ -150,11 +198,13 @@ class TestPackageCountsEval:
                     if index in url:
                         mock_response = Mock()
                         mock_response.status_code = 200
-                        mock_response.json.return_value = count_data
+                        mock_response.json = Mock(return_value=count_data)
+                        mock_response.raise_for_status = Mock()
                         return mock_response
                 # Not found
                 mock_response = Mock()
                 mock_response.status_code = 404
+                mock_response.raise_for_status = Mock(side_effect=Exception("Not found"))
                 return mock_response
 
             # Handle stats count requests (with type filter)
@@ -162,26 +212,35 @@ class TestPackageCountsEval:
             query = json_data.get("query", {})
 
             # Determine which channel from URL
-            for channel in ["unstable", "25.05", "24.11"]:
-                if f"nixos-{channel}" in url:
+            for channel, index in [
+                ("unstable", "latest-43-nixos-unstable"),
+                ("25.05", "latest-43-nixos-25.05"),
+                ("24.11", "latest-43-nixos-24.11"),
+            ]:
+                if index in url:
                     stats = mock_stats_responses.get(channel, mock_stats_responses["unstable"])
                     mock_response = Mock()
                     mock_response.status_code = 200
+                    mock_response.raise_for_status = Mock()
 
                     # Check if it's a package or option count
                     if query.get("term", {}).get("type") == "package":
-                        mock_response.json.return_value = {"count": stats["aggregations"]["attr_count"]["value"]}
+                        mock_response.json = Mock(return_value={"count": stats["aggregations"]["attr_count"]["value"]})
                     elif query.get("term", {}).get("type") == "option":
-                        mock_response.json.return_value = {"count": stats["aggregations"]["option_count"]["value"]}
+                        mock_response.json = Mock(
+                            return_value={"count": stats["aggregations"]["option_count"]["value"]}
+                        )
                     else:
                         # General count
-                        mock_response.json.return_value = {"count": stats["aggregations"]["attr_count"]["value"]}
+                        mock_response.json = Mock(return_value={"count": stats["aggregations"]["attr_count"]["value"]})
 
                     return mock_response
 
-            # Default response
+            # Default response - return a proper mock
             mock_response = Mock()
-            mock_response.json.return_value = mock_stats_responses["unstable"]
+            mock_response.status_code = 200
+            mock_response.raise_for_status = Mock()
+            mock_response.json = Mock(return_value={"count": 151798})
             return mock_response
 
         mock_post.side_effect = side_effect
@@ -192,18 +251,18 @@ class TestPackageCountsEval:
         assert "25.05" in channels_result
         assert "unstable" in channels_result
         # Check that document counts are present (don't hardcode exact values as they change)
-        assert "documents)" in channels_result
+        assert "docs)" in channels_result
         assert "Available" in channels_result
 
         # Step 2: Get stats for each channel
-        stats_unstable = nixos_stats("unstable")
+        stats_unstable = await nixos_stats("unstable")
         assert "Packages:" in stats_unstable
         assert "Options:" in stats_unstable
 
-        stats_stable = nixos_stats("stable")  # Should resolve to 25.05
+        stats_stable = await nixos_stats("stable")  # Should resolve to 25.05
         assert "Packages:" in stats_stable
 
-        stats_24_11 = nixos_stats("24.11")
+        stats_24_11 = await nixos_stats("24.11")
         assert "Packages:" in stats_24_11
 
         # Verify package count differences
@@ -211,10 +270,14 @@ class TestPackageCountsEval:
         # 25.05 (current stable) should be close to unstable
         # 24.11 should have fewer packages
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_package_counts_with_beta_alias(self, mock_post):
+    async def test_package_counts_with_beta_alias(self, mock_post, mock_cache, mock_validate):
         """Eval: User asks about beta channel package count."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
         # Mock responses for channel discovery
         mock_count_response = Mock()
         mock_count_response.status_code = 200
@@ -270,10 +333,14 @@ class TestPackageCountsEval:
         assert "Packages:" in result
         assert "beta" in result
 
+    @patch("mcp_nixos.server.validate_channel")
+    @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_compare_package_counts_across_channels(self, mock_post):
+    async def test_compare_package_counts_across_channels(self, mock_post, mock_cache, mock_validate):
         """Eval: User wants to compare package growth across releases."""
+        # Setup channel mocks
+        setup_channel_mocks(mock_cache, mock_validate)
         # Mock responses with increasing package counts
         mock_count_responses = {
             "latest-43-nixos-unstable": {"count": 151798},
@@ -297,11 +364,13 @@ class TestPackageCountsEval:
                     if index in url:
                         mock_response = Mock()
                         mock_response.status_code = 200
-                        mock_response.json.return_value = count_data
+                        mock_response.json = Mock(return_value=count_data)
+                        mock_response.raise_for_status = Mock()
                         return mock_response
                 # Not found
                 mock_response = Mock()
                 mock_response.status_code = 404
+                mock_response.raise_for_status = Mock(side_effect=Exception("Not found"))
                 return mock_response
 
             # Handle stats count requests (with type filter)
@@ -309,31 +378,40 @@ class TestPackageCountsEval:
             query = json_data.get("query", {})
 
             # Extract channel from URL and return appropriate stats
+            channel_to_index = {
+                "24.05": "latest-43-nixos-24.05",
+                "24.11": "latest-43-nixos-24.11",
+                "25.05": "latest-43-nixos-25.05",
+                "unstable": "latest-43-nixos-unstable",
+            }
             for channel, count in channel_stats.items():
-                if f"nixos-{channel}" in url:
+                index = channel_to_index.get(channel)
+                if index and index in url:
                     mock_response = Mock()
                     mock_response.status_code = 200
+                    mock_response.raise_for_status = Mock()
 
                     # Check if it's a package or option count
                     if query.get("term", {}).get("type") == "package":
-                        mock_response.json.return_value = {"count": count}
+                        mock_response.json = Mock(return_value={"count": count})
                     elif query.get("term", {}).get("type") == "option":
-                        mock_response.json.return_value = {"count": 20000}
+                        mock_response.json = Mock(return_value={"count": 20000})
                     else:
                         # General count
-                        mock_response.json.return_value = {"count": count}
+                        mock_response.json = Mock(return_value={"count": count})
 
                     return mock_response
 
             # Default to unstable
             mock_response = Mock()
             mock_response.status_code = 200
+            mock_response.raise_for_status = Mock()
             if query.get("term", {}).get("type") == "package":
-                mock_response.json.return_value = {"count": 151798}
+                mock_response.json = Mock(return_value={"count": 151798})
             elif query.get("term", {}).get("type") == "option":
-                mock_response.json.return_value = {"count": 20156}
+                mock_response.json = Mock(return_value={"count": 20156})
             else:
-                mock_response.json.return_value = {"count": 151798}
+                mock_response.json = Mock(return_value={"count": 151798})
             return mock_response
 
         mock_post.side_effect = side_effect
@@ -341,7 +419,7 @@ class TestPackageCountsEval:
         # Get stats for multiple channels to compare growth
         # Only use channels that are currently available
         for channel in ["24.11", "25.05", "unstable"]:
-            stats = nixos_stats(channel)
+            stats = await nixos_stats(channel)
             # Just verify we get stats back with package info
             assert "Packages:" in stats
             assert "channel:" in stats.lower()  # Check case-insensitively

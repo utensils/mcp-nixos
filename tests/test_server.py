@@ -497,7 +497,7 @@ class TestHomeManagerTools:
         result = await home_manager_info("programs.git.enable")
         assert result == (
             "Error (NOT_FOUND): Option 'programs.git.enable' not found.\n"
-            "Tip: Use await home_manager_options_by_prefix('programs.git.enable') to browse available options."
+            "Tip: Use home_manager_options_by_prefix('programs.git.enable') to browse available options."
         )
 
     @patch("requests.get")
