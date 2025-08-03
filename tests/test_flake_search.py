@@ -1,5 +1,6 @@
 """Test flake search functionality."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import nixos_flakes_search, nixos_flakes_stats
@@ -8,8 +9,9 @@ from mcp_nixos.server import nixos_flakes_search, nixos_flakes_stats
 class TestFlakeSearch:
     """Test flake search functionality."""
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_search_empty_query(self, mock_post):
+    async def test_flakes_search_empty_query(self, mock_post):
         """Test flake search with empty query returns all flakes."""
         # Mock response
         mock_response = Mock()
@@ -36,7 +38,7 @@ class TestFlakeSearch:
         }
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("", limit=10)
+        result = await nixos_flakes_search("", limit=10)
 
         assert "Found 100 total matches" in result
         assert "home-manager" in result
@@ -51,8 +53,9 @@ class TestFlakeSearch:
         assert "filter" in query_data["bool"]
         assert "must" in query_data["bool"]
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_search_with_query(self, mock_post):
+    async def test_flakes_search_with_query(self, mock_post):
         """Test flake search with specific query."""
         # Mock response
         mock_response = Mock()
@@ -79,7 +82,7 @@ class TestFlakeSearch:
         }
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("devenv", limit=10)
+        result = await nixos_flakes_search("devenv", limit=10)
 
         assert "Found 5" in result
         assert "devenv" in result
@@ -97,8 +100,9 @@ class TestFlakeSearch:
         assert "bool" in inner_query
         assert "should" in inner_query["bool"]
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_search_no_results(self, mock_post):
+    async def test_flakes_search_no_results(self, mock_post):
         """Test flake search with no results."""
         # Mock response
         mock_response = Mock()
@@ -106,14 +110,15 @@ class TestFlakeSearch:
         mock_response.json.return_value = {"hits": {"total": {"value": 0}, "hits": []}}
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("nonexistent", limit=10)
+        result = await nixos_flakes_search("nonexistent", limit=10)
 
         assert "No flakes found matching 'nonexistent'" in result
         assert "Try searching for:" in result
         assert "Popular flakes:" in result
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_search_deduplication(self, mock_post):
+    async def test_flakes_search_deduplication(self, mock_post):
         """Test flake search properly deduplicates flakes."""
         # Mock response with duplicate flakes
         mock_response = Mock()
@@ -143,7 +148,7 @@ class TestFlakeSearch:
         }
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("nixpkgs", limit=10)
+        result = await nixos_flakes_search("nixpkgs", limit=10)
 
         # Should show 1 unique flake with 2 packages
         assert "Found 4 total matches (1 unique flakes)" in result
@@ -151,8 +156,9 @@ class TestFlakeSearch:
         assert "NixOS/nixpkgs" in result
         assert "Packages: git, hello" in result
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_stats(self, mock_post):
+    async def test_flakes_stats(self, mock_post):
         """Test flake statistics."""
         # Mock responses
         mock_count_response = Mock()
@@ -186,14 +192,15 @@ class TestFlakeSearch:
 
         mock_post.side_effect = [mock_count_response, mock_search_response]
 
-        result = nixos_flakes_stats()
+        result = await nixos_flakes_stats()
 
         assert "Available flakes: 452,176" in result
         # Stats now samples documents, not using aggregations
         # So we won't see the mocked aggregation values
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.requests.post")
-    def test_flakes_search_error_handling(self, mock_post):
+    async def test_flakes_search_error_handling(self, mock_post):
         """Test flake search error handling."""
         # Mock 404 response with HTTPError
         from requests import HTTPError
@@ -205,7 +212,7 @@ class TestFlakeSearch:
         mock_response.raise_for_status.side_effect = error
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("test", limit=10)
+        result = await nixos_flakes_search("test", limit=10)
 
         assert "Error" in result
         assert "Flake indices not found" in result

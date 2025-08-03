@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Comprehensive MCP behavior evaluation tests based on real tool testing."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import (
@@ -22,7 +23,8 @@ from mcp_nixos.server import (
 class TestMCPBehaviorComprehensive:
     """Test real-world usage patterns based on actual tool testing results."""
 
-    def test_nixos_package_discovery_flow(self):
+    @pytest.mark.asyncio
+    async def test_nixos_package_discovery_flow(self):
         """Test typical package discovery workflow."""
         # 1. Search for packages
         with patch("mcp_nixos.server.es_query") as mock_es:
@@ -45,7 +47,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = nixos_search("git", limit=5)
+            result = await nixos_search("git", limit=5)
             assert "git (2.49.0)" in result
             assert "Distributed version control system" in result
             assert "gitoxide" in result
@@ -65,7 +67,7 @@ class TestMCPBehaviorComprehensive:
                 }
             ]
 
-            result = nixos_info("git")
+            result = await nixos_info("git")
             assert "Package: git" in result
             assert "Version: 2.49.0" in result
             assert "Homepage: https://git-scm.com/" in result
