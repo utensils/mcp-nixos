@@ -548,8 +548,11 @@ class EvalFramework:
         # Check expected tool calls
         expected_tools = set()
         for expected_call in scenario.expected_tool_calls:
-            # Parse expected call
-            tool_name = expected_call.split("(")[0]
+            # Parse expected call (handle "await" prefix)
+            if expected_call.startswith("await "):
+                tool_name = expected_call[6:].split("(")[0]  # Skip "await "
+            else:
+                tool_name = expected_call.split("(")[0]
             expected_tools.add(tool_name)
 
         actual_tools = {call[0] for call in tool_calls}
