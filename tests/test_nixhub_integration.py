@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for NixHub API integration."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import nixhub_package_versions
@@ -9,7 +10,8 @@ from mcp_nixos.server import nixhub_package_versions
 class TestNixHubIntegration:
     """Test NixHub.io API integration."""
 
-    def test_nixhub_valid_package(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_valid_package(self):
         """Test fetching version history for a valid package."""
         mock_response = {
             "name": "firefox",
@@ -38,7 +40,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("firefox", limit=5)
+            result = await nixhub_package_versions("firefox", limit=5)
 
             # Check the request was made correctly
             mock_get.assert_called_once()
@@ -55,45 +57,49 @@ class TestNixHubIntegration:
             assert "359c442b7d1f6229c1dc978116d32d6c07fe8440" in result
             assert "2025-05-19 23:16 UTC" in result
 
-    def test_nixhub_package_not_found(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_package_not_found(self):
         """Test handling of non-existent package."""
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
 
-            result = nixhub_package_versions("nonexistent-package")
+            result = await nixhub_package_versions("nonexistent-package")
 
             assert "Error (NOT_FOUND):" in result
             assert "nonexistent-package" in result
             assert "not found in NixHub" in result
 
-    def test_nixhub_service_error(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_service_error(self):
         """Test handling of service errors."""
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=503)
 
-            result = nixhub_package_versions("firefox")
+            result = await nixhub_package_versions("firefox")
 
             assert "Error (SERVICE_ERROR):" in result
             assert "temporarily unavailable" in result
 
-    def test_nixhub_invalid_package_name(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_invalid_package_name(self):
         """Test validation of package names."""
         # Test empty name
-        result = nixhub_package_versions("")
+        result = await nixhub_package_versions("")
         assert "Error" in result
         assert "Package name is required" in result
 
         # Test invalid characters
-        result = nixhub_package_versions("package$name")
+        result = await nixhub_package_versions("package$name")
         assert "Error" in result
         assert "Invalid package name" in result
 
         # Test SQL injection attempt
-        result = nixhub_package_versions("package'; DROP TABLE--")
+        result = await nixhub_package_versions("package'; DROP TABLE--")
         assert "Error" in result
         assert "Invalid package name" in result
 
-    def test_nixhub_limit_validation(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_limit_validation(self):
         """Test limit parameter validation."""
         mock_response = {"name": "test", "releases": []}
 
@@ -101,27 +107,29 @@ class TestNixHubIntegration:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
             # Test limits
-            result = nixhub_package_versions("test", limit=0)
+            result = await nixhub_package_versions("test", limit=0)
             assert "Error" in result
             assert "Limit must be between 1 and 50" in result
 
-            result = nixhub_package_versions("test", limit=51)
+            result = await nixhub_package_versions("test", limit=51)
             assert "Error" in result
             assert "Limit must be between 1 and 50" in result
 
-    def test_nixhub_empty_releases(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_empty_releases(self):
         """Test handling of package with no version history."""
         mock_response = {"name": "test-package", "summary": "Test package", "releases": []}
 
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("test-package")
+            result = await nixhub_package_versions("test-package")
 
             assert "Package: test-package" in result
             assert "No version history available" in result
 
-    def test_nixhub_limit_application(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_limit_application(self):
         """Test that limit is correctly applied."""
         # Create 20 releases
         releases = []
@@ -139,14 +147,15 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("test", limit=5)
+            result = await nixhub_package_versions("test", limit=5)
 
             assert "showing 5 of 20" in result
             # Count version entries (each starts with "• Version")
             version_count = result.count("• Version")
             assert version_count == 5
 
-    def test_nixhub_commit_hash_validation(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_commit_hash_validation(self):
         """Test validation of commit hashes."""
         mock_response = {
             "name": "test",
@@ -159,7 +168,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("test")
+            result = await nixhub_package_versions("test")
 
             # Valid hash should not have warning
             assert "abcdef0123456789abcdef0123456789abcdef01" in result
@@ -168,41 +177,45 @@ class TestNixHubIntegration:
             # Invalid hash should have warning
             assert "invalid-hash (warning: invalid format)" in result
 
-    def test_nixhub_usage_hint(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_usage_hint(self):
         """Test that usage hint is shown when commit hashes are available."""
         mock_response = {"name": "test", "releases": [{"version": "1.0", "platforms": [{"commit_hash": "a" * 40}]}]}
 
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("test")
+            result = await nixhub_package_versions("test")
 
             assert "To use a specific version" in result
             assert "Pin nixpkgs to the commit hash" in result
 
-    def test_nixhub_network_timeout(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_network_timeout(self):
         """Test handling of network timeout."""
         import requests
 
         with patch("requests.get") as mock_get:
             mock_get.side_effect = requests.Timeout("Connection timed out")
 
-            result = nixhub_package_versions("firefox")
+            result = await nixhub_package_versions("firefox")
 
             assert "Error (TIMEOUT):" in result
             assert "timed out" in result
 
-    def test_nixhub_json_parse_error(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_json_parse_error(self):
         """Test handling of invalid JSON response."""
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=Mock(side_effect=ValueError("Invalid JSON")))
 
-            result = nixhub_package_versions("firefox")
+            result = await nixhub_package_versions("firefox")
 
             assert "Error (PARSE_ERROR):" in result
             assert "Failed to parse" in result
 
-    def test_nixhub_attribute_path_display(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_attribute_path_display(self):
         """Test that attribute path is shown when different from package name."""
         mock_response = {
             "name": "firefox",
@@ -220,7 +233,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("firefox")
+            result = await nixhub_package_versions("firefox")
 
             # Should not show attribute for firefox (same as name)
             assert "Attribute: firefox\n" not in result
@@ -228,7 +241,8 @@ class TestNixHubIntegration:
             # Should show attribute for firefox-esr (different from name)
             assert "Attribute: firefox-esr" in result
 
-    def test_nixhub_no_duplicate_commits(self):
+    @pytest.mark.asyncio
+    async def test_nixhub_no_duplicate_commits(self):
         """Test that duplicate commit hashes are not shown multiple times."""
         mock_response = {
             "name": "ruby",
@@ -248,7 +262,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = nixhub_package_versions("ruby")
+            result = await nixhub_package_versions("ruby")
 
             # Count how many times the commit hash appears
             commit_count = result.count("a" * 40)

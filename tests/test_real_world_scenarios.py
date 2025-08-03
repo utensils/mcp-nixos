@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real-world scenario tests based on actual MCP tool usage patterns."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import (
@@ -20,7 +21,8 @@ from mcp_nixos.server import (
 class TestRealWorldScenarios:
     """Test scenarios based on real user interactions with the MCP tools."""
 
-    def test_scenario_installing_development_tools(self):
+    @pytest.mark.asyncio
+    async def test_scenario_installing_development_tools(self):
         """User wants to set up a development environment with Git."""
         # Step 1: Search for Git package
         with patch("mcp_nixos.server.es_query") as mock_es:
@@ -35,7 +37,7 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = nixos_search("git")
+            result = await nixos_search("git")
             assert "git (2.49.0)" in result
             assert "Distributed version control system" in result
 
@@ -53,7 +55,7 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = nixos_info("git")
+            result = await nixos_info("git")
             assert "Package: git" in result
             assert "Homepage: https://git-scm.com/" in result
 
@@ -66,7 +68,7 @@ class TestRealWorldScenarios:
                 {"name": "programs.git.userEmail", "type": "string", "description": "Default user email"},
             ]
 
-            result = home_manager_options_by_prefix("programs.git")
+            result = await home_manager_options_by_prefix("programs.git")
             assert "programs.git.enable" in result
             assert "programs.git.userName" in result
 
@@ -80,10 +82,11 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = home_manager_info("programs.git.enable")
+            result = await home_manager_info("programs.git.enable")
             assert "Type: boolean" in result
 
-    def test_scenario_migrating_nixos_channels(self):
+    @pytest.mark.asyncio
+    async def test_scenario_migrating_nixos_channels(self):
         """User wants to understand and migrate between NixOS channels."""
         # Step 1: Check available channels
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
@@ -93,7 +96,7 @@ class TestRealWorldScenarios:
                 "latest-43-nixos-unstable": "151,798 documents",
             }
 
-            result = nixos_channels()
+            result = await nixos_channels()
             assert "stable (current: 25.05)" in result
             assert "24.11" in result
             assert "unstable" in result
@@ -111,11 +114,12 @@ class TestRealWorldScenarios:
 
                 with patch("mcp_nixos.server.es_query") as mock_es:
                     mock_es.return_value = []
-                    result = nixos_search("firefox", channel=channel)
+                    result = await nixos_search("firefox", channel=channel)
                     # Should work with all valid channels
                     assert "Error" not in result or "Invalid channel" not in result
 
-    def test_scenario_configuring_macos_with_darwin(self):
+    @pytest.mark.asyncio
+    async def test_scenario_configuring_macos_with_darwin(self):
         """User wants to configure macOS system settings."""
         # Step 1: Search for dock settings
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -127,7 +131,7 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = darwin_search("dock autohide")
+            result = await darwin_search("dock autohide")
             assert "system.defaults.dock.autohide" in result
 
         # Step 2: Browse all dock options
@@ -139,11 +143,12 @@ class TestRealWorldScenarios:
                 {"name": "system.defaults.dock.show-recents", "type": "boolean", "description": "Show recent apps"},
             ]
 
-            result = darwin_options_by_prefix("system.defaults.dock")
+            result = await darwin_options_by_prefix("system.defaults.dock")
             assert "system.defaults.dock.autohide" in result
             assert "system.defaults.dock.orientation" in result
 
-    def test_scenario_discovering_program_options(self):
+    @pytest.mark.asyncio
+    async def test_scenario_discovering_program_options(self):
         """User exploring what programs can be configured in Home Manager."""
         # Step 1: Search for shell configuration
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -153,7 +158,7 @@ class TestRealWorldScenarios:
                 {"name": "programs.fish.enable", "type": "boolean", "description": "Whether to enable fish"},
             ]
 
-            result = home_manager_search("shell")
+            result = await home_manager_search("shell")
             # At least one shell option should be found
             assert any(shell in result for shell in ["zsh", "bash", "fish"])
 
@@ -166,11 +171,12 @@ class TestRealWorldScenarios:
                 {"name": "programs.zsh.shellAliases", "type": "attribute set", "description": "Shell aliases"},
             ]
 
-            result = home_manager_options_by_prefix("programs.zsh")
+            result = await home_manager_options_by_prefix("programs.zsh")
             assert "programs.zsh.oh-my-zsh.enable" in result
             assert "programs.zsh.shellAliases" in result
 
-    def test_scenario_invalid_option_names(self):
+    @pytest.mark.asyncio
+    async def test_scenario_invalid_option_names(self):
         """Test what happens when users provide invalid option names."""
         # Common mistake: using partial names
         test_cases = [
@@ -183,10 +189,11 @@ class TestRealWorldScenarios:
             with patch("mcp_nixos.server.parse_html_options") as mock_parse:
                 mock_parse.return_value = []  # No exact match
 
-                result = home_manager_info(invalid_name)
+                result = await home_manager_info(invalid_name)
                 assert "not found" in result.lower()
 
-    def test_scenario_exploring_available_packages_by_type(self):
+    @pytest.mark.asyncio
+    async def test_scenario_exploring_available_packages_by_type(self):
         """User wants to find packages by category."""
         # Search for different types of packages
         package_types = [
@@ -209,10 +216,11 @@ class TestRealWorldScenarios:
                     }
                 ]
 
-                result = nixos_search(search_term)
+                result = await nixos_search(search_term)
                 assert any(pkg in result for pkg in expected_packages)
 
-    def test_scenario_understanding_option_types(self):
+    @pytest.mark.asyncio
+    async def test_scenario_understanding_option_types(self):
         """User needs to understand different option types in configurations."""
         # Different option types in Home Manager
         option_examples = [
@@ -237,10 +245,11 @@ class TestRealWorldScenarios:
                     }
                 ]
 
-                result = home_manager_info(option_name)
+                result = await home_manager_info(option_name)
                 assert f"Type: {type_str}" in result
 
-    def test_scenario_channel_suggestions_for_typos(self):
+    @pytest.mark.asyncio
+    async def test_scenario_channel_suggestions_for_typos(self):
         """User makes typos in channel names and needs suggestions."""
         typo_tests = [
             ("stabel", ["stable"]),  # Typo
@@ -257,13 +266,14 @@ class TestRealWorldScenarios:
                     "24.11": "latest-43-nixos-24.11",
                 }
 
-                result = nixos_search("test", channel=typo)
+                result = await nixos_search("test", channel=typo)
                 assert "Invalid channel" in result
                 assert "Available channels:" in result
                 # At least one suggestion should be present
                 assert any(sug in result for sug in expected_suggestions)
 
-    def test_scenario_performance_with_wildcards(self):
+    @pytest.mark.asyncio
+    async def test_scenario_performance_with_wildcards(self):
         """User uses wildcards in searches."""
         # NixOS option search with wildcards
         with patch("mcp_nixos.server.es_query") as mock_es:
@@ -279,10 +289,11 @@ class TestRealWorldScenarios:
             ]
 
             # Search for options with wildcards
-            result = nixos_search("*.nginx.*", search_type="options")
+            result = await nixos_search("*.nginx.*", search_type="options")
             assert "services.nginx.enable" in result
 
-    def test_scenario_stats_usage_patterns(self):
+    @pytest.mark.asyncio
+    async def test_scenario_stats_usage_patterns(self):
         """User wants to understand the scale of available packages/options."""
         # Get stats for different channels
         with patch("mcp_nixos.server.get_channels") as mock_get:
@@ -301,7 +312,7 @@ class TestRealWorldScenarios:
                 mock_resp.raise_for_status.return_value = None
                 mock_post.return_value = mock_resp
 
-                result = nixos_stats("unstable")
+                result = await nixos_stats("unstable")
                 assert "129,865" in result  # Formatted number
                 assert "21,933" in result
 
@@ -317,7 +328,7 @@ class TestRealWorldScenarios:
                 {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
             ]
 
-            result = home_manager_stats()
+            result = await home_manager_stats()
             assert "Home Manager Statistics:" in result
             assert "Total options:" in result
             assert "Categories:" in result

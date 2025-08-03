@@ -1,5 +1,6 @@
 """Test eval for package counts per channel functionality."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import nixos_channels, nixos_stats
@@ -118,7 +119,7 @@ class TestPackageCountsEval:
         mock_post.side_effect = side_effect
 
         # Step 1: Get available channels
-        channels_result = nixos_channels()
+        channels_result = await nixos_channels()
         assert "24.11" in channels_result
         assert "25.05" in channels_result
         assert "unstable" in channels_result
@@ -196,7 +197,7 @@ class TestPackageCountsEval:
         mock_post.side_effect = side_effect
 
         # Beta should resolve to stable (25.05)
-        result = nixos_stats("beta")
+        result = await nixos_stats("beta")
         assert "Packages:" in result
         assert "beta" in result
 

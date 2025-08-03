@@ -1,5 +1,6 @@
 """Regression test for NixOS stats to ensure correct field names are used."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from mcp_nixos.server import nixos_stats
@@ -21,7 +22,7 @@ class TestNixOSStatsRegression:
         mock_post.side_effect = [pkg_resp, opt_resp]
 
         # Call the function
-        result = nixos_stats()
+        result = await nixos_stats()
 
         # Verify the function returns expected output
         assert "NixOS Statistics for unstable channel:" in result
@@ -47,7 +48,7 @@ class TestNixOSStatsRegression:
         mock_resp.json.return_value = {"count": 0}
         mock_post.return_value = mock_resp
 
-        result = nixos_stats()
+        result = await nixos_stats()
 
         # Should return error when both counts are zero (our improved logic)
         assert "Error (ERROR): Failed to retrieve statistics" in result
@@ -62,7 +63,7 @@ class TestNixOSStatsRegression:
 
         # Test with known channels
         for channel in ["stable", "unstable"]:
-            result = nixos_stats(channel=channel)
+            result = await nixos_stats(channel=channel)
             assert f"NixOS Statistics for {channel} channel:" in result
             assert "• Packages: 12,345" in result
             assert "• Options: 12,345" in result
