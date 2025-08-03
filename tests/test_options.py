@@ -3,7 +3,24 @@
 from unittest.mock import patch
 
 import pytest
-from mcp_nixos.server import nixos_info
+from mcp_nixos import server
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, 'fn'):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+darwin_info = get_tool_function('darwin_info')
+darwin_stats = get_tool_function('darwin_stats')
+home_manager_info = get_tool_function('home_manager_info')
+home_manager_options_by_prefix = get_tool_function('home_manager_options_by_prefix')
+home_manager_stats = get_tool_function('home_manager_stats')
+nixos_info = get_tool_function('nixos_info')
 
 
 class TestNixosInfoOptions:

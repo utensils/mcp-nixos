@@ -13,8 +13,11 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
+darwin_info = get_tool_function('darwin_info')
+darwin_options_by_prefix = get_tool_function('darwin_options_by_prefix')
 darwin_search = get_tool_function('darwin_search')
 home_manager_info = get_tool_function('home_manager_info')
+home_manager_list_options = get_tool_function('home_manager_list_options')
 home_manager_search = get_tool_function('home_manager_search')
 home_manager_options_by_prefix = get_tool_function('home_manager_options_by_prefix')
 nixos_info = get_tool_function('nixos_info')

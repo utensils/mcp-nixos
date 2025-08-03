@@ -187,18 +187,6 @@ nix run --option sandbox relaxed github:utensils/mcp-nixos --
 sandbox = relaxed
 ```
 
-### Connection Timeouts
-
-First-time runs may timeout while downloading dependencies. **Solution**: Pre-cache by running once:
-```bash
-# For Nix users
-nix run github:utensils/mcp-nixos
-
-# Or install to profile
-nix profile install github:utensils/mcp-nixos
-```
-
-
 ## Acknowledgments
 
 This project queries data from several amazing services:
