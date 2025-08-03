@@ -73,7 +73,8 @@ class TestMCPBehaviorComprehensive:
             assert "Homepage: https://git-scm.com/" in result
             assert "License: GNU General Public License v2.0" in result
 
-    def test_nixos_channel_awareness(self):
+    @pytest.mark.asyncio
+    async def test_nixos_channel_awareness(self):
         """Test channel discovery and usage."""
         # 1. List available channels
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
@@ -83,7 +84,7 @@ class TestMCPBehaviorComprehensive:
                 "latest-43-nixos-24.11": "142,034 documents",
             }
 
-            result = nixos_channels()
+            result = await nixos_channels()
             assert "NixOS Channels" in result
             assert "stable (current: 25.05)" in result
             assert "unstable" in result
@@ -100,12 +101,13 @@ class TestMCPBehaviorComprehensive:
             mock_resp.raise_for_status.return_value = None
             mock_post.return_value = mock_resp
 
-            result = nixos_stats()
+            result = await nixos_stats()
             assert "NixOS Statistics" in result
             assert "129,865" in result
             assert "21,933" in result
 
-    def test_home_manager_option_discovery_flow(self):
+    @pytest.mark.asyncio
+    async def test_home_manager_option_discovery_flow(self):
         """Test typical Home Manager option discovery workflow."""
         # 1. Search for options
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -127,7 +129,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = home_manager_search("git", limit=3)
+            result = await home_manager_search("git", limit=3)
             assert "programs.git.enable" in result
             assert "programs.git.userName" in result
             assert "programs.git.userEmail" in result
@@ -152,7 +154,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = home_manager_options_by_prefix("programs.git")
+            result = await home_manager_options_by_prefix("programs.git")
             assert "programs.git.enable" in result
             assert "programs.git.aliases" in result
             assert "programs.git.delta.enable" in result
@@ -167,12 +169,13 @@ class TestMCPBehaviorComprehensive:
                 }
             ]
 
-            result = home_manager_info("programs.git.enable")
+            result = await home_manager_info("programs.git.enable")
             assert "Option: programs.git.enable" in result
             assert "Type: boolean" in result
             assert "Whether to enable Git" in result
 
-    def test_home_manager_category_exploration(self):
+    @pytest.mark.asyncio
+    async def test_home_manager_category_exploration(self):
         """Test exploring Home Manager categories."""
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
             # Simulate real category distribution
@@ -184,14 +187,15 @@ class TestMCPBehaviorComprehensive:
                 {"name": "accounts.email.accounts", "type": "", "description": ""},
             ]
 
-            result = home_manager_list_options()
+            result = await home_manager_list_options()
             assert "Home Manager option categories" in result
             assert "programs (2 options)" in result
             assert "services (1 options)" in result
             assert "home (1 options)" in result
             assert "accounts (1 options)" in result
 
-    def test_darwin_system_configuration_flow(self):
+    @pytest.mark.asyncio
+    async def test_darwin_system_configuration_flow(self):
         """Test typical Darwin configuration workflow."""
         # 1. Search for system options
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -213,7 +217,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = darwin_search("system", limit=3)
+            result = await darwin_search("system", limit=3)
             assert "system.defaults.dock.autohide" in result
             assert "system.defaults.NSGlobalDomain.AppleInterfaceStyle" in result
             assert "system.stateVersion" in result
@@ -238,12 +242,13 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = darwin_options_by_prefix("system.defaults.dock")
+            result = await darwin_options_by_prefix("system.defaults.dock")
             assert "system.defaults.dock.autohide" in result
             assert "system.defaults.dock.autohide-delay" in result
             assert "system.defaults.dock.orientation" in result
 
-    def test_error_handling_with_suggestions(self):
+    @pytest.mark.asyncio
+    async def test_error_handling_with_suggestions(self):
         """Test error handling provides helpful suggestions."""
         # Invalid channel
         with patch("mcp_nixos.server.get_channels") as mock_get:
@@ -254,12 +259,13 @@ class TestMCPBehaviorComprehensive:
                 "24.11": "latest-43-nixos-24.11",
             }
 
-            result = nixos_search("test", channel="24.05")
+            result = await nixos_search("test", channel="24.05")
             assert "Invalid channel" in result
             assert "Available channels:" in result
             assert "24.11" in result or "25.05" in result
 
-    def test_cross_tool_consistency(self):
+    @pytest.mark.asyncio
+    async def test_cross_tool_consistency(self):
         """Test that different tools provide consistent information."""
         # Channel consistency
         with patch("mcp_nixos.server.get_channels") as mock_get:
@@ -275,10 +281,11 @@ class TestMCPBehaviorComprehensive:
             for channel in ["stable", "unstable", "25.05", "beta"]:
                 with patch("mcp_nixos.server.es_query") as mock_es:
                     mock_es.return_value = []
-                    result = nixos_search("test", channel=channel)
+                    result = await nixos_search("test", channel=channel)
                     assert "Error" not in result or "Invalid channel" not in result
 
-    def test_real_world_git_configuration_scenario(self):
+    @pytest.mark.asyncio
+    async def test_real_world_git_configuration_scenario(self):
         """Test a complete Git configuration discovery scenario."""
         # User wants to configure Git in Home Manager
 
@@ -297,7 +304,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = home_manager_search("git user")
+            result = await home_manager_search("git user")
             assert "programs.git.userName" in result
 
         # Step 2: Browse all git options
@@ -314,7 +321,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = home_manager_options_by_prefix("programs.git")
+            result = await home_manager_options_by_prefix("programs.git")
             assert "programs.git.userName" in result
             assert "programs.git.userEmail" in result
             assert "programs.git.signing.key" in result
@@ -329,11 +336,12 @@ class TestMCPBehaviorComprehensive:
                 }
             ]
 
-            result = home_manager_info("programs.git.signing.signByDefault")
+            result = await home_manager_info("programs.git.signing.signByDefault")
             assert "Type: boolean" in result
             assert "sign commits by default" in result
 
-    def test_performance_with_large_result_sets(self):
+    @pytest.mark.asyncio
+    async def test_performance_with_large_result_sets(self):
         """Test handling of large result sets efficiently."""
         # Home Manager has 2000+ options
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -349,26 +357,28 @@ class TestMCPBehaviorComprehensive:
                 )
             mock_parse.return_value = mock_options
 
-            result = home_manager_list_options()
+            result = await home_manager_list_options()
             assert "2129 options" in result or "programs (" in result
 
-    def test_package_not_found_behavior(self):
+    @pytest.mark.asyncio
+    async def test_package_not_found_behavior(self):
         """Test behavior when packages/options are not found."""
         # Package not found
         with patch("mcp_nixos.server.es_query") as mock_es:
             mock_es.return_value = []
 
-            result = nixos_info("nonexistent-package")
+            result = await nixos_info("nonexistent-package")
             assert "not found" in result.lower()
 
         # Option not found
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
             mock_parse.return_value = []
 
-            result = home_manager_info("nonexistent.option")
+            result = await home_manager_info("nonexistent.option")
             assert "not found" in result.lower()
 
-    def test_channel_migration_scenario(self):
+    @pytest.mark.asyncio
+    async def test_channel_migration_scenario(self):
         """Test that users can migrate from old to new channels."""
         # User on 24.11 wants to upgrade to 25.05
         with patch("mcp_nixos.server.get_channels") as mock_get:
@@ -382,16 +392,17 @@ class TestMCPBehaviorComprehensive:
             # Can still query old channel
             with patch("mcp_nixos.server.es_query") as mock_es:
                 mock_es.return_value = []
-                result = nixos_search("test", channel="24.11")
+                result = await nixos_search("test", channel="24.11")
                 assert "Error" not in result or "Invalid channel" not in result
 
             # Can query new stable
             with patch("mcp_nixos.server.es_query") as mock_es:
                 mock_es.return_value = []
-                result = nixos_search("test", channel="stable")
+                result = await nixos_search("test", channel="stable")
                 assert "Error" not in result or "Invalid channel" not in result
 
-    def test_option_type_information(self):
+    @pytest.mark.asyncio
+    async def test_option_type_information(self):
         """Test that option type information is properly displayed."""
         test_cases = [
             ("boolean option", "boolean", "programs.git.enable"),
@@ -411,11 +422,12 @@ class TestMCPBehaviorComprehensive:
                     }
                 ]
 
-                result = home_manager_info(option_name)
+                result = await home_manager_info(option_name)
                 assert f"Type: {type_str}" in result
 
+    @pytest.mark.asyncio
     @patch("mcp_nixos.server.parse_html_options")
-    def test_stats_functions_limitations(self, mock_parse):
+    async def test_stats_functions_limitations(self, mock_parse):
         """Test that stats functions return actual statistics now."""
         # Mock parsed options for Home Manager
         mock_parse.return_value = [
@@ -428,7 +440,7 @@ class TestMCPBehaviorComprehensive:
         ]
 
         # Home Manager stats now return actual statistics
-        result = home_manager_stats()
+        result = await home_manager_stats()
         assert "Home Manager Statistics:" in result
         assert "Total options:" in result
         assert "Categories:" in result
@@ -444,7 +456,7 @@ class TestMCPBehaviorComprehensive:
         ]
 
         # Darwin stats now return actual statistics
-        result = darwin_stats()
+        result = await darwin_stats()
         assert "nix-darwin Statistics:" in result
         assert "Total options:" in result
         assert "Categories:" in result
