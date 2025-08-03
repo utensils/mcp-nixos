@@ -83,7 +83,7 @@
 
           # List installed packages for verification
           echo "Installed dependencies:"
-          pip list | grep -E "requests|mcp|beautifulsoup4|python-dotenv"
+          pip list | grep -E "requests|mcp|beautifulsoup4|fastmcp"
           
           echo "✓ Python environment setup complete in ./.venv"
           echo "---------------------------------------------"
@@ -107,11 +107,10 @@
             ];
             
             propagatedBuildInputs = with pkgs.python311Packages; [
+              # Note: Using mcp for now as fastmcp may not be available in nixpkgs
               mcp
               requests
-              python-dotenv
               beautifulsoup4
-              psutil
             ];
             
             # Disable runtime dependency checks since the available versions in nixpkgs
@@ -218,10 +217,10 @@
             binutils
             stdenv.cc.cc
 
-            # Linters & Formatters
-            ps.ruff
-            ps.mypy
-            # Type stubs
+            # Modern linting and formatting tools
+            ps.ruff    # Replaces black, flake8, isort, and more
+            ps.mypy    # Type checker
+            # Type stubs for dependencies
             ps.types-requests
             ps.types-beautifulsoup4
 
