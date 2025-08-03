@@ -10,7 +10,8 @@ class TestPackageCountsEval:
     """Test evaluations for getting package counts per NixOS channel."""
 
     @patch("mcp_nixos.server.requests.post")
-    def test_get_package_counts_per_channel(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_get_package_counts_per_channel(self, mock_post):
         """Eval: User wants package counts for each NixOS channel."""
         # Mock channel discovery responses
         mock_count_responses = {
@@ -144,7 +145,8 @@ class TestPackageCountsEval:
         # 24.11 should have fewer packages
 
     @patch("mcp_nixos.server.requests.post")
-    def test_package_counts_with_beta_alias(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_package_counts_with_beta_alias(self, mock_post):
         """Eval: User asks about beta channel package count."""
         # Mock responses for channel discovery
         mock_count_response = Mock()
@@ -202,7 +204,8 @@ class TestPackageCountsEval:
         assert "beta" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_compare_package_counts_across_channels(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_compare_package_counts_across_channels(self, mock_post):
         """Eval: User wants to compare package growth across releases."""
         # Mock responses with increasing package counts
         mock_count_responses = {

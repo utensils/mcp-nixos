@@ -10,7 +10,8 @@ class TestNixOSStatsRegression:
     """Ensure NixOS stats uses correct field names in queries."""
 
     @patch("mcp_nixos.server.requests.post")
-    def test_nixos_stats_uses_correct_query_fields(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_nixos_stats_uses_correct_query_fields(self, mock_post):
         """Test that stats uses 'type' field with term query, not 'package'/'option' with exists query."""
         # Mock responses
         pkg_resp = Mock()
@@ -41,7 +42,8 @@ class TestNixOSStatsRegression:
         assert opt_call[1]["json"]["query"] == {"term": {"type": "option"}}
 
     @patch("mcp_nixos.server.requests.post")
-    def test_nixos_stats_handles_zero_counts(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_nixos_stats_handles_zero_counts(self, mock_post):
         """Test that stats correctly handles zero counts."""
         # Mock responses with zero counts
         mock_resp = Mock()
@@ -54,7 +56,8 @@ class TestNixOSStatsRegression:
         assert "Error (ERROR): Failed to retrieve statistics" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_nixos_stats_all_channels(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_nixos_stats_all_channels(self, mock_post):
         """Test that stats works for all defined channels."""
         # Mock responses
         mock_resp = Mock()
