@@ -1,5 +1,5 @@
 # Multi-stage build for minimal final image
-FROM python:3.13-alpine AS builder
+FROM python:3.13-alpine3.22 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -18,7 +18,7 @@ COPY mcp_nixos/ ./mcp_nixos/
 RUN pip wheel --no-cache-dir --wheel-dir /wheels .
 
 # Final stage
-FROM python:3.13-alpine
+FROM python:3.13-alpine3.22
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
