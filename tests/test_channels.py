@@ -1,24 +1,37 @@
 #!/usr/bin/env python3
 """Tests for robust channel handling functionality."""
 
+import asyncio
 import pytest
 from unittest.mock import Mock, patch
 
 import requests
+from mcp_nixos import server
 from mcp_nixos.server import (
     channel_cache,
     get_channel_suggestions,
     get_channels,
-    nixos_channels,
-    nixos_search,
-    nixos_stats,
     validate_channel,
 )
 
 
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+nixos_channels = get_tool_function("nixos_channels")
+nixos_info = get_tool_function("nixos_info")
+nixos_search = get_tool_function("nixos_search")
+nixos_stats = get_tool_function("nixos_stats")
+
+
 class TestChannelHandling:
     """Test robust channel handling functionality."""
-
 
     @patch("requests.post")
     def test_discover_available_channels_success(self, mock_post):
@@ -128,13 +141,21 @@ class TestChannelHandling:
         assert "25.05" in result
 
     @patch("mcp_nixos.server.channel_cache.get_available")
+    @patch("mcp_nixos.server.channel_cache.get_resolved")
     @pytest.mark.asyncio
-    async def test_nixos_channels_tool(self, mock_discover):
+    async def test_nixos_channels_tool(self, mock_resolved, mock_discover):
         """Test nixos_channels tool output."""
         mock_discover.return_value = {
             "latest-43-nixos-unstable": "151,798 documents",
             "latest-43-nixos-25.05": "151,698 documents",
             "latest-43-nixos-24.11": "142,034 documents",
+        }
+        mock_resolved.return_value = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
         }
 
         result = await nixos_channels()
@@ -146,11 +167,17 @@ class TestChannelHandling:
         assert "151,798 documents" in result
 
     @patch("mcp_nixos.server.channel_cache.get_available")
+    @patch("mcp_nixos.server.channel_cache.get_resolved")
     @pytest.mark.asyncio
-    async def test_nixos_channels_with_unavailable(self, mock_discover):
+    async def test_nixos_channels_with_unavailable(self, mock_resolved, mock_discover):
         """Test nixos_channels tool with some unavailable channels."""
         # Only return some channels as available
         mock_discover.return_value = {"latest-43-nixos-unstable": "151,798 documents"}
+        mock_resolved.return_value = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",  # Not available
+            "25.05": "latest-43-nixos-25.05",
+        }
 
         result = await nixos_channels()
 
@@ -190,9 +217,18 @@ class TestChannelHandling:
         assert "Invalid channel 'invalid-channel'" in result
         assert "Available channels:" in result
 
-    def test_channel_mappings_dynamic(self):
+    @patch("mcp_nixos.server.channel_cache.get_resolved")
+    def test_channel_mappings_dynamic(self, mock_resolved):
         """Test that dynamic channel mappings work correctly."""
-        # Test with real API to ensure dynamic resolution works
+        # Mock the resolved channels
+        mock_resolved.return_value = {
+            "stable": "latest-43-nixos-25.05",
+            "unstable": "latest-43-nixos-unstable",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
+        }
+
         channels = get_channels()
 
         # Should have basic channels
@@ -237,8 +273,17 @@ class TestChannelHandling:
         assert "Error (ERROR):" in result
         assert "Discovery failed" in result
 
-    def test_channel_suggestions_for_legacy_channels(self):
+    @patch("mcp_nixos.server.get_channels")
+    def test_channel_suggestions_for_legacy_channels(self, mock_get_channels):
         """Test suggestions work for legacy channel references."""
+        mock_get_channels.return_value = {
+            "stable": "latest-43-nixos-25.05",
+            "unstable": "latest-43-nixos-unstable",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+            "beta": "latest-43-nixos-25.05",
+        }
+
         # Test old stable reference
         result = get_channel_suggestions("20.09")
         assert "24.11" in result or "stable" in result
@@ -278,7 +323,6 @@ class TestChannelHandling:
 # ===== Content from test_dynamic_channels.py =====
 class TestDynamicChannelLifecycle:
     """Test dynamic channel detection and lifecycle management."""
-
 
     def setup_method(self):
         """Clear caches before each test."""
@@ -642,13 +686,13 @@ class TestDynamicChannelLifecycle:
 
                     # Test all tools that use channels
                     tools_to_test = [
-                        lambda: asyncio.create_task(nixos_search("test", channel="stable")),
-                        lambda: asyncio.create_task(nixos_info("test", channel="stable")),
-                        lambda: asyncio.create_task(nixos_stats("stable")),
+                        lambda: nixos_search("test", channel="stable"),
+                        lambda: nixos_info("test", channel="stable"),
+                        lambda: nixos_stats("stable"),
                     ]
 
                     for tool in tools_to_test:
-                        result = tool()
+                        result = await tool()
                         # Should not error due to channel resolution
                         assert (
                             "Error" not in result

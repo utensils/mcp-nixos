@@ -21,25 +21,25 @@ from mcp_nixos.server import (
 def get_tool_function(tool_name: str):
     """Get the underlying function from a FastMCP tool."""
     tool = getattr(server, tool_name)
-    if hasattr(tool, 'fn'):
+    if hasattr(tool, "fn"):
         return tool.fn
     return tool
 
 
 # Get the underlying functions for direct use
-darwin_info = get_tool_function('darwin_info')
-darwin_list_options = get_tool_function('darwin_list_options')
-darwin_options_by_prefix = get_tool_function('darwin_options_by_prefix')
-darwin_search = get_tool_function('darwin_search')
-darwin_stats = get_tool_function('darwin_stats')
-home_manager_info = get_tool_function('home_manager_info')
-home_manager_list_options = get_tool_function('home_manager_list_options')
-home_manager_options_by_prefix = get_tool_function('home_manager_options_by_prefix')
-home_manager_search = get_tool_function('home_manager_search')
-home_manager_stats = get_tool_function('home_manager_stats')
-nixos_info = get_tool_function('nixos_info')
-nixos_search = get_tool_function('nixos_search')
-nixos_stats = get_tool_function('nixos_stats')
+darwin_info = get_tool_function("darwin_info")
+darwin_list_options = get_tool_function("darwin_list_options")
+darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
+darwin_search = get_tool_function("darwin_search")
+darwin_stats = get_tool_function("darwin_stats")
+home_manager_info = get_tool_function("home_manager_info")
+home_manager_list_options = get_tool_function("home_manager_list_options")
+home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
+home_manager_search = get_tool_function("home_manager_search")
+home_manager_stats = get_tool_function("home_manager_stats")
+nixos_info = get_tool_function("nixos_info")
+nixos_search = get_tool_function("nixos_search")
+nixos_stats = get_tool_function("nixos_stats")
 
 
 class TestHelperFunctions:
@@ -713,23 +713,23 @@ class TestServerIntegration:
         """Test that all tool functions are properly decorated."""
         # Tool functions should be registered with mcp and have underlying functions
         tool_names = [
-            'nixos_search',
-            'nixos_info',
-            'nixos_stats',
-            'home_manager_search',
-            'home_manager_info',
-            'home_manager_stats',
-            'home_manager_list_options',
-            'home_manager_options_by_prefix',
-            'darwin_search',
-            'darwin_info',
-            'darwin_stats',
-            'darwin_list_options',
-            'darwin_options_by_prefix',
+            "nixos_search",
+            "nixos_info",
+            "nixos_stats",
+            "home_manager_search",
+            "home_manager_info",
+            "home_manager_stats",
+            "home_manager_list_options",
+            "home_manager_options_by_prefix",
+            "darwin_search",
+            "darwin_info",
+            "darwin_stats",
+            "darwin_list_options",
+            "darwin_options_by_prefix",
         ]
 
         for tool_name in tool_names:
             # FastMCP decorates functions, so they should have the original function available
             tool = getattr(server, tool_name)
-            assert hasattr(tool, 'fn'), f"Tool {tool_name} should have 'fn' attribute"
+            assert hasattr(tool, "fn"), f"Tool {tool_name} should have 'fn' attribute"
             assert callable(tool.fn), f"Tool {tool_name}.fn should be callable"

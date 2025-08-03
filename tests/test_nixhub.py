@@ -10,14 +10,14 @@ from mcp_nixos import server
 def get_tool_function(tool_name: str):
     """Get the underlying function from a FastMCP tool."""
     tool = getattr(server, tool_name)
-    if hasattr(tool, 'fn'):
+    if hasattr(tool, "fn"):
         return tool.fn
     return tool
 
 
 # Get the underlying functions for direct use
-nixhub_find_version = get_tool_function('nixhub_find_version')
-nixhub_package_versions = get_tool_function('nixhub_package_versions')
+nixhub_find_version = get_tool_function("nixhub_find_version")
+nixhub_package_versions = get_tool_function("nixhub_package_versions")
 
 
 class TestNixHubIntegration:

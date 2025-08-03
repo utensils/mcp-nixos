@@ -334,7 +334,7 @@ async def nixos_search(query: str, search_type: str = "packages", limit: int = 2
 
     # Redirect flakes to dedicated function
     if search_type == "flakes":
-        return await nixos_flakes_search(query, limit)
+        return await _nixos_flakes_search_impl(query, limit)
 
     try:
         # Build query with correct field names
@@ -1225,21 +1225,8 @@ async def nixos_flakes_stats() -> str:
         return error(str(e))
 
 
-@mcp.tool()
-async def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
-    """Search NixOS flakes by name, description, owner, or repository.
-
-    Searches the flake index for community-contributed packages and configurations.
-    Flakes are indexed separately from official packages.
-
-    Args:
-        query: The search query (flake name, description, owner, or repository)
-        limit: Maximum number of results to return (default: 20, max: 100)
-        channel: Ignored - flakes use a separate indexing system
-
-    Returns:
-        Plain text list of unique flakes with their packages and metadata
-    """
+async def _nixos_flakes_search_impl(query: str, limit: int = 20, channel: str = "unstable") -> str:
+    """Internal implementation for flakes search."""
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -1550,6 +1537,24 @@ def _format_nixhub_release(release: dict[str, Any], package_name: str | None = N
                     results.append(f"  Attribute: {attr_path}")
 
     return results
+
+
+@mcp.tool()
+async def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unstable") -> str:
+    """Search NixOS flakes by name, description, owner, or repository.
+
+    Searches the flake index for community-contributed packages and configurations.
+    Flakes are indexed separately from official packages.
+
+    Args:
+        query: The search query (flake name, description, owner, or repository)
+        limit: Maximum number of results to return (default: 20, max: 100)
+        channel: Ignored - flakes use a separate indexing system
+
+    Returns:
+        Plain text list of unique flakes with their packages and metadata
+    """
+    return await _nixos_flakes_search_impl(query, limit, channel)
 
 
 @mcp.tool()

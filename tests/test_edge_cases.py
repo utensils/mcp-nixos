@@ -5,21 +5,33 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+import mcp_nixos.server as server
 from mcp_nixos.server import (
-    darwin_info,
-    darwin_list_options,
-    darwin_options_by_prefix,
-    darwin_search,
     error,
     es_query,
-    home_manager_info,
-    home_manager_list_options,
-    home_manager_search,
-    nixos_info,
-    nixos_search,
-    nixos_stats,
     parse_html_options,
 )
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, "fn"):
+        return tool.fn
+    return tool
+
+
+# Extract FastMCP tool functions
+nixos_search = get_tool_function("nixos_search")
+nixos_info = get_tool_function("nixos_info")
+nixos_stats = get_tool_function("nixos_stats")
+home_manager_search = get_tool_function("home_manager_search")
+home_manager_info = get_tool_function("home_manager_info")
+home_manager_list_options = get_tool_function("home_manager_list_options")
+darwin_search = get_tool_function("darwin_search")
+darwin_info = get_tool_function("darwin_info")
+darwin_list_options = get_tool_function("darwin_list_options")
+darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
 
 
 class TestEdgeCases:

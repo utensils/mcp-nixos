@@ -1,5 +1,6 @@
 """Basic evaluation tests for MCP-NixOS to validate AI usability."""
 
+import asyncio
 from dataclasses import dataclass
 from unittest.mock import Mock, patch
 
@@ -10,16 +11,23 @@ from mcp_nixos import server
 def get_tool_function(tool_name: str):
     """Get the underlying function from a FastMCP tool."""
     tool = getattr(server, tool_name)
-    if hasattr(tool, 'fn'):
+    if hasattr(tool, "fn"):
         return tool.fn
     return tool
 
 
 # Get the underlying functions for direct use
-darwin_search = get_tool_function('darwin_search')
-home_manager_search = get_tool_function('home_manager_search')
-nixos_info = get_tool_function('nixos_info')
-nixos_search = get_tool_function('nixos_search')
+darwin_search = get_tool_function("darwin_search")
+darwin_info = get_tool_function("darwin_info")
+darwin_list_options = get_tool_function("darwin_list_options")
+darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
+home_manager_search = get_tool_function("home_manager_search")
+home_manager_info = get_tool_function("home_manager_info")
+home_manager_list_options = get_tool_function("home_manager_list_options")
+home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
+nixos_info = get_tool_function("nixos_info")
+nixos_search = get_tool_function("nixos_search")
+nixos_stats = get_tool_function("nixos_stats")
 
 
 class TestPackageDiscoveryEvals:
@@ -397,7 +405,7 @@ class MockAIAssistant:
     def __init__(self):
         self.tool_calls = []
 
-    def process_query(self, query: str) -> list[tuple[str, dict, str]]:
+    async def process_query(self, query: str) -> list[tuple[str, dict, str]]:
         """Process a user query and return tool calls made."""
         self.tool_calls = []
 
@@ -405,23 +413,23 @@ class MockAIAssistant:
         if ("install" in query.lower() or "get" in query.lower()) and any(
             pkg in query.lower() for pkg in ["vscode", "firefox", "git"]
         ):
-            self._handle_package_installation(query)
+            await self._handle_package_installation(query)
         elif ("configure" in query.lower() or "set up" in query.lower()) and "nginx" in query.lower():
-            self._handle_service_configuration(query)
+            await self._handle_service_configuration(query)
         elif (
             "home manager" in query.lower()
             or "should i configure" in query.lower()
             or ("manage" in query.lower() and "home manager" in query.lower())
         ):
-            self._handle_home_manager_query(query)
+            await self._handle_home_manager_query(query)
         elif "dock" in query.lower() and ("darwin" in query.lower() or "macos" in query.lower()):
-            self._handle_darwin_query(query)
+            await self._handle_darwin_query(query)
         elif "difference between" in query.lower():
-            self._handle_comparison_query(query)
+            await self._handle_comparison_query(query)
 
         return self.tool_calls
 
-    def _make_tool_call(self, tool_name: str, **kwargs) -> str:
+    async def _make_tool_call(self, tool_name: str, **kwargs) -> str:
         """Make a tool call and record it."""
         # Map tool names to actual functions
         tools = {
@@ -439,12 +447,12 @@ class MockAIAssistant:
         }
 
         if tool_name in tools:
-            result = tools[tool_name](**kwargs)
+            result = await tools[tool_name](**kwargs)
             self.tool_calls.append((tool_name, kwargs, result))
             return result
         return ""
 
-    def _handle_package_installation(self, query: str):
+    async def _handle_package_installation(self, query: str):
         """Handle package installation queries."""
         # Extract package name
         package = None
@@ -457,50 +465,50 @@ class MockAIAssistant:
 
         if package:
             # Search for the package
-            self._make_tool_call("nixos_search", query=package, search_type="packages")
+            await self._make_tool_call("nixos_search", query=package, search_type="packages")
 
             # If it's a command, also search programs
             if package == "git":
-                self._make_tool_call("nixos_search", query=package, search_type="programs")
+                await self._make_tool_call("nixos_search", query=package, search_type="programs")
 
             # Get detailed info
-            self._make_tool_call("nixos_info", name=package, type="package")
+            await self._make_tool_call("nixos_info", name=package, type="package")
 
-    def _handle_service_configuration(self, query: str):
+    async def _handle_service_configuration(self, query: str):
         """Handle service configuration queries."""
         if "nginx" in query.lower():
             # Search for nginx options
-            self._make_tool_call("nixos_search", query="services.nginx", search_type="options")
+            await self._make_tool_call("nixos_search", query="services.nginx", search_type="options")
             # Get specific option info
-            self._make_tool_call("nixos_info", name="services.nginx.enable", type="option")
-            self._make_tool_call("nixos_info", name="services.nginx.virtualHosts", type="option")
+            await self._make_tool_call("nixos_info", name="services.nginx.enable", type="option")
+            await self._make_tool_call("nixos_info", name="services.nginx.virtualHosts", type="option")
 
-    def _handle_home_manager_query(self, query: str):
+    async def _handle_home_manager_query(self, query: str):
         """Handle Home Manager related queries."""
         if "git" in query.lower():
             # Search both system and user options
-            self._make_tool_call("nixos_search", query="git", search_type="packages")
-            self._make_tool_call("home_manager_search", query="programs.git")
-            self._make_tool_call("home_manager_info", name="programs.git.enable")
+            await self._make_tool_call("nixos_search", query="git", search_type="packages")
+            await self._make_tool_call("home_manager_search", query="programs.git")
+            await self._make_tool_call("home_manager_info", name="programs.git.enable")
         elif "shell" in query.lower():
             # Handle shell configuration queries
-            self._make_tool_call("home_manager_search", query="programs.zsh")
-            self._make_tool_call("home_manager_info", name="programs.zsh.enable")
-            self._make_tool_call("home_manager_options_by_prefix", option_prefix="programs.zsh")
+            await self._make_tool_call("home_manager_search", query="programs.zsh")
+            await self._make_tool_call("home_manager_info", name="programs.zsh.enable")
+            await self._make_tool_call("home_manager_options_by_prefix", option_prefix="programs.zsh")
 
-    def _handle_darwin_query(self, query: str):
+    async def _handle_darwin_query(self, query: str):
         """Handle Darwin/macOS queries."""
         if "dock" in query.lower():
-            self._make_tool_call("darwin_search", query="system.defaults.dock")
-            self._make_tool_call("darwin_info", name="system.defaults.dock.autohide")
-            self._make_tool_call("darwin_options_by_prefix", option_prefix="system.defaults.dock")
+            await self._make_tool_call("darwin_search", query="system.defaults.dock")
+            await self._make_tool_call("darwin_info", name="system.defaults.dock.autohide")
+            await self._make_tool_call("darwin_options_by_prefix", option_prefix="system.defaults.dock")
 
-    def _handle_comparison_query(self, query: str):
+    async def _handle_comparison_query(self, query: str):
         """Handle package comparison queries."""
         if "firefox" in query.lower():
-            self._make_tool_call("nixos_search", query="firefox", search_type="packages")
-            self._make_tool_call("nixos_info", name="firefox", type="package")
-            self._make_tool_call("nixos_info", name="firefox-esr", type="package")
+            await self._make_tool_call("nixos_search", query="firefox", search_type="packages")
+            await self._make_tool_call("nixos_info", name="firefox", type="package")
+            await self._make_tool_call("nixos_info", name="firefox-esr", type="package")
 
 
 class EvalFramework:
@@ -509,10 +517,10 @@ class EvalFramework:
     def __init__(self):
         self.assistant = MockAIAssistant()
 
-    def run_eval(self, scenario: EvalScenario) -> EvalResult:
+    async def run_eval(self, scenario: EvalScenario) -> EvalResult:
         """Run a single evaluation scenario."""
         # Have the assistant process the query
-        tool_calls = self.assistant.process_query(scenario.user_query)
+        tool_calls = await self.assistant.process_query(scenario.user_query)
 
         # Check which criteria were met
         criteria_met = self._check_criteria(scenario, tool_calls)
@@ -625,7 +633,7 @@ class TestPackageDiscoveryEvals:
             success_criteria=["finds vscode package", "mentions configuration.nix", "provides installation syntax"],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         # Verify evaluation
         assert result.passed
@@ -669,7 +677,7 @@ class TestPackageDiscoveryEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         assert result.passed
         assert any("programs" in str(call[1]) for call in result.tool_calls_made)
@@ -710,7 +718,7 @@ class TestPackageDiscoveryEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         # Check that comparison tools were called
         assert len(result.tool_calls_made) >= 2
@@ -754,7 +762,7 @@ class TestServiceConfigurationEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         assert len(result.tool_calls_made) >= 2
         assert any("nginx" in call[2] for call in result.tool_calls_made)
@@ -795,7 +803,7 @@ class TestServiceConfigurationEvals:
 
         # This scenario would need more complex mocking in real implementation
         # For now, just verify the structure works
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
         assert isinstance(result, EvalResult)
 
 
@@ -845,7 +853,7 @@ class TestHomeManagerIntegrationEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         assert len(result.tool_calls_made) >= 3
         assert any("home_manager" in call[0] for call in result.tool_calls_made)
@@ -875,7 +883,7 @@ class TestHomeManagerIntegrationEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         assert any("zsh" in str(call) for call in result.tool_calls_made)
 
@@ -911,7 +919,7 @@ class TestDarwinPlatformEvals:
             ],
         )
 
-        result = self.framework.run_eval(scenario)
+        result = await self.framework.run_eval(scenario)
 
         assert len(result.tool_calls_made) >= 2
         assert any("darwin" in call[0] for call in result.tool_calls_made)
