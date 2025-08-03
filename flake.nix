@@ -83,7 +83,7 @@
 
           # List installed packages for verification
           echo "Installed dependencies:"
-          pip list | grep -E "requests|mcp|beautifulsoup4|fastmcp"
+          pip list | grep -E "requests|fastmcp|beautifulsoup4"
           
           echo "✓ Python environment setup complete in ./.venv"
           echo "---------------------------------------------"
@@ -92,6 +92,7 @@
         # Setup for Python package - using simpler buildPythonApplication approach
         pythonPackage = let
           pyproject = nixpkgs.lib.importTOML ./pyproject.toml;
+          inherit (pkgs.python311Packages) buildPythonPackage fetchPypi;
         in
           pkgs.python311Packages.buildPythonApplication {
             pname = pyproject.project.name;
@@ -107,8 +108,28 @@
             ];
             
             propagatedBuildInputs = with pkgs.python311Packages; [
-              # Note: Using mcp for now as fastmcp may not be available in nixpkgs
-              mcp
+              # Building fastmcp from PyPI since it's not in nixpkgs
+              (buildPythonPackage rec {
+                pname = "fastmcp";
+                version = "2.11.0";
+                src = fetchPypi {
+                  inherit pname version;
+                  sha256 = "af0c52988607d8e9197df300e91880169e8fe24fd6ca177dca6a9eb6b245ce3c";
+                };
+                propagatedBuildInputs = with pkgs.python311Packages; [
+                  mcp
+                  cyclopts
+                  httpx
+                  openapi-core
+                  openapi-pydantic
+                  pydantic
+                  pyperclip
+                  python-dotenv
+                  rich
+                  exceptiongroup
+                ];
+                doCheck = false;
+              })
               requests
               beautifulsoup4
             ];
@@ -227,7 +248,7 @@
             # Testing
             ps.pytest
             ps."pytest-cov"
-            # ps.pytest-asyncio # Usually installed via pip/uv into venv
+            ps."pytest-asyncio"
 
             # Nix & Git
             nix
