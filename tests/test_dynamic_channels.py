@@ -2,14 +2,15 @@
 """Comprehensive tests for dynamic channel lifecycle management."""
 
 from unittest.mock import Mock, patch
+
 import requests
 from mcp_nixos.server import (
     channel_cache,
     get_channels,
     nixos_channels,
-    nixos_stats,
-    nixos_search,
     nixos_info,
+    nixos_search,
+    nixos_stats,
 )
 
 

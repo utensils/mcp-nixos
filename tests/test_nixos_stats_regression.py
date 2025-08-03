@@ -1,6 +1,6 @@
 """Regression test for NixOS stats to ensure correct field names are used."""
 
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 from mcp_nixos.server import nixos_stats
 

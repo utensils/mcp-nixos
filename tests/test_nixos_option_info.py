@@ -1,7 +1,8 @@
 """Comprehensive tests for nixos_info option lookups."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 from mcp_nixos.server import nixos_info
 
 

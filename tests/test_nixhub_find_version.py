@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests for the nixhub_find_version smart search function."""
 
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 from mcp_nixos.server import nixhub_find_version
 
 

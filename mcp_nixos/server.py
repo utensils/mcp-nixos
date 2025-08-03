@@ -9,11 +9,12 @@ Provides search and query capabilities for:
 All responses are formatted as human-readable plain text for optimal LLM interaction.
 """
 
-from fastmcp import FastMCP
-import requests
 import re
-from typing import Any, Optional
+from typing import Any
+
+import requests
 from bs4 import BeautifulSoup
+from fastmcp import FastMCP
 
 
 class APIError(Exception):
@@ -44,7 +45,7 @@ DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 class ChannelCache:
     """Cache for discovered channels and resolved mappings."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize empty cache."""
         self.available_channels = None
         self.resolved_channels = None
@@ -127,12 +128,12 @@ class ChannelCache:
             resolved[current_stable[2]] = current_stable[3]  # version -> pattern
 
             # Add other version mappings (prefer higher generation/count for same version)
-            version_patterns = {}
-            for major, minor, version, pattern, count in stable_candidates:
+            version_patterns: dict[str, tuple[str, int]] = {}
+            for _major, _minor, version, pattern, count in stable_candidates:
                 if version not in version_patterns or count > version_patterns[version][1]:
                     version_patterns[version] = (pattern, count)
 
-            for version, (pattern, count) in version_patterns.items():
+            for version, (pattern, _count) in version_patterns.items():
                 resolved[version] = pattern
 
         # Add beta (alias for stable)
@@ -198,7 +199,7 @@ def get_channel_suggestions(invalid_channel: str) -> str:
     return f"Available channels: {', '.join(suggestions)}"
 
 
-def es_query(index: str, query: dict, size: int = 20) -> list[dict]:
+def es_query(index: str, query: dict[str, Any], size: int = 20) -> list[dict[str, Any]]:
     """Execute Elasticsearch query."""
     try:
         resp = requests.post(
@@ -333,7 +334,7 @@ async def nixos_search(query: str, search_type: str = "packages", limit: int = 2
 
     # Redirect flakes to dedicated function
     if search_type == "flakes":
-        return nixos_flakes_search(query, limit)
+        return await nixos_flakes_search(query, limit)
 
     try:
         # Build query with correct field names
@@ -714,13 +715,13 @@ async def home_manager_stats() -> str:
             return error("Failed to fetch Home Manager statistics")
 
         # Count categories
-        categories = {}
+        categories: dict[str, int] = {}
         for opt in options:
             cat = opt["name"].split(".")[0]
             categories[cat] = categories.get(cat, 0) + 1
 
         # Count types
-        types = {}
+        types: dict[str, int] = {}
         for opt in options:
             opt_type = opt.get("type", "unknown")
             if opt_type:
@@ -738,11 +739,11 @@ async def home_manager_stats() -> str:
 • Total options: {len(options):,}
 • Categories: {len(categories)}
 • Top categories:
-  - programs: {categories.get('programs', 0):,} options
-  - services: {categories.get('services', 0):,} options
-  - home: {categories.get('home', 0):,} options
-  - wayland: {categories.get('wayland', 0):,} options
-  - xsession: {categories.get('xsession', 0):,} options"""
+  - programs: {categories.get("programs", 0):,} options
+  - services: {categories.get("services", 0):,} options
+  - home: {categories.get("home", 0):,} options
+  - wayland: {categories.get("wayland", 0):,} options
+  - xsession: {categories.get("xsession", 0):,} options"""
     except Exception as e:
         return error(str(e))
 
@@ -759,7 +760,7 @@ async def home_manager_list_options() -> str:
     try:
         # Get more options to see all categories (default 100 is too few)
         options = parse_html_options(HOME_MANAGER_URL, limit=5000)
-        categories = {}
+        categories: dict[str, int] = {}
 
         for opt in options:
             name = opt["name"]
@@ -965,13 +966,13 @@ async def darwin_stats() -> str:
             return error("Failed to fetch nix-darwin statistics")
 
         # Count categories
-        categories = {}
+        categories: dict[str, int] = {}
         for opt in options:
             cat = opt["name"].split(".")[0]
             categories[cat] = categories.get(cat, 0) + 1
 
         # Count types
-        types = {}
+        types: dict[str, int] = {}
         for opt in options:
             opt_type = opt.get("type", "unknown")
             if opt_type:
@@ -989,11 +990,11 @@ async def darwin_stats() -> str:
 • Total options: {len(options):,}
 • Categories: {len(categories)}
 • Top categories:
-  - services: {categories.get('services', 0):,} options
-  - system: {categories.get('system', 0):,} options
-  - launchd: {categories.get('launchd', 0):,} options
-  - programs: {categories.get('programs', 0):,} options
-  - homebrew: {categories.get('homebrew', 0):,} options"""
+  - services: {categories.get("services", 0):,} options
+  - system: {categories.get("system", 0):,} options
+  - launchd: {categories.get("launchd", 0):,} options
+  - programs: {categories.get("programs", 0):,} options
+  - homebrew: {categories.get("homebrew", 0):,} options"""
     except Exception as e:
         return error(str(e))
 
@@ -1010,7 +1011,7 @@ async def darwin_list_options() -> str:
     try:
         # Get more options to see all categories (default 100 is too few)
         options = parse_html_options(DARWIN_URL, limit=2000)
-        categories = {}
+        categories: dict[str, int] = {}
 
         for opt in options:
             name = opt["name"]
@@ -1132,8 +1133,8 @@ async def nixos_flakes_stats() -> str:
         # Get unique flakes by sampling documents
         # Since aggregations on text fields don't work, we'll sample and count manually
         unique_urls = set()
-        type_counts = {}
-        contributor_counts = {}
+        type_counts: dict[str, int] = {}
+        contributor_counts: dict[str, int] = {}
 
         try:
             # Get a large sample of documents to count unique flakes
@@ -1249,7 +1250,7 @@ async def nixos_flakes_search(query: str, limit: int = 20, channel: str = "unsta
         # Build query for flakes
         if query.strip() == "" or query == "*":
             # Empty or wildcard query - get all flakes
-            q = {"match_all": {}}
+            q: dict[str, Any] = {"match_all": {}}
         else:
             # Search query with multiple fields, including nested queries for flake_resolved
             q = {
@@ -1422,7 +1423,7 @@ Browse flakes at:
                 results.append(f"  {desc}")
             if flake["packages"]:
                 # Show max 5 packages, sorted
-                packages = sorted(list(flake["packages"]))[:5]
+                packages = sorted(flake["packages"])[:5]
                 if len(flake["packages"]) > 5:
                     results.append(f"  Packages: {', '.join(packages)}, ... ({len(flake['packages'])} total)")
                 else:
@@ -1435,7 +1436,7 @@ Browse flakes at:
         return error(str(e))
 
 
-def _version_key(version_str: str) -> tuple:
+def _version_key(version_str: str) -> tuple[int, int, int]:
     """Convert version string to tuple for proper sorting."""
     try:
         parts = version_str.split(".")
@@ -1461,7 +1462,7 @@ def _version_key(version_str: str) -> tuple:
         return (0, 0, 0)
 
 
-def _format_nixhub_found_version(package_name: str, version: str, found_version: dict[Any]) -> str:
+def _format_nixhub_found_version(package_name: str, version: str, found_version: dict[str, Any]) -> str:
     """Format a found version for display."""
     results = []
     results.append(f"✓ Found {package_name} version {version}\n")
@@ -1505,7 +1506,7 @@ def _format_nixhub_found_version(package_name: str, version: str, found_version:
     return "\n".join(results)
 
 
-def _format_nixhub_release(release: dict[Any], package_name: Optional[str] = None) -> list[str]:
+def _format_nixhub_release(release: dict[str, Any], package_name: str | None = None) -> list[str]:
     """Format a single NixHub release for display."""
     results = []
     version = release.get("version", "unknown")
@@ -1674,7 +1675,7 @@ async def nixhub_find_version(package_name: str, version: str) -> str:
     # Try with incremental limits
     limits_to_try = [10, 25, 50]
     found_version = None
-    all_versions = []
+    all_versions: list[dict[str, Any]] = []
 
     for limit in limits_to_try:
         try:

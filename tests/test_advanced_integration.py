@@ -3,16 +3,16 @@
 
 import pytest
 from mcp_nixos.server import (
-    nixos_search,
-    nixos_info,
-    nixos_stats,
-    home_manager_search,
+    darwin_info,
+    darwin_options_by_prefix,
+    darwin_search,
     home_manager_info,
     home_manager_list_options,
     home_manager_options_by_prefix,
-    darwin_search,
-    darwin_info,
-    darwin_options_by_prefix,
+    home_manager_search,
+    nixos_info,
+    nixos_search,
+    nixos_stats,
 )
 
 

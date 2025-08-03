@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests for NixHub API integration."""
 
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 from mcp_nixos.server import nixhub_package_versions
 
 

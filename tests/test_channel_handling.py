@@ -2,15 +2,16 @@
 """Tests for robust channel handling functionality."""
 
 from unittest.mock import Mock, patch
+
 import requests
 from mcp_nixos.server import (
     channel_cache,
-    validate_channel,
     get_channel_suggestions,
-    nixos_channels,
-    nixos_stats,
-    nixos_search,
     get_channels,
+    nixos_channels,
+    nixos_search,
+    nixos_stats,
+    validate_channel,
 )
 
 

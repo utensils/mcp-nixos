@@ -2,10 +2,11 @@
 """Tests for improving option info lookup functionality."""
 
 from unittest.mock import patch
+
 from mcp_nixos.server import (
+    darwin_info,
     home_manager_info,
     home_manager_options_by_prefix,
-    darwin_info,
 )
 
 
@@ -159,7 +160,7 @@ class TestOptionInfoImprovements:
 
     def test_stats_limitations_are_clear(self):
         """Test that stats function limitations are clearly communicated."""
-        from mcp_nixos.server import home_manager_stats, darwin_stats
+        from mcp_nixos.server import darwin_stats, home_manager_stats
 
         # Home Manager stats
         result = home_manager_stats()

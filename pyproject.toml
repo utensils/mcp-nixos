@@ -11,46 +11,76 @@ authors = [
     {name = "James Brink", email = "james@utensils.io"},
 ]
 requires-python = ">=3.11"
+license = {text = "MIT"}
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "fastmcp>=2.10.6",
-    "requests>=2.32.3",
-    "beautifulsoup4>=4.13.3",
+    "fastmcp>=2.11.0",
+    "requests>=2.32.4",
+    "beautifulsoup4>=4.13.4",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "build>=1.0.0",
-    "pytest>=8.3.5",
-    "pytest-cov>=6.0.0",
-    "pytest-asyncio>=0.26.0",
-    "flake8>=7.1.2",
-    "black>=25.1.0",
-    "pylint>=3.0.0",
-    "types-beautifulsoup4>=4.12.0.20240229",
-    "types-requests>=2.32.0",
-    "wily>=1.25.0",
+    "build>=1.2.2",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-asyncio>=1.1.0",
+    "ruff>=0.12.4",
+    "mypy>=1.17.0",
+    "types-beautifulsoup4>=4.12.0.20250516",
+    "types-requests>=2.32.4",
+    "twine>=6.0.1",
 ]
 win = [
-    "pywin32>=306.0",  # Required for Windows-specific file operations and tests
+    "pywin32>=308.0",  # Required for Windows-specific file operations and tests
 ]
 
 [project.scripts]
 mcp-nixos = "mcp_nixos.server:main"
 
-[tool.black]
+[tool.ruff]
 line-length = 120
+target-version = "py311"
+src = ["mcp_nixos", "tests"]
 
-[tool.flake8]
-max-line-length = 120
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
 ignore = ["E402", "E203"]
 
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_reexport = true
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
+addopts = "--cov=mcp_nixos --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["mcp_nixos"]

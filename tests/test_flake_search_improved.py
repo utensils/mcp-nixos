@@ -1,8 +1,8 @@
 """Tests for improved flake search functionality based on manual testing."""
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 from mcp_nixos.server import nixos_flakes_search
 
 

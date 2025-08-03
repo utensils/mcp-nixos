@@ -1,8 +1,9 @@
 """Basic evaluation tests for MCP-NixOS to validate AI usability."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
-from mcp_nixos.server import nixos_search, nixos_info, home_manager_search, darwin_search
+from mcp_nixos.server import darwin_search, home_manager_search, nixos_info, nixos_search
 
 
 class TestPackageDiscoveryEvals:

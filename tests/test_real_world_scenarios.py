@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Real-world scenario tests based on actual MCP tool usage patterns."""
 
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 from mcp_nixos.server import (
-    nixos_search,
-    nixos_info,
-    nixos_stats,
-    nixos_channels,
-    home_manager_search,
+    darwin_options_by_prefix,
+    darwin_search,
     home_manager_info,
     home_manager_options_by_prefix,
+    home_manager_search,
     home_manager_stats,
-    darwin_search,
-    darwin_options_by_prefix,
+    nixos_channels,
+    nixos_info,
+    nixos_search,
+    nixos_stats,
 )
 
 

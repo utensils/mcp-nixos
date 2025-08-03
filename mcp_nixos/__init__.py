@@ -6,7 +6,7 @@ system options, Home Manager configuration options, and nix-darwin macOS configu
 """
 
 try:
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError, version
 
     try:
         __version__ = version("mcp-nixos")

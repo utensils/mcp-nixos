@@ -1,6 +1,7 @@
 """Test eval for package counts per channel functionality."""
 
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 from mcp_nixos.server import nixos_channels, nixos_stats
 
 

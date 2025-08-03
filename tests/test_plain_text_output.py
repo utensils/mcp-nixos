@@ -1,18 +1,18 @@
 """Test suite for plain text output validation."""
 
-from unittest.mock import patch, Mock
-import pytest
+from unittest.mock import Mock, patch
 
+import pytest
 from mcp_nixos.server import (
-    error,
-    nixos_search,
-    nixos_info,
-    nixos_stats,
-    home_manager_search,
-    home_manager_info,
-    home_manager_stats,
-    home_manager_list_options,
     darwin_search,
+    error,
+    home_manager_info,
+    home_manager_list_options,
+    home_manager_search,
+    home_manager_stats,
+    nixos_info,
+    nixos_search,
+    nixos_stats,
 )
 
 

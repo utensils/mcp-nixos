@@ -2,7 +2,6 @@
 """MCP behavior evaluation tests for real-world usage scenarios."""
 
 import pytest
-from typing import Dict
 
 
 class MockAssistant:
@@ -24,7 +23,7 @@ class MockAssistant:
         self.responses.append(result)
         return result
 
-    def analyze_response(self, response: str) -> Dict[str, bool | int]:
+    def analyze_response(self, response: str) -> dict[str, bool | int]:
         """Analyze tool response for key information."""
         analysis = {
             "has_results": "Found" in response or ":" in response,

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Comprehensive tests for the fixes to issues found in Claude Desktop testing."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from mcp_nixos.server import nixos_flakes_search, home_manager_stats, darwin_stats
+from mcp_nixos.server import darwin_stats, home_manager_stats, nixos_flakes_search
 
 
 class TestFlakeSearchDeduplication:

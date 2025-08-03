@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Comprehensive tests for all MCP NixOS tools to identify and fix issues."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from mcp_nixos.server import (
-    nixos_search,
-    nixos_info,
-    home_manager_search,
-    home_manager_info,
-    home_manager_stats,
-    home_manager_list_options,
     darwin_stats,
+    home_manager_info,
+    home_manager_list_options,
+    home_manager_search,
+    home_manager_stats,
+    nixos_info,
+    nixos_search,
 )
 
 
@@ -156,7 +157,7 @@ class TestHTMLParsingIssues:
         assert "Type:" in result or "boolean" in result
         if "Type:" not in result:
             # Type extraction is failing
-            assert False, "Type information not extracted from HTML"
+            raise AssertionError("Type information not extracted from HTML")
 
 
 class TestElasticsearchQueryIssues:

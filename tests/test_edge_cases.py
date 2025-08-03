@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """Comprehensive edge case tests for MCP-NixOS server."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 import requests
 from mcp_nixos.server import (
-    error,
-    es_query,
-    parse_html_options,
-    nixos_search,
-    nixos_info,
-    nixos_stats,
-    home_manager_search,
-    home_manager_info,
-    home_manager_list_options,
-    darwin_search,
     darwin_info,
     darwin_list_options,
     darwin_options_by_prefix,
+    darwin_search,
+    error,
+    es_query,
+    home_manager_info,
+    home_manager_list_options,
+    home_manager_search,
+    nixos_info,
+    nixos_search,
+    nixos_stats,
+    parse_html_options,
 )
 
 

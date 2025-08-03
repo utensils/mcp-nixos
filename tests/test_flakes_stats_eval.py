@@ -1,7 +1,8 @@
 """Test eval for flakes statistics functionality."""
 
-from unittest.mock import patch, Mock
-from mcp_nixos.server import nixos_flakes_stats, nixos_flakes_search
+from unittest.mock import Mock, patch
+
+from mcp_nixos.server import nixos_flakes_search, nixos_flakes_stats
 
 
 class TestFlakesStatsEval:

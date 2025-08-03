@@ -1,10 +1,10 @@
 """Evaluation tests for flake search and improved stats functionality."""
 
-import pytest
-from unittest.mock import patch, MagicMock
-import requests
+from unittest.mock import MagicMock, patch
 
-from mcp_nixos.server import nixos_search, home_manager_stats, darwin_stats
+import pytest
+import requests
+from mcp_nixos.server import darwin_stats, home_manager_stats, nixos_search
 
 
 class TestFlakeSearchEvals:

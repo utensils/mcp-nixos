@@ -219,11 +219,11 @@
             stdenv.cc.cc
 
             # Linters & Formatters
-            ps.black
-            ps.flake8
-            ps.pylint
-            # Standalone pyright package for cross-platform type checking
-            pyright
+            ps.ruff
+            ps.mypy
+            # Type stubs
+            ps.types-requests
+            ps.types-beautifulsoup4
 
             # Testing
             ps.pytest
@@ -355,48 +355,45 @@
             {
               name = "lint";
               category = "development";
-              help = "Format with Black and then lint code with Flake8 and Pylint (only checks format in CI)";
+              help = "Lint code with ruff (checks only in CI)";
               command = ''
                 # Check if running in CI environment
                 if [ "$(printenv CI 2>/dev/null)" != "" ] || [ "$(printenv GITHUB_ACTIONS 2>/dev/null)" != "" ]; then
-                  echo "--- CI detected: Checking formatting with Black ---"
-                  black --check mcp_nixos/ tests/
+                  echo "--- CI detected: Checking with ruff ---"
+                  ruff check mcp_nixos/ tests/
                 else
-                  echo "--- Formatting code with Black ---"
-                  black mcp_nixos/ tests/
+                  echo "--- Linting code with ruff ---"
+                  ruff check mcp_nixos/ tests/
                 fi
-                echo "--- Running Flake8 linter ---"
-                flake8 mcp_nixos/ tests/
-                echo "--- Running Pylint analyzer ---"
-                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
-                python -m pylint mcp_nixos/ tests/ || true
               '';
             }
             {
-              name = "typecheck"; # Added a dedicated command for clarity
+              name = "typecheck";
               category = "development";
-              help = "Run pyright type checker";
-              command = "pyright"; # Direct command
+              help = "Run mypy type checker";
+              command = ''
+                echo "--- Running mypy type checker ---"
+                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
+                mypy mcp_nixos/
+              '';
             }
             {
-              name = "check-pylint";
+              name = "check-ruff";
               category = "development";
-              help = "Run pylint static code analyzer";
+              help = "Run ruff linter with detailed output";
               command = ''
-                echo "--- Running Pylint ---"
-                if [ -z "$VIRTUAL_ENV" ]; then source .venv/bin/activate; fi
-                # Run pylint with reasonable defaults for our project
-                python -m pylint mcp_nixos/ tests/ || true
-                echo "✅ Pylint analysis complete"
+                echo "--- Running ruff check ---"
+                ruff check mcp_nixos/ tests/ --show-fixes
+                echo "✅ Ruff check complete"
               '';
             }
             {
               name = "format";
               category = "development";
-              help = "Format code with Black";
+              help = "Format code with ruff";
               command = ''
-                echo "--- Formatting code with Black ---"
-                black mcp_nixos/ tests/
+                echo "--- Formatting code with ruff ---"
+                ruff format mcp_nixos/ tests/
                 echo "✅ Code formatted"
               '';
             }

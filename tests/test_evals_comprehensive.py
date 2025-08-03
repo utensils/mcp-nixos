@@ -1,22 +1,21 @@
 """Comprehensive evaluation tests for MCP-NixOS following the MCP Evals Guide."""
 
-import pytest
-from unittest.mock import patch
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from unittest.mock import patch
 
+import pytest
 from mcp_nixos.server import (
-    nixos_search,
-    nixos_info,
-    nixos_stats,
-    home_manager_search,
-    home_manager_info,
-    home_manager_list_options,
-    home_manager_options_by_prefix,
-    darwin_search,
     darwin_info,
     darwin_list_options,
     darwin_options_by_prefix,
+    darwin_search,
+    home_manager_info,
+    home_manager_list_options,
+    home_manager_options_by_prefix,
+    home_manager_search,
+    nixos_info,
+    nixos_search,
+    nixos_stats,
 )
 
 
@@ -26,8 +25,8 @@ class EvalScenario:
 
     name: str
     user_query: str
-    expected_tool_calls: List[str]
-    success_criteria: List[str]
+    expected_tool_calls: list[str]
+    success_criteria: list[str]
     description: str = ""
 
 
@@ -38,8 +37,8 @@ class EvalResult:
     scenario: EvalScenario
     passed: bool
     score: float  # 0.0 to 1.0
-    tool_calls_made: List[Tuple[str, dict, str]]  # (tool_name, args, result)
-    criteria_met: Dict[str, bool]
+    tool_calls_made: list[tuple[str, dict, str]]  # (tool_name, args, result)
+    criteria_met: dict[str, bool]
     reasoning: str
 
 
@@ -49,7 +48,7 @@ class MockAIAssistant:
     def __init__(self):
         self.tool_calls = []
 
-    def process_query(self, query: str) -> List[Tuple[str, dict, str]]:
+    def process_query(self, query: str) -> list[tuple[str, dict, str]]:
         """Process a user query and return tool calls made."""
         self.tool_calls = []
 
@@ -185,7 +184,7 @@ class EvalFramework:
             reasoning=reasoning,
         )
 
-    def _check_criteria(self, scenario: EvalScenario, tool_calls: List[Tuple[str, dict, str]]) -> Dict[str, bool]:
+    def _check_criteria(self, scenario: EvalScenario, tool_calls: list[tuple[str, dict, str]]) -> dict[str, bool]:
         """Check which success criteria were met."""
         criteria_met = {}
 
@@ -223,7 +222,7 @@ class EvalFramework:
         return criteria_met
 
     def _generate_reasoning(
-        self, scenario: EvalScenario, tool_calls: List[Tuple[str, dict, str]], criteria_met: Dict[str, bool]
+        self, scenario: EvalScenario, tool_calls: list[tuple[str, dict, str]], criteria_met: dict[str, bool]
     ) -> str:
         """Generate reasoning about the evaluation result."""
         parts = []
@@ -606,7 +605,7 @@ class TestEvalReporting:
         assert score == pytest.approx(0.666, rel=0.01)
         assert score < 0.7  # Below passing threshold
 
-    def generate_eval_report(self, results: List[EvalResult]) -> str:
+    def generate_eval_report(self, results: list[EvalResult]) -> str:
         """Generate a report from evaluation results."""
         total = len(results)
         passed = sum(1 for r in results if r.passed)
@@ -616,7 +615,7 @@ class TestEvalReporting:
 
 ## Summary
 - Total Evaluations: {total}
-- Passed: {passed} ({passed/total*100:.1f}%)
+- Passed: {passed} ({passed / total * 100:.1f}%)
 - Average Score: {avg_score:.2f}
 
 ## Detailed Results

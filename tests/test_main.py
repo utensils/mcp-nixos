@@ -1,9 +1,9 @@
 """Tests for the __main__ module."""
 
-import pytest
-from unittest.mock import patch
 from io import StringIO
+from unittest.mock import patch
 
+import pytest
 from mcp_nixos.__main__ import main
 
 
