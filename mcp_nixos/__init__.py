@@ -11,4 +11,4 @@ try:
     __version__ = version("mcp-nixos")
 except PackageNotFoundError:
     # Package is not installed, use a default version
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
