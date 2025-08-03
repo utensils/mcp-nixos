@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # MCP-NixOS Project Guidelines (v1.0.1)
 
 ## 🚀 Project Philosophy
@@ -194,7 +198,36 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - Use platform-specific test markers (@pytest.mark.windows, @pytest.mark.skipwindows)
   - Ensure tests work consistently across Windows, macOS, and Linux
 
+## High-Level Architecture
+
+The entire MCP server is implemented in a single file (`mcp_nixos/server.py`) with ~500 lines of code:
+
+1. **FastMCP Server**: Uses `@mcp.tool()` decorators for all 13+ tools
+2. **Direct API Integration**: 
+   - Elasticsearch for NixOS search (with hardcoded public auth)
+   - HTML parsing for Home Manager/Darwin docs
+   - REST API for NixHub package versions
+3. **Channel Resolution**: Dynamic discovery of available channels with caching
+4. **Plain Text Formatting**: All tools return human-readable text, no XML/JSON
+5. **Error Handling**: Graceful degradation with helpful error messages
+
+### Cross-API Integration Pattern
+- NixOS tools query Elasticsearch at search.nixos.org
+- Home Manager/Darwin tools parse static HTML documentation
+- NixHub tools query REST API for package version history
+- All APIs are queried directly without abstraction layers
+
 ## Testing Guidelines
+
+### Test Markers and Categories
+```python
+# Custom pytest markers for test organization
+@pytest.mark.unit         # Unit tests with mocked APIs
+@pytest.mark.integration  # Real API integration tests  
+@pytest.mark.eval        # AI evaluation tests (skip in CI for external contributors)
+@pytest.mark.windows     # Windows-specific tests
+@pytest.mark.skipwindows # Skip on Windows
+```
 
 ### Key Implementation Improvements
 - **Dynamic Channel Resolution**: Automatically discovers available channels and determines current stable
@@ -352,6 +385,37 @@ nix develop -c run-tests -- --cov=mcp_nixos
   - `win`: Windows-specific dependencies (pywin32)
 - Nix flake installs core dependencies; FastMCP installed via pip/uv
 
+### Common Development Workflows
+
+#### Adding a New MCP Tool
+1. Add async function in `server.py` with `@mcp.tool()` decorator
+2. Follow naming convention: `<service>_<action>` (e.g., `nixos_search`)
+3. Return plain text string using consistent formatting
+4. Add corresponding tests in appropriate test file
+5. Update tool count in documentation if needed
+
+#### Debugging API Issues
+```bash
+# Test individual APIs directly
+curl -u "aWVSALXpZv:X8gPHnzL52wFEekuxsfQ9cSh" \
+  "https://search.nixos.org/backend/_search"
+
+# Check HTML parsing for Home Manager/Darwin
+curl -s https://nix-community.github.io/home-manager/options.xhtml | grep -A5 "programs.git"
+```
+
+#### Running Specific Test Scenarios
+```bash
+# Test a specific function with verbose output
+nix develop -c run-tests -- tests/test_server.py::test_nixos_search -vv
+
+# Run tests matching a pattern
+nix develop -c run-tests -- -k "flake" -v
+
+# Debug a failing test with pdb
+nix develop -c run-tests -- tests/test_integration.py::test_real_nixos_search --pdb
+```
+
 ### Installation & Usage
 - Install: `pip install mcp-nixos`, `uv pip install mcp-nixos`, `uvx mcp-nixos`
 - Claude Code configuration: Add to `~/.config/claude/config.json`
@@ -431,4 +495,12 @@ tests/                           # Reorganized for clarity (15 files)
 
 Remember: Less code = fewer bugs. Keep it simple!
 
-- **Critical Guideline**: Never bump our version unless explicitly requested
+## Critical Reminders
+
+- **Never bump version** unless explicitly requested by user
+- **No abstraction layers** - Direct API calls only
+- **No caching** - Stateless operation prevents corruption
+- **Plain text only** - No XML in responses, ever
+- **Test behavior, not implementation** - Validate what users see
+- **Use existing patterns** - Don't introduce new complexity
+- **Prefer editing over creating** - Modify existing code when possible

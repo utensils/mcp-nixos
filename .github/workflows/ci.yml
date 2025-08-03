@@ -1,324 +1,161 @@
-# .github/workflows/ci.yml
-#
-# Simplified CI/CD workflow that actually works:
-# - Skips tests for documentation-only changes (on branches only)
-# - Publishes to PyPI on any version tag (v*)
-
 name: CI
 
 on:
-  # Push events - only on main branch or version tags
   push:
-    branches: [main]
-    tags: ["v*"]
-  # Pull requests - only when targeting main branch
+    branches: [ main ]
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
-  # Manual trigger
-  workflow_dispatch:
+    branches: [ main ]
 
-# Cancel in-progress runs when a new commit is pushed
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
 
 jobs:
-  # Detect what changed to determine if we need to run tests (for branches only)
-  changes:
-    name: Detect Changes
+  test:
     runs-on: ubuntu-latest
-    # Only run change detection for non-tag events
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-    outputs:
-      code: ${{ steps.filter.outputs.code }}
-      docs: ${{ steps.filter.outputs.docs }}
-      website: ${{ steps.filter.outputs.website }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Check for changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            code:
-              - 'mcp_nixos/**'
-              - 'tests/**'
-              - 'pyproject.toml'
-              - 'setup.py'
-              - 'requirements.txt'
-              - 'flake.nix'
-              - 'flake.lock'
-              - '.github/workflows/**'
-            docs:
-              - '*.md'
-              - 'LICENSE'
-              - '.env.example'
-            website:
-              - 'website/**'
-
-  # Python matrix test job - tests on multiple Python versions
-  test-python:
-    name: Test Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
-    needs: [changes]
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-    # Always evaluate this condition, even if changes job was skipped
-    if: |
-      always() && (
-        startsWith(github.ref, 'refs/tags/') ||
-        (needs.changes.result == 'success' && needs.changes.outputs.code == 'true' &&
-         (github.event_name == 'pull_request' ||
-          (github.event_name == 'push' && !contains(github.event.head_commit.message, 'Merge pull request'))))
-      )
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
-      
-      - name: Install dependencies
-        run: |
-          uv pip install --system -e ".[dev]"
-      
-      - name: Format check
-        run: ruff format --check mcp_nixos/ tests/
-      
-      - name: Lint
-        run: ruff check mcp_nixos/ tests/
-      
-      - name: Type check
-        run: mypy mcp_nixos/
-      
-      - name: Run tests
-        run: |
-          pytest tests/ -v --cov=mcp_nixos --cov-report=term --cov-report=xml --junitxml=junit.xml
-      
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-          flags: python-${{ matrix.python-version }}
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      
-      - name: Upload test results to Codecov
-        if: always()
-        uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./junit.xml
 
-  # Nix flake test job - only tests with Python 3.12
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+        cache-dependency-glob: "**/pyproject.toml"
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+    
+    - name: Lint with ruff
+      run: |
+        uv run ruff check mcp_nixos/ tests/
+        uv run ruff format --check mcp_nixos/ tests/
+    
+    - name: Type check with mypy
+      run: |
+        uv run mypy mcp_nixos/
+    
+    - name: Test with pytest
+      run: |
+        uv run pytest -v --cov=mcp_nixos --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: utensils/mcp-nixos
+        files: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+    
+    - name: Set up Python
+      run: uv python install 3.12
+    
+    - name: Build package
+      run: |
+        uv build
+    
+    - name: Check package
+      run: |
+        uv run twine check dist/*
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-packages
+        path: dist/
+
   test-nix:
-    name: Test Nix Flake
     runs-on: ubuntu-latest
-    needs: [changes]
-    # Always evaluate this condition, even if changes job was skipped
-    if: |
-      always() && (
-        startsWith(github.ref, 'refs/tags/') ||
-        (needs.changes.result == 'success' && needs.changes.outputs.code == 'true' &&
-         (github.event_name == 'pull_request' ||
-          (github.event_name == 'push' && !contains(github.event.head_commit.message, 'Merge pull request'))))
-      )
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      
-      - name: Cache Nix store
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/nix
-          key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-nix-
-      
-      - name: Build flake
-        run: |
-          nix flake check --accept-flake-config
-          nix develop -c echo "Development environment ready"
-      
-      - name: Test nix run
-        run: |
-          timeout 5s nix run . -- --help || true
-      
-      - name: Run tests in nix develop
-        run: |
-          echo "Running tests in nix environment"
-          nix develop --command setup
-          nix develop --command bash -c 'run-tests'
+    - uses: actions/checkout@v4
+    
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+    
+    - name: Cache Nix store
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/nix
+        key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-nix-
+    
+    - name: Build flake
+      run: |
+        nix flake check --accept-flake-config
+        nix develop -c echo "Development environment ready"
+    
+    - name: Test nix run
+      run: |
+        timeout 5s nix run . -- --help || true
+    
+    - name: Run tests in nix develop
+      run: |
+        echo "Running tests in nix environment"
+        nix develop --command setup
+        nix develop --command bash -c 'run-tests'
 
-  # Website deployment - only on main branch pushes with changes
+  # Website deployment - only on main branch pushes
   deploy-website:
-    name: Deploy Website
-    needs: [changes]
     runs-on: ubuntu-latest
-    # Only deploy if changes were detected and we're on main
-    if: |
-      needs.changes.result == 'success' &&
-      needs.changes.outputs.website == 'true' &&
-      github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' &&
-      !contains(github.event.head_commit.message, 'Merge pull request')
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: AWS
       url: https://mcp-nixos.utensils.io
     permissions:
       id-token: write
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: website/package-lock.json
+    
+    - name: Build and Deploy
+      run: |
+        cd website
+        npm install
+        npm run build
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: website/package-lock.json
-      
-      - name: Build and Deploy
-        run: |
-          cd website
-          npm install
-          npm run build
-        
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      
-      - name: Deploy to S3
-        run: |
-          aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
-          aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
-
-  # Publish to TestPyPI - on all pushes to main and on tags
-  publish-test:
-    name: Publish to TestPyPI
-    needs: [test-python, test-nix]
-    if: |
-      always() &&
-      needs.test-python.result == 'success' &&
-      needs.test-nix.result == 'success' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/mcp-nixos
-    permissions:
-      id-token: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      
-      - name: Build package
-        run: |
-          nix develop --command build
-          ls -l dist/
-      
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
-  # PyPI publishing - only on version tags after TestPyPI succeeds
-  publish:
-    name: Publish to PyPI
-    needs: [test-python, test-nix, publish-test]
-    if: |
-      always() &&
-      needs.test-python.result == 'success' &&
-      needs.test-nix.result == 'success' &&
-      needs.publish-test.result == 'success' &&
-      startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mcp-nixos
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-      
-      - name: Build package
-        run: |
-          nix develop --command build
-          ls -l dist/
-      
-      - name: Verify package
-        run: |
-          python3 -m venv test-env
-          source test-env/bin/activate
-          pip install dist/*.whl
-          python -c "import mcp_nixos; print(f'Version: {mcp_nixos.__version__}')"
-      
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-      
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Extract release notes
-        id: extract_notes
-        run: |
-          # Extract release notes for this version from RELEASE_NOTES.md
-          awk '/^# MCP-NixOS: v${{ steps.version.outputs.version }}/ {flag=1; next} /^# MCP-NixOS: v[0-9]/ {if(flag) exit} flag' RELEASE_NOTES.md > release_notes.txt
-          echo "Release notes extracted"
-      
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body_path: release_notes.txt
-          draft: false
-          prerelease: false
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Deploy to S3
+      run: |
+        aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
+        aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"

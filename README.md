@@ -41,6 +41,19 @@
 }
 ```
 
+### Option 3: Using Docker (Container lovers unite)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItLXJtIiwiLWkiLCJnaGNyLmlvL3V0ZW5zaWxzL21jcC1uaXhvcyJdfQ%3D%3D)
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "ghcr.io/utensils/mcp-nixos"]
+    }
+  }
+}
+```
+
 That's it. Your AI assistant now has access to real NixOS data instead of making things up. You're welcome.
 
 ## What Is This Thing?
