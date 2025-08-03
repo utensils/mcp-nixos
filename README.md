@@ -8,6 +8,8 @@
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/99cc55fb-a5c5-4473-b315-45a6961b2e8c)
 
 > **🎉 REFACTORED**: Version 1.0.0 represents a complete rewrite that drastically simplified everything. We removed all the complex caching, abstractions, and "enterprise" patterns. Because sometimes less is more, and more is just showing off.
+>
+> **🚀 ASYNC UPDATE**: Version 1.0.1 migrated to FastMCP 2.x for modern async goodness. Because who doesn't love adding `await` to everything?
 
 ## Quick Start (Because You Want to Use It NOW)
 
@@ -103,12 +105,13 @@ nix profile install github:utensils/mcp-nixos
 
 ## Features Worth Mentioning
 
-### 🚀 Version 1.0.0: The Great Simplification
-- **Drastically less code** - Removed thousands of lines of complexity
-- **100% functionality** - Everything still works
-- **0% cache corruption** - Because we removed the cache entirely
-- **Stateless operation** - No files to clean up
-- **Direct API access** - No abstraction nonsense
+### 🚀 Version 1.0.1: The Async Revolution (After The Great Simplification)
+- **Drastically less code** - v1.0.0 removed thousands of lines, v1.0.1 made them async
+- **100% functionality** - Everything still works, now with more `await`
+- **0% cache corruption** - Because we removed the cache entirely (still gone!)
+- **Stateless operation** - No files to clean up (async doesn't change this)
+- **Direct API access** - No abstraction nonsense (but now it's async nonsense)
+- **Modern MCP** - FastMCP 2.x because the old MCP was too synchronous
 
 ### 📊 What You Get
 - **Real-time data** - Always current, never stale
@@ -132,25 +135,27 @@ nix develop
 menu  # Shows all available commands
 
 # Common tasks
-run        # Start the server
-run-tests  # Run all tests
-lint       # Format and check code
-typecheck  # Check types
+run        # Start the server (now with FastMCP!)
+run-tests  # Run all tests (now async!)
+lint       # Format and check code (ruff replaced black/flake8)
+typecheck  # Check types (mypy still judges you)
 ```
 
 ### Without Nix (The Path of Pain)
 ```bash
 pip install -e ".[dev]"
-pytest tests/
-black mcp_nixos/
-flake8 mcp_nixos/
+pytest tests/          # Now with asyncio goodness
+ruff format mcp_nixos/ # black is so 2023
+ruff check mcp_nixos/  # flake8 is for boomers
+mypy mcp_nixos/        # Still pedantic as ever
 ```
 
 ### Testing Philosophy
-- **367 tests** that actually test things
-- **Real API calls** because mocks are for cowards
+- **367 tests** that actually test things (now async because why not)
+- **Real API calls** because mocks are for cowards (await real_courage())
 - **Plain text validation** ensuring no XML leaks through
 - **Cross-platform tests** because Windows users deserve pain too
+- **15 test files** down from 29 because organization is a virtue
 
 ## Environment Variables
 
@@ -209,6 +214,6 @@ MIT - Because sharing is caring, even if the code hurts.
 
 ---
 
-_Created by James Brink and maintained by masochists who enjoy Nix._
+_Created by James Brink and maintained by masochists who enjoy Nix and async/await patterns._
 
 _Special thanks to the NixOS project for creating an OS that's simultaneously the best and worst thing ever._
