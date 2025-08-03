@@ -28,7 +28,7 @@ class MockAssistant:
         self.tool_calls = []
         self.responses = []
 
-    def use_tool(self, tool_name: str, **kwargs) -> str:
+    async def use_tool(self, tool_name: str, **kwargs) -> str:
         """Simulate using an MCP tool."""
         from mcp_nixos import server
 
@@ -36,7 +36,7 @@ class MockAssistant:
 
         # Call the actual tool
         tool_func = getattr(server, tool_name)
-        result = tool_func(**kwargs)
+        result = await tool_func(**kwargs)
         self.responses.append(result)
         return result
 
