@@ -1,7 +1,6 @@
 # .github/workflows/ci.yml
 #
 # Simplified CI/CD workflow that actually works:
-# - Always excludes eval tests (expensive - run locally when needed)
 # - Skips tests for documentation-only changes (on branches only)
 # - Publishes to PyPI on any version tag (v*)
 
@@ -107,11 +106,11 @@ jobs:
       - name: Type check
         run: nix develop --command typecheck
       
-      - name: Run tests (always excludes eval tests)
+      - name: Run tests
         run: |
-          echo "Running tests excluding eval tests (eval tests are expensive - run locally when needed)"
+          echo "Running tests"
           nix develop --command setup
-          nix develop --command bash -c 'run-tests -m "not anthropic" --ignore-glob="**/test_*eval*.py"'
+          nix develop --command bash -c 'run-tests'
       
       - name: Upload coverage to Codecov
         if: always()
@@ -175,13 +174,50 @@ jobs:
           aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
           aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
 
-  # PyPI publishing - only on version tags
-  publish:
-    name: Publish to PyPI
+  # Publish to TestPyPI - on all pushes to main and on tags
+  publish-test:
+    name: Publish to TestPyPI
     needs: [test]
     if: |
       always() &&
       needs.test.result == 'success' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/mcp-nixos
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+      
+      - name: Build package
+        run: |
+          nix develop --command build
+          ls -l dist/
+      
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  # PyPI publishing - only on version tags after TestPyPI succeeds
+  publish:
+    name: Publish to PyPI
+    needs: [test, publish-test]
+    if: |
+      always() &&
+      needs.test.result == 'success' &&
+      needs.publish-test.result == 'success' &&
       startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:

@@ -133,7 +133,6 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - `deploy-website`: Deploys to S3/CloudFront when website files change
   - `create-release`: Auto-creates release when merge commit contains `release:`
   - `publish`: Publishes to PyPI on version tags
-- **Test Exclusions**: Anthropic evaluation tests excluded via `-m "not anthropic"` marker
 - **Codecov integration**: Uploads coverage and test results
 - **No redundant runs**: Smart conditions prevent the PR→merge→tag triple-run issue
 
@@ -198,19 +197,6 @@ Official repository: [https://github.com/utensils/mcp-nixos](https://github.com/
   - Ensure tests work consistently across Windows, macOS, and Linux
 
 ## Testing Guidelines
-
-### Evaluation Testing with Anthropic API
-- **Purpose**: Test MCP tools with real AI behavior to ensure practical usability
-- **Setup**: Copy `.env.example` to `.env` and add your Anthropic API key
-- **Local Development**: `run-tests` always includes eval tests (all tests run)
-- **CI/CD Behavior**:
-  - **Repository members**: All tests run including eval tests
-  - **External contributors**: Eval tests are skipped to prevent API credit abuse
-  - Detection is automatic based on GitHub permissions
-- **Run Manually**: `python run_evals.py` or `pytest tests/test_evals_anthropic.py -v`
-- **Scenarios**: Package installation, service configuration, Home Manager integration
-- **Pass Criteria**: 80% of expected behaviors must be observed
-- **Security**: Never commit API keys; use environment variables in CI/CD
 
 ### Key Implementation Improvements
 - **Dynamic Channel Resolution**: Automatically discovers available channels and determines current stable
@@ -332,14 +318,12 @@ All tools return human-readable plain text, not XML or JSON.
 - `test_real_world_scenarios.py` - Complete user workflows (10 tests)
 - `test_channel_handling.py` - Channel validation and suggestions
 - `test_flake_evals.py` - Flake search evaluation tests
-- `test_flake_evals_anthropic.py` - Flake search Anthropic API tests (requires API key)
-- `test_evals_anthropic.py` - Anthropic API evaluation tests (requires API key)
 
 **Running Tests**
 ```bash
 # IMPORTANT: Always use 'nix develop -c' to ensure proper environment!
 
-# All tests (includes Anthropic evals in local development)
+# All tests
 nix develop -c run-tests
 
 # Specific test file
@@ -347,9 +331,6 @@ nix develop -c run-tests -- tests/test_plain_text_output.py -v
 
 # Integration tests only
 nix develop -c run-tests -- --integration
-
-# Include Anthropic evaluation tests explicitly (requires API key)
-nix develop -c run-tests -- -m "anthropic"
 
 # With coverage
 nix develop -c run-tests -- --cov=mcp_nixos
@@ -370,9 +351,8 @@ nix develop -c run-tests -- --cov=mcp_nixos
   - `beautifulsoup4>=4.13.3`: HTML parsing for documentation
 - Optional dependencies defined in `[project.optional-dependencies]`:
   - `dev`: Development tools (pytest, black, flake8, etc.)
-  - `evals`: Evaluation testing (anthropic, python-dotenv)
   - `win`: Windows-specific dependencies (pywin32)
-- Nix flake installs both `dev` and `evals` dependencies for complete development environment
+- Nix flake installs `dev` dependencies for complete development environment
 
 ### Installation & Usage
 - Install: `pip install mcp-nixos`, `uv pip install mcp-nixos`, `uvx mcp-nixos`
@@ -382,10 +362,9 @@ nix develop -c run-tests -- --cov=mcp_nixos
   - Build: `docker build -t mcp-nixos .`
   - Deployed on Smithery.ai as a hosted service
 - Development:
-  - Environment: `nix develop` (includes all dev and eval dependencies)
+  - Environment: `nix develop` (includes all dev dependencies)
   - Run server: `nix develop -c run`
   - Tests: `nix develop -c run-tests`, `nix develop -c run-tests -- --unit`, `nix develop -c run-tests -- --integration`
-  - Evaluation tests: `nix develop -c run-tests -- -m "anthropic"` (requires `ANTHROPIC_API_KEY`)
   - Code quality: `nix develop -c lint`, `nix develop -c typecheck`, `nix develop -c format`, `nix develop -c check-pylint`
   - Stats: `nix develop -c loc`
   - Package: `nix develop -c build`, `nix develop -c publish`

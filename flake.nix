@@ -64,10 +64,10 @@
           if command -v uv >/dev/null 2>&1; then
             echo "(Using uv)"
             # Install with all optional dependencies for development
-            uv pip install ".[dev,evals]"
+            uv pip install ".[dev]"
           else
             echo "(Using pip)"
-            python -m pip install ".[dev,evals]"
+            python -m pip install ".[dev]"
           fi
 
           if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
@@ -315,8 +315,7 @@
                   echo "Using coverage and JUnit XML (CI environment)"
                 fi
                 
-                # For local development, always run all tests including evals
-                # In CI, the workflow will handle excluding anthropic tests for external contributors
+                # Run all tests
                 if [ -n "$TEST_ARGS" ]; then
                   echo "Running: pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"
                   eval "pytest tests/ -v $TEST_ARGS $COVERAGE_ARGS $JUNIT_ARGS $@"

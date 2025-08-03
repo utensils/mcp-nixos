@@ -62,6 +62,10 @@ result
 *~
 .vscode/
 
+# MCP local configuration
+.mcp.json
+.mcp-nix.json
+
 # Misc
 temp
 tmp

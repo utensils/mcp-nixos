@@ -193,9 +193,6 @@ nix run github:utensils/mcp-nixos
 nix profile install github:utensils/mcp-nixos
 ```
 
-### JetBrains IDE Issues
-
-If using with JetBrains IDEs (IntelliJ, PyCharm, etc.), ensure the MCP server is pre-cached before configuring in the IDE to avoid Copilot agent crashes.
 
 ## Acknowledgments
 

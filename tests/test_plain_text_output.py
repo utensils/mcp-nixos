@@ -1,6 +1,7 @@
 """Test suite for plain text output validation."""
 
 from unittest.mock import patch, Mock
+import pytest
 
 from mcp_nixos.server import (
     error,
@@ -13,6 +14,25 @@ from mcp_nixos.server import (
     home_manager_list_options,
     darwin_search,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_channel_cache():
+    """Mock channel cache to avoid API calls during tests."""
+    with patch("mcp_nixos.server.channel_cache") as mock_cache:
+        # Mock the channel cache methods
+        mock_cache.get_resolved.return_value = {
+            "unstable": "latest-43-nixos-unstable",
+            "stable": "latest-43-nixos-25.05",
+            "25.05": "latest-43-nixos-25.05",
+            "24.11": "latest-43-nixos-24.11",
+        }
+        mock_cache.get_available.return_value = {
+            "latest-43-nixos-unstable": 150000,
+            "latest-43-nixos-25.05": 140000,
+            "latest-43-nixos-24.11": 130000,
+        }
+        yield mock_cache
 
 
 class TestPlainTextOutput:

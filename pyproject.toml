@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-nixos"
-version = "1.0.0"
+version = "1.0.1"
 description = "Model Context Protocol server for NixOS, Home Manager, and nix-darwin resources"
 readme = "README.md"
 authors = [
@@ -39,10 +39,6 @@ dev = [
 ]
 win = [
     "pywin32>=306.0",  # Required for Windows-specific file operations and tests
-]
-evals = [
-    "anthropic>=0.34.0",
-    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
