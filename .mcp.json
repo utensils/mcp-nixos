@@ -5,10 +5,10 @@
       "command": "uv",
       "args": [
         "run",
-        "-m",
-        "mcp_nixos"
-      ],
-      "env": {}
+        "--directory",
+        "/Users/jamesbrink/Projects/utensils/mcp-nixos",
+        "mcp-nixos"
+      ]
     }
   }
 }

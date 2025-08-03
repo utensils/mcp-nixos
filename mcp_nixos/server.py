@@ -24,7 +24,6 @@ class DocumentParseError(Exception):
     """Custom exception for document parsing errors."""
 
 
-# Note: formatters.py functions were inlined for simplicity
 mcp = FastMCP("mcp-nixos")
 
 # API Configuration
