@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for robust channel handling functionality."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 import requests
@@ -17,6 +18,7 @@ from mcp_nixos.server import (
 
 class TestChannelHandling:
     """Test robust channel handling functionality."""
+
 
     @patch("requests.post")
     def test_discover_available_channels_success(self, mock_post):
@@ -126,7 +128,8 @@ class TestChannelHandling:
         assert "25.05" in result
 
     @patch("mcp_nixos.server.channel_cache.get_available")
-    def test_nixos_channels_tool(self, mock_discover):
+    @pytest.mark.asyncio
+    async def test_nixos_channels_tool(self, mock_discover):
         """Test nixos_channels tool output."""
         mock_discover.return_value = {
             "latest-43-nixos-unstable": "151,798 documents",
@@ -134,7 +137,7 @@ class TestChannelHandling:
             "latest-43-nixos-24.11": "142,034 documents",
         }
 
-        result = nixos_channels()
+        result = await nixos_channels()
 
         assert "NixOS Channels" in result  # Match both old and new format
         assert "unstable → latest-43-nixos-unstable" in result or "unstable \u2192 latest-43-nixos-unstable" in result
@@ -143,18 +146,20 @@ class TestChannelHandling:
         assert "151,798 documents" in result
 
     @patch("mcp_nixos.server.channel_cache.get_available")
-    def test_nixos_channels_with_unavailable(self, mock_discover):
+    @pytest.mark.asyncio
+    async def test_nixos_channels_with_unavailable(self, mock_discover):
         """Test nixos_channels tool with some unavailable channels."""
         # Only return some channels as available
         mock_discover.return_value = {"latest-43-nixos-unstable": "151,798 documents"}
 
-        result = nixos_channels()
+        result = await nixos_channels()
 
         assert "✓ Available" in result
         assert "✗ Unavailable" in result
 
     @patch("mcp_nixos.server.channel_cache.get_available")
-    def test_nixos_channels_with_extra_discovered(self, mock_discover):
+    @pytest.mark.asyncio
+    async def test_nixos_channels_with_extra_discovered(self, mock_discover):
         """Test nixos_channels with extra discovered channels."""
         mock_discover.return_value = {
             "latest-43-nixos-unstable": "151,798 documents",
@@ -162,22 +167,24 @@ class TestChannelHandling:
             "latest-44-nixos-unstable": "152,000 documents",  # New channel
         }
 
-        result = nixos_channels()
+        result = await nixos_channels()
 
         assert "Additional available channels:" in result
         assert "latest-44-nixos-unstable" in result
 
-    def test_nixos_stats_with_invalid_channel(self):
+    @pytest.mark.asyncio
+    async def test_nixos_stats_with_invalid_channel(self):
         """Test nixos_stats with invalid channel shows suggestions."""
-        result = nixos_stats("invalid-channel")
+        result = await nixos_stats("invalid-channel")
 
         assert "Error (ERROR):" in result
         assert "Invalid channel 'invalid-channel'" in result
         assert "Available channels:" in result
 
-    def test_nixos_search_with_invalid_channel(self):
+    @pytest.mark.asyncio
+    async def test_nixos_search_with_invalid_channel(self):
         """Test nixos_search with invalid channel shows suggestions."""
-        result = nixos_search("test", channel="invalid-channel")
+        result = await nixos_search("test", channel="invalid-channel")
 
         assert "Error (ERROR):" in result
         assert "Invalid channel 'invalid-channel'" in result
@@ -221,11 +228,12 @@ class TestChannelHandling:
         assert result is False
 
     @patch("mcp_nixos.server.channel_cache.get_available")
-    def test_nixos_channels_handles_exceptions(self, mock_discover):
+    @pytest.mark.asyncio
+    async def test_nixos_channels_handles_exceptions(self, mock_discover):
         """Test nixos_channels tool handles exceptions gracefully."""
         mock_discover.side_effect = Exception("Discovery failed")
 
-        result = nixos_channels()
+        result = await nixos_channels()
         assert "Error (ERROR):" in result
         assert "Discovery failed" in result
 

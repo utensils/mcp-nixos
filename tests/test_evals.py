@@ -20,7 +20,8 @@ class TestPackageDiscoveryEvals:
                 yield mock_cache
 
     @patch("mcp_nixos.server.requests.post")
-    def test_find_vscode_package(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_find_vscode_package(self, mock_post):
         """User wants to install VSCode - should find the correct package."""
         # Mock search response
         mock_response = Mock()
@@ -41,7 +42,7 @@ class TestPackageDiscoveryEvals:
         mock_post.return_value = mock_response
 
         # Simulate tool call that AI would make
-        result = nixos_search("vscode", search_type="packages")
+        result = await nixos_search("vscode", search_type="packages")
 
         # Verify AI would get useful results
         assert "Found 1 packages matching 'vscode':" in result
@@ -49,7 +50,8 @@ class TestPackageDiscoveryEvals:
         assert "Open source source code editor developed by Microsoft" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_find_git_command(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_find_git_command(self, mock_post):
         """User wants 'git' command - should search programs and get package info."""
         # First call - search programs
         search_response = Mock()
@@ -88,12 +90,12 @@ class TestPackageDiscoveryEvals:
         mock_post.side_effect = [search_response, info_response]
 
         # AI would first search for the program
-        result1 = nixos_search("git", search_type="programs")
+        result1 = await nixos_search("git", search_type="programs")
         assert "Found 1 programs matching 'git':" in result1
         assert "• git (provided by git)" in result1
 
         # Then get detailed info
-        result2 = nixos_info("git", type="package")
+        result2 = await nixos_info("git", type="package")
         assert "Package: git" in result2
         assert "Version: 2.43.0" in result2
         assert "Distributed version control system" in result2
@@ -113,7 +115,8 @@ class TestServiceConfigurationEvals:
                 yield mock_cache
 
     @patch("mcp_nixos.server.requests.post")
-    def test_nginx_setup(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_nginx_setup(self, mock_post):
         """User wants to set up nginx - should find service options."""
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -141,7 +144,7 @@ class TestServiceConfigurationEvals:
         mock_post.return_value = mock_response
 
         # AI searches for nginx options
-        result = nixos_search("nginx", search_type="options")
+        result = await nixos_search("nginx", search_type="options")
 
         # Should get service configuration options
         assert "Found 2 options matching 'nginx':" in result
@@ -154,7 +157,8 @@ class TestHomeManagerIntegrationEvals:
     """Evaluations for Home Manager configuration scenarios."""
 
     @patch("mcp_nixos.server.requests.get")
-    def test_git_user_config(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_git_user_config(self, mock_get):
         """User wants to configure git via Home Manager."""
         mock_response = Mock()
         mock_response.text = """
@@ -180,7 +184,7 @@ class TestHomeManagerIntegrationEvals:
         mock_get.return_value = mock_response
 
         # AI searches for git configuration
-        result = home_manager_search("git")
+        result = await home_manager_search("git")
 
         # Should find user-level git options
         assert "Found 3 Home Manager options matching 'git':" in result
@@ -193,7 +197,8 @@ class TestDarwinPlatformEvals:
     """Evaluations for macOS-specific scenarios."""
 
     @patch("mcp_nixos.server.requests.get")
-    def test_macos_dock_settings(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_macos_dock_settings(self, mock_get):
         """User wants to configure macOS dock behavior."""
         mock_response = Mock()
         mock_response.text = """
@@ -214,7 +219,7 @@ class TestDarwinPlatformEvals:
         mock_get.return_value = mock_response
 
         # AI searches for dock settings
-        result = darwin_search("dock")
+        result = await darwin_search("dock")
 
         # Should find macOS dock options
         assert "Found 2 nix-darwin options matching 'dock':" in result
@@ -235,22 +240,24 @@ class TestErrorHandlingEvals:
                 mock_validate.return_value = True
                 yield mock_cache
 
-    def test_invalid_channel_error(self):
+    @pytest.mark.asyncio
+    async def test_invalid_channel_error(self):
         """User specifies invalid channel - should get clear error."""
-        result = nixos_search("firefox", channel="invalid-channel")
+        result = await nixos_search("firefox", channel="invalid-channel")
 
         # Should get a clear error message
         assert "Error (ERROR): Invalid channel 'invalid-channel'" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_package_not_found(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_package_not_found(self, mock_post):
         """User searches for non-existent package."""
         mock_response = Mock()
         mock_response.json.return_value = {"hits": {"hits": []}}
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = nixos_info("nonexistentpackage", type="package")
+        result = await nixos_info("nonexistentpackage", type="package")
 
         # Should get informative not found error
         assert "Error (NOT_FOUND): Package 'nonexistentpackage' not found" in result
@@ -271,7 +278,8 @@ class TestCompleteScenarioEval:
 
     @patch("mcp_nixos.server.requests.post")
     @patch("mcp_nixos.server.requests.get")
-    def test_complete_firefox_installation_flow(self, mock_get, mock_post):
+    @pytest.mark.asyncio
+    async def test_complete_firefox_installation_flow(self, mock_get, mock_post):
         """Complete flow: user wants Firefox with specific Home Manager config."""
         # Step 1: Search for Firefox package
         search_resp = Mock()
@@ -327,17 +335,17 @@ class TestCompleteScenarioEval:
 
         # Execute the flow
         # 1. Search for Firefox
-        result1 = nixos_search("firefox")
+        result1 = await nixos_search("firefox")
         assert "Found 1 packages matching 'firefox':" in result1
         assert "• firefox (121.0)" in result1
 
         # 2. Get detailed info
-        result2 = nixos_info("firefox")
+        result2 = await nixos_info("firefox")
         assert "Package: firefox" in result2
         assert "Homepage: https://www.mozilla.org/firefox/" in result2
 
         # 3. Check Home Manager options
-        result3 = home_manager_search("firefox")
+        result3 = await home_manager_search("firefox")
         assert "• programs.firefox.enable" in result3
 
         # AI should now have all info needed to guide user through installation

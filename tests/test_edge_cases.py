@@ -159,49 +159,53 @@ class TestEdgeCases:
         assert "programs.firefox.profiles" in options[1]["name"]
         assert "search" in options[1]["name"]
 
-    def test_nixos_search_invalid_parameters(self):
+    @pytest.mark.asyncio
+    async def test_nixos_search_invalid_parameters(self):
         """Test nixos_search with various invalid parameters."""
         # Invalid type
-        result = nixos_search("test", search_type="invalid")
+        result = await nixos_search("test", search_type="invalid")
         assert "Error (ERROR): Invalid type 'invalid'" in result
 
         # Invalid channel
-        result = nixos_search("test", channel="nonexistent")
+        result = await nixos_search("test", channel="nonexistent")
         assert "Error (ERROR): Invalid channel 'nonexistent'" in result
 
         # Invalid limit (too low)
-        result = nixos_search("test", limit=0)
+        result = await nixos_search("test", limit=0)
         assert "Error (ERROR): Limit must be 1-100" in result
 
         # Invalid limit (too high)
-        result = nixos_search("test", limit=101)
+        result = await nixos_search("test", limit=101)
         assert "Error (ERROR): Limit must be 1-100" in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_nixos_search_with_empty_query(self, mock_es_query):
+    @pytest.mark.asyncio
+    async def test_nixos_search_with_empty_query(self, mock_es_query):
         """Test searching with empty query string."""
         mock_es_query.return_value = []
 
-        result = nixos_search("")
+        result = await nixos_search("")
         assert "No packages found matching ''" in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_nixos_search_programs_edge_case(self, mock_es_query):
+    @pytest.mark.asyncio
+    async def test_nixos_search_programs_edge_case(self, mock_es_query):
         """Test programs search when program name doesn't match query."""
         mock_es_query.return_value = [
             {"_source": {"package_pname": "coreutils", "package_programs": ["ls", "cp", "mv", "rm"]}}
         ]
 
         # Search for 'ls' should find it in programs
-        result = nixos_search("ls", search_type="programs")
+        result = await nixos_search("ls", search_type="programs")
         assert "ls (provided by coreutils)" in result
 
         # Search for 'grep' should not show coreutils
-        result = nixos_search("grep", search_type="programs")
+        result = await nixos_search("grep", search_type="programs")
         assert "coreutils" not in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_nixos_info_with_missing_fields(self, mock_es_query):
+    @pytest.mark.asyncio
+    async def test_nixos_info_with_missing_fields(self, mock_es_query):
         """Test nixos_info when response has missing fields."""
         # Package with minimal fields
         mock_es_query.return_value = [
@@ -213,13 +217,14 @@ class TestEdgeCases:
             }
         ]
 
-        result = nixos_info("minimal-pkg", type="package")
+        result = await nixos_info("minimal-pkg", type="package")
         assert "Package: minimal-pkg" in result
         assert "Version: " in result  # Empty version
         # Should not crash on missing fields
 
     @patch("mcp_nixos.server.es_query")
-    def test_nixos_info_option_html_stripping(self, mock_es_query):
+    @pytest.mark.asyncio
+    async def test_nixos_info_option_html_stripping(self, mock_es_query):
         """Test HTML stripping in option descriptions."""
         mock_es_query.return_value = [
             {
@@ -235,13 +240,14 @@ class TestEdgeCases:
             }
         ]
 
-        result = nixos_info("test.option", type="option")
+        result = await nixos_info("test.option", type="option")
         assert "Description: This is a test option with links" in result
         assert "<" not in result  # No HTML tags
         assert ">" not in result
 
     @patch("requests.post")
-    def test_nixos_stats_partial_failure(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_nixos_stats_partial_failure(self, mock_post):
         """Test nixos_stats when one count request fails."""
         # First call succeeds
         mock_resp1 = Mock()
@@ -253,21 +259,23 @@ class TestEdgeCases:
 
         mock_post.side_effect = [mock_resp1, mock_resp2]
 
-        result = nixos_stats()
+        result = await nixos_stats()
         # With improved error handling, it should show 0 for failed count
         assert "Options: 0" in result or "Error (ERROR):" in result
 
-    def test_home_manager_search_edge_cases(self):
+    @pytest.mark.asyncio
+    async def test_home_manager_search_edge_cases(self):
         """Test home_manager_search with edge cases."""
         # Invalid limit
-        result = home_manager_search("test", limit=0)
+        result = await home_manager_search("test", limit=0)
         assert "Error (ERROR): Limit must be 1-100" in result
 
-        result = home_manager_search("test", limit=101)
+        result = await home_manager_search("test", limit=101)
         assert "Error (ERROR): Limit must be 1-100" in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_home_manager_info_exact_match(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_home_manager_info_exact_match(self, mock_parse):
         """Test home_manager_info requires exact name match."""
         mock_parse.return_value = [
             {"name": "programs.git", "description": "Git program", "type": ""},
@@ -275,16 +283,17 @@ class TestEdgeCases:
         ]
 
         # Should find exact match
-        result = home_manager_info("programs.git.enable")
+        result = await home_manager_info("programs.git.enable")
         assert "Option: programs.git.enable" in result
         assert "Enable git" in result
 
         # Should not find partial match
-        result = home_manager_info("programs.git.en")
+        result = await home_manager_info("programs.git.en")
         assert "Error (NOT_FOUND):" in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_home_manager_list_options_category_extraction(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_home_manager_list_options_category_extraction(self, mock_parse):
         """Test category extraction from option names."""
         mock_parse.return_value = [
             {"name": "programs.git.enable", "description": "", "type": ""},
@@ -294,14 +303,15 @@ class TestEdgeCases:
             {"name": "single", "description": "No category", "type": ""},  # Edge case: no dot
         ]
 
-        result = home_manager_list_options()
+        result = await home_manager_list_options()
         assert "programs (2 options)" in result
         assert "services (1 options)" in result
         assert "xdg (1 options)" in result
         assert "single (1 options)" in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_darwin_options_by_prefix_sorting(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_darwin_options_by_prefix_sorting(self, mock_parse):
         """Test darwin_options_by_prefix sorts results."""
         mock_parse.return_value = [
             {"name": "system.defaults.c", "description": "Option C", "type": ""},
@@ -309,7 +319,7 @@ class TestEdgeCases:
             {"name": "system.defaults.b", "description": "Option B", "type": ""},
         ]
 
-        result = darwin_options_by_prefix("system.defaults")
+        result = await darwin_options_by_prefix("system.defaults")
         lines = result.split("\n")
 
         # Find option lines (those starting with •)
@@ -318,33 +328,34 @@ class TestEdgeCases:
         assert option_lines[1] == "• system.defaults.b"
         assert option_lines[2] == "• system.defaults.c"
 
-    def test_all_tools_handle_exceptions_gracefully(self):
+    @pytest.mark.asyncio
+    async def test_all_tools_handle_exceptions_gracefully(self):
         """Test that all tools handle exceptions and return error messages."""
         with patch("requests.post", side_effect=Exception("Network error")):
-            result = nixos_search("test")
+            result = await nixos_search("test")
             assert "Error (ERROR):" in result
 
-            result = nixos_info("test")
+            result = await nixos_info("test")
             assert "Error (ERROR):" in result
 
-            result = nixos_stats()
+            result = await nixos_stats()
             assert "Error (ERROR):" in result
 
         with patch("requests.get", side_effect=Exception("Network error")):
-            result = home_manager_search("test")
+            result = await home_manager_search("test")
             assert "Error (ERROR):" in result
 
-            result = home_manager_info("test")
+            result = await home_manager_info("test")
             assert "Error (ERROR):" in result
 
-            result = home_manager_list_options()
+            result = await home_manager_list_options()
             assert "Error (ERROR):" in result
 
-            result = darwin_search("test")
+            result = await darwin_search("test")
             assert "Error (ERROR):" in result
 
-            result = darwin_info("test")
+            result = await darwin_info("test")
             assert "Error (ERROR):" in result
 
-            result = darwin_list_options()
+            result = await darwin_list_options()
             assert "Error (ERROR):" in result

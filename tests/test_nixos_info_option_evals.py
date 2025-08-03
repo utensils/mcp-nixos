@@ -10,7 +10,8 @@ class TestNixosInfoOptionEvals:
     """Evaluation tests for nixos_info with options."""
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_services_nginx_enable_info(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_services_nginx_enable_info(self, mock_query):
         """Evaluate getting info about services.nginx.enable option."""
         # Mock the API response
         mock_query.return_value = [
@@ -26,7 +27,7 @@ class TestNixosInfoOptionEvals:
         ]
 
         # User query equivalent: "Get details about services.nginx.enable"
-        result = nixos_info("services.nginx.enable", type="option")
+        result = await nixos_info("services.nginx.enable", type="option")
 
         # Expected behaviors:
         # 1. Should use correct option name without .keyword suffix
@@ -56,7 +57,8 @@ class TestNixosInfoOptionEvals:
         assert all(char not in result for char in ["<", ">"] if char not in ["<name>"])
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_nested_option_lookup(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_nested_option_lookup(self, mock_query):
         """Evaluate looking up deeply nested options."""
         # Mock response for nested option
         mock_query.return_value = [
@@ -71,7 +73,7 @@ class TestNixosInfoOptionEvals:
         ]
 
         # User query: "Show me the services.xserver.displayManager.gdm.enable option"
-        result = nixos_info("services.xserver.displayManager.gdm.enable", type="option")
+        result = await nixos_info("services.xserver.displayManager.gdm.enable", type="option")
 
         # Expected: should handle long hierarchical names correctly
         assert "Option: services.xserver.displayManager.gdm.enable" in result
@@ -79,13 +81,14 @@ class TestNixosInfoOptionEvals:
         assert "GDM display manager" in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_option_not_found_behavior(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_option_not_found_behavior(self, mock_query):
         """Evaluate behavior when option is not found."""
         # Mock empty response
         mock_query.return_value = []
 
         # User query: "Get info about services.fake.option"
-        result = nixos_info("services.fake.option", type="option")
+        result = await nixos_info("services.fake.option", type="option")
 
         # Expected: clear error message
         assert "Error (NOT_FOUND):" in result
@@ -93,7 +96,8 @@ class TestNixosInfoOptionEvals:
         assert "Option" in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_common_options_lookup(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_common_options_lookup(self, mock_query):
         """Evaluate looking up commonly used NixOS options."""
         common_options = [
             ("boot.loader.grub.enable", "boolean", "Whether to enable the GRUB boot loader"),
@@ -113,7 +117,7 @@ class TestNixosInfoOptionEvals:
                 }
             ]
 
-            result = nixos_info(option_name, type="option")
+            result = await nixos_info(option_name, type="option")
 
             # Verify each option is handled correctly
             assert f"Option: {option_name}" in result
@@ -121,7 +125,8 @@ class TestNixosInfoOptionEvals:
             assert description in result or description.replace("<name>", "_name_") in result
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_option_with_complex_html(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_option_with_complex_html(self, mock_query):
         """Evaluate handling of options with complex HTML descriptions."""
         mock_query.return_value = [
             {
@@ -141,7 +146,7 @@ class TestNixosInfoOptionEvals:
             }
         ]
 
-        result = nixos_info("programs.firefox.policies", type="option")
+        result = await nixos_info("programs.firefox.policies", type="option")
 
         # Should clean up HTML nicely
         assert "Option: programs.firefox.policies" in result
@@ -156,10 +161,11 @@ class TestNixosInfoOptionEvals:
         assert "</p>" not in result
 
     @pytest.mark.integration
-    def test_eval_real_option_lookup_integration(self):
+    @pytest.mark.asyncio
+    async def test_eval_real_option_lookup_integration(self):
         """Integration test: evaluate real option lookup behavior."""
         # Test with a real option that should exist
-        result = nixos_info("services.nginx.enable", type="option")
+        result = await nixos_info("services.nginx.enable", type="option")
 
         if "NOT_FOUND" not in result:
             # If found (API is available)

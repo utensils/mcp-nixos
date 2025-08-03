@@ -252,7 +252,8 @@ class TestPackageDiscoveryEvals:
         self.framework = EvalFramework()
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_find_vscode_package(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_find_vscode_package(self, mock_query):
         """Eval: User wants to install VSCode."""
         # Mock responses
         mock_query.return_value = [
@@ -269,8 +270,8 @@ class TestPackageDiscoveryEvals:
             name="find_vscode",
             user_query="I want to install VSCode on NixOS",
             expected_tool_calls=[
-                "nixos_search(query='vscode', search_type='packages')",
-                "nixos_info(name='vscode', type='package')",
+                "await nixos_search(query='vscode', search_type='packages')",
+                "await nixos_info(name='vscode', type='package')",
             ],
             success_criteria=["finds vscode package", "mentions configuration.nix", "provides installation syntax"],
         )
@@ -284,7 +285,8 @@ class TestPackageDiscoveryEvals:
         assert any("vscode" in str(call) for call in result.tool_calls_made)
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_find_git_command(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_find_git_command(self, mock_query):
         """Eval: User wants git command."""
 
         # Mock different responses for different queries
@@ -308,8 +310,8 @@ class TestPackageDiscoveryEvals:
             name="find_git_command",
             user_query="How do I get the 'git' command on NixOS?",
             expected_tool_calls=[
-                "nixos_search(query='git', search_type='programs')",
-                "nixos_info(name='git', type='package')",
+                "await nixos_search(query='git', search_type='programs')",
+                "await nixos_info(name='git', type='package')",
             ],
             success_criteria=[
                 "identifies git package",
@@ -324,7 +326,8 @@ class TestPackageDiscoveryEvals:
         assert any("programs" in str(call[1]) for call in result.tool_calls_made)
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_package_comparison(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_package_comparison(self, mock_query):
         """Eval: User needs to compare packages."""
 
         # Mock responses for firefox variants
@@ -347,9 +350,9 @@ class TestPackageDiscoveryEvals:
             name="compare_firefox_variants",
             user_query="What's the difference between firefox and firefox-esr?",
             expected_tool_calls=[
-                "nixos_search(query='firefox', search_type='packages')",
-                "nixos_info(name='firefox', type='package')",
-                "nixos_info(name='firefox-esr', type='package')",
+                "await nixos_search(query='firefox', search_type='packages')",
+                "await nixos_info(name='firefox', type='package')",
+                "await nixos_info(name='firefox-esr', type='package')",
             ],
             success_criteria=[
                 "explains ESR vs regular versions",
@@ -372,7 +375,8 @@ class TestServiceConfigurationEvals:
         self.framework = EvalFramework()
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_nginx_setup(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_nginx_setup(self, mock_query):
         """Eval: User wants to set up nginx."""
         mock_query.return_value = [
             {
@@ -388,9 +392,9 @@ class TestServiceConfigurationEvals:
             name="nginx_setup",
             user_query="How do I set up nginx on NixOS to serve static files?",
             expected_tool_calls=[
-                "nixos_search(query='services.nginx', search_type='options')",
-                "nixos_info(name='services.nginx.enable', type='option')",
-                "nixos_info(name='services.nginx.virtualHosts', type='option')",
+                "await nixos_search(query='services.nginx', search_type='options')",
+                "await nixos_info(name='services.nginx.enable', type='option')",
+                "await nixos_info(name='services.nginx.virtualHosts', type='option')",
             ],
             success_criteria=[
                 "enables nginx service",
@@ -407,7 +411,8 @@ class TestServiceConfigurationEvals:
         assert any("nginx" in call[2] for call in result.tool_calls_made)
 
     @patch("mcp_nixos.server.es_query")
-    def test_eval_database_setup(self, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_database_setup(self, mock_query):
         """Eval: User wants PostgreSQL setup."""
         mock_query.return_value = [
             {
@@ -425,10 +430,10 @@ class TestServiceConfigurationEvals:
             name="postgresql_setup",
             user_query="Set up PostgreSQL with a database for my app",
             expected_tool_calls=[
-                "nixos_search(query='services.postgresql', search_type='options')",
-                "nixos_info(name='services.postgresql.enable', type='option')",
-                "nixos_info(name='services.postgresql.ensureDatabases', type='option')",
-                "nixos_info(name='services.postgresql.ensureUsers', type='option')",
+                "await nixos_search(query='services.postgresql', search_type='options')",
+                "await nixos_info(name='services.postgresql.enable', type='option')",
+                "await nixos_info(name='services.postgresql.ensureDatabases', type='option')",
+                "await nixos_info(name='services.postgresql.ensureUsers', type='option')",
             ],
             success_criteria=[
                 "enables postgresql service",
@@ -453,7 +458,8 @@ class TestHomeManagerIntegrationEvals:
 
     @patch("mcp_nixos.server.es_query")
     @patch("mcp_nixos.server.parse_html_options")
-    def test_eval_user_vs_system_config(self, mock_parse, mock_query):
+    @pytest.mark.asyncio
+    async def test_eval_user_vs_system_config(self, mock_parse, mock_query):
         """Eval: User confused about where to configure git."""
         # Mock system package
         mock_query.return_value = [
@@ -478,9 +484,9 @@ class TestHomeManagerIntegrationEvals:
             name="git_config_location",
             user_query="Should I configure git in NixOS or Home Manager?",
             expected_tool_calls=[
-                "nixos_search(query='git', search_type='packages')",
-                "home_manager_search(query='programs.git')",
-                "home_manager_info(name='programs.git.enable')",
+                "await nixos_search(query='git', search_type='packages')",
+                "await home_manager_search(query='programs.git')",
+                "await home_manager_info(name='programs.git.enable')",
             ],
             success_criteria=[
                 "explains system vs user configuration",
@@ -496,7 +502,8 @@ class TestHomeManagerIntegrationEvals:
         assert any("home_manager" in call[0] for call in result.tool_calls_made)
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_eval_dotfiles_management(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_eval_dotfiles_management(self, mock_parse):
         """Eval: User wants to manage shell config."""
         mock_parse.return_value = [
             {"name": "programs.zsh.enable", "type": "boolean", "description": "Enable zsh"},
@@ -507,9 +514,9 @@ class TestHomeManagerIntegrationEvals:
             name="shell_config",
             user_query="How do I manage my shell configuration with Home Manager?",
             expected_tool_calls=[
-                "home_manager_search(query='programs.zsh')",
-                "home_manager_info(name='programs.zsh.enable')",
-                "home_manager_options_by_prefix(option_prefix='programs.zsh')",
+                "await home_manager_search(query='programs.zsh')",
+                "await home_manager_info(name='programs.zsh.enable')",
+                "await home_manager_options_by_prefix(option_prefix='programs.zsh')",
             ],
             success_criteria=[
                 "enables shell program",
@@ -531,7 +538,8 @@ class TestDarwinPlatformEvals:
         self.framework = EvalFramework()
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_eval_macos_dock_settings(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_eval_macos_dock_settings(self, mock_parse):
         """Eval: User wants to configure macOS dock."""
         mock_parse.return_value = [
             {"name": "system.defaults.dock.autohide", "type": "boolean", "description": "Auto-hide dock"},
@@ -542,9 +550,9 @@ class TestDarwinPlatformEvals:
             name="macos_dock_config",
             user_query="How do I configure dock settings with nix-darwin?",
             expected_tool_calls=[
-                "darwin_search(query='system.defaults.dock')",
-                "darwin_info(name='system.defaults.dock.autohide')",
-                "darwin_options_by_prefix(option_prefix='system.defaults.dock')",
+                "await darwin_search(query='system.defaults.dock')",
+                "await darwin_info(name='system.defaults.dock.autohide')",
+                "await darwin_options_by_prefix(option_prefix='system.defaults.dock')",
             ],
             success_criteria=[
                 "finds dock configuration options",
@@ -564,12 +572,13 @@ class TestDarwinPlatformEvals:
 class TestEvalReporting:
     """Test evaluation reporting functionality."""
 
-    def test_eval_result_generation(self):
+    @pytest.mark.asyncio
+    async def test_eval_result_generation(self):
         """Test that eval results are properly generated."""
         scenario = EvalScenario(
             name="test_scenario",
             user_query="Test query",
-            expected_tool_calls=["nixos_search(query='test')"],
+            expected_tool_calls=["await nixos_search(query='test')"],
             success_criteria=["finds test package"],
         )
 
@@ -634,7 +643,8 @@ class TestCompleteEvalSuite:
     """Run complete evaluation suite."""
 
     @pytest.mark.integration
-    def test_run_all_evals(self):
+    @pytest.mark.asyncio
+    async def test_run_all_evals(self):
         """Run all evaluation scenarios and generate report."""
         # This would run all eval scenarios and generate a comprehensive report
         # For brevity, just verify the structure exists
@@ -643,19 +653,19 @@ class TestCompleteEvalSuite:
             EvalScenario(
                 name="basic_package_install",
                 user_query="How do I install Firefox?",
-                expected_tool_calls=["nixos_search(query='firefox')"],
+                expected_tool_calls=["await nixos_search(query='firefox')"],
                 success_criteria=["finds firefox package"],
             ),
             EvalScenario(
                 name="service_config",
                 user_query="Configure nginx web server",
-                expected_tool_calls=["nixos_search(query='nginx', search_type='options')"],
+                expected_tool_calls=["await nixos_search(query='nginx', search_type='options')"],
                 success_criteria=["finds nginx options"],
             ),
             EvalScenario(
                 name="home_manager_usage",
                 user_query="Should I use Home Manager for git config?",
-                expected_tool_calls=["home_manager_search(query='git')"],
+                expected_tool_calls=["await home_manager_search(query='git')"],
                 success_criteria=["recommends Home Manager"],
             ),
         ]

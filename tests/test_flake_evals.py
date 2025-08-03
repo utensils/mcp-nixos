@@ -122,12 +122,13 @@ class TestFlakeSearchEvals:
         return {"hits": {"total": {"value": 0}, "hits": []}}
 
     @patch("requests.post")
-    def test_flake_search_basic(self, mock_post, mock_flake_response):
+    @pytest.mark.asyncio
+    async def test_flake_search_basic(self, mock_post, mock_flake_response):
         """Test basic flake search functionality."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_flake_response
 
-        result = nixos_search("neovim", search_type="flakes")
+        result = await nixos_search("neovim", search_type="flakes")
 
         # Verify API call
         mock_post.assert_called_once()
@@ -146,12 +147,13 @@ class TestFlakeSearchEvals:
         assert "• neovim-nightly" in result
 
     @patch("requests.post")
-    def test_flake_search_deduplication(self, mock_post, mock_flake_response):
+    @pytest.mark.asyncio
+    async def test_flake_search_deduplication(self, mock_post, mock_flake_response):
         """Test that flake deduplication works correctly."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_flake_response
 
-        result = nixos_search("neovim", search_type="flakes")
+        result = await nixos_search("neovim", search_type="flakes")
 
         # Should deduplicate neovim-nightly entries
         assert result.count("neovim-nightly") == 1
@@ -159,12 +161,13 @@ class TestFlakeSearchEvals:
         assert "Neovim nightly builds" in result
 
     @patch("requests.post")
-    def test_flake_search_popular(self, mock_post, mock_popular_flakes_response):
+    @pytest.mark.asyncio
+    async def test_flake_search_popular(self, mock_post, mock_popular_flakes_response):
         """Test searching for popular flakes."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_popular_flakes_response
 
-        result = nixos_search("home-manager devenv agenix", search_type="flakes")
+        result = await nixos_search("home-manager devenv agenix", search_type="flakes")
 
         assert "Found 5 total matches (4 unique flakes)" in result or "Found 4 unique flakes" in result
         assert "• home-manager" in result
@@ -175,17 +178,19 @@ class TestFlakeSearchEvals:
         assert "age-encrypted secrets for NixOS" in result
 
     @patch("requests.post")
-    def test_flake_search_no_results(self, mock_post, mock_empty_response):
+    @pytest.mark.asyncio
+    async def test_flake_search_no_results(self, mock_post, mock_empty_response):
         """Test flake search with no results."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_empty_response
 
-        result = nixos_search("nonexistentflake123", search_type="flakes")
+        result = await nixos_search("nonexistentflake123", search_type="flakes")
 
         assert "No flakes found" in result
 
     @patch("requests.post")
-    def test_flake_search_wildcard(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_wildcard(self, mock_post):
         """Test flake search with wildcard patterns."""
         mock_response = {
             "hits": {
@@ -216,14 +221,15 @@ class TestFlakeSearchEvals:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_search("*vim*", search_type="flakes")
+        result = await nixos_search("*vim*", search_type="flakes")
 
         assert "Found 2 unique flakes" in result
         assert "• nixvim" in result
         assert "• vim-plugins" in result
 
     @patch("requests.post")
-    def test_flake_search_error_handling(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_error_handling(self, mock_post):
         """Test flake search error handling."""
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -236,14 +242,15 @@ class TestFlakeSearchEvals:
 
         mock_post.return_value = mock_response
 
-        result = nixos_search("test", search_type="flakes")
+        result = await nixos_search("test", search_type="flakes")
 
         assert "Error" in result
         # The actual error message will be the exception string
         assert "'NoneType' object has no attribute 'status_code'" not in result
 
     @patch("requests.post")
-    def test_flake_search_malformed_response(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_malformed_response(self, mock_post):
         """Test handling of malformed flake responses."""
         mock_response = {
             "hits": {
@@ -262,7 +269,7 @@ class TestFlakeSearchEvals:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_search("broken", search_type="flakes")
+        result = await nixos_search("broken", search_type="flakes")
 
         # Should handle gracefully - with missing fields, no flakes will be created
         assert "Found 1 total matches (0 unique flakes)" in result
@@ -272,7 +279,8 @@ class TestImprovedStatsEvals:
     """Test improved stats functionality."""
 
     @patch("requests.get")
-    def test_home_manager_stats_with_data(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_with_data(self, mock_get):
         """Test home_manager_stats returns actual statistics."""
         mock_html = """
         <html>
@@ -292,7 +300,7 @@ class TestImprovedStatsEvals:
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = mock_html
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         assert "Home Manager Statistics:" in result
         assert "Total options: 3" in result
@@ -301,17 +309,19 @@ class TestImprovedStatsEvals:
         assert "- services: 1 options" in result
 
     @patch("requests.get")
-    def test_home_manager_stats_error_handling(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_error_handling(self, mock_get):
         """Test home_manager_stats error handling."""
         mock_get.return_value.status_code = 404
         mock_get.return_value.text = "Not Found"
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         assert "Error" in result
 
     @patch("requests.get")
-    def test_darwin_stats_with_data(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_with_data(self, mock_get):
         """Test darwin_stats returns actual statistics."""
         mock_html = """
         <html>
@@ -335,7 +345,7 @@ class TestImprovedStatsEvals:
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = mock_html
 
-        result = darwin_stats()
+        result = await darwin_stats()
 
         assert "nix-darwin Statistics:" in result
         assert "Total options: 4" in result
@@ -344,17 +354,19 @@ class TestImprovedStatsEvals:
         assert "- homebrew: 2 options" in result
 
     @patch("requests.get")
-    def test_darwin_stats_error_handling(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_error_handling(self, mock_get):
         """Test darwin_stats error handling."""
         mock_get.return_value.status_code = 500
         mock_get.return_value.text = "Server Error"
 
-        result = darwin_stats()
+        result = await darwin_stats()
 
         assert "Error" in result
 
     @patch("requests.get")
-    def test_stats_with_complex_categories(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_stats_with_complex_categories(self, mock_get):
         """Test stats functions with complex nested categories."""
         mock_html = """
         <html>
@@ -376,7 +388,7 @@ class TestImprovedStatsEvals:
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = mock_html
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         assert "Total options: 4" in result
         assert "- programs: 2 options" in result
@@ -384,12 +396,13 @@ class TestImprovedStatsEvals:
         assert "- home: 1 options" in result
 
     @patch("requests.get")
-    def test_stats_with_empty_html(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_stats_with_empty_html(self, mock_get):
         """Test stats functions with empty HTML."""
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = "<html><body></body></html>"
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         # When no options are found, the function returns an error
         assert "Error" in result
@@ -410,7 +423,8 @@ class TestRealWorldScenarios:
                 yield mock_cache
 
     @patch("requests.post")
-    def test_developer_workflow_flake_search(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_developer_workflow_flake_search(self, mock_post):
         """Test a developer searching for development environment flakes."""
         # First search for devenv
         devenv_response = {
@@ -435,14 +449,15 @@ class TestRealWorldScenarios:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = devenv_response
 
-        result = nixos_search("devenv", search_type="flakes")
+        result = await nixos_search("devenv", search_type="flakes")
 
         assert "• devenv" in result
         assert "Fast, Declarative, Reproducible, and Composable Developer Environments" in result
         assert "Developer Environments" in result
 
     @patch("requests.post")
-    def test_system_configuration_flake_search(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_system_configuration_flake_search(self, mock_post):
         """Test searching for system configuration flakes."""
         config_response = {
             "hits": {
@@ -484,7 +499,7 @@ class TestRealWorldScenarios:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = config_response
 
-        result = nixos_search("nixosModules", search_type="flakes")
+        result = await nixos_search("nixosModules", search_type="flakes")
 
         assert "Found 3 unique flakes" in result
         assert "• impermanence" in result
@@ -495,7 +510,8 @@ class TestRealWorldScenarios:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_combined_workflow_stats_and_search(self, mock_post, mock_get):
+    @pytest.mark.asyncio
+    async def test_combined_workflow_stats_and_search(self, mock_post, mock_get):
         """Test a workflow combining stats check and targeted search."""
         # First, check Home Manager stats
         stats_html = """
@@ -516,7 +532,7 @@ class TestRealWorldScenarios:
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = stats_html
 
-        stats_result = home_manager_stats()
+        stats_result = await home_manager_stats()
 
         assert "Total options: 3" in stats_result
         assert "- programs: 3 options" in stats_result
@@ -542,7 +558,7 @@ class TestRealWorldScenarios:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = flake_response
 
-        search_result = nixos_search("nixvim", search_type="flakes")
+        search_result = await nixos_search("nixvim", search_type="flakes")
 
         assert "• nixvim" in search_result
         assert "Configure Neovim with Nix" in search_result

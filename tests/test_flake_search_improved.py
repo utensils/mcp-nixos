@@ -71,12 +71,13 @@ class TestImprovedFlakeSearch:
         }
 
     @patch("requests.post")
-    def test_empty_query_returns_all_flakes(self, mock_post, mock_empty_flake_response):
+    @pytest.mark.asyncio
+    async def test_empty_query_returns_all_flakes(self, mock_post, mock_empty_flake_response):
         """Test that empty query returns all flakes."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_empty_flake_response
 
-        result = nixos_flakes_search("", limit=50)
+        result = await nixos_flakes_search("", limit=50)
 
         # Should use match_all query for empty search
         call_args = mock_post.call_args
@@ -91,12 +92,13 @@ class TestImprovedFlakeSearch:
         assert "nix-vscode-extensions" in result
 
     @patch("requests.post")
-    def test_wildcard_query_returns_all_flakes(self, mock_post, mock_empty_flake_response):
+    @pytest.mark.asyncio
+    async def test_wildcard_query_returns_all_flakes(self, mock_post, mock_empty_flake_response):
         """Test that * query returns all flakes."""
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_empty_flake_response
 
-        nixos_flakes_search("*", limit=50)  # Result not used in this test
+        await nixos_flakes_search("*", limit=50)  # Result not used in this test
 
         # Should use match_all query for wildcard
         call_args = mock_post.call_args
@@ -105,7 +107,8 @@ class TestImprovedFlakeSearch:
         assert "match_all" in str(query_data["query"])
 
     @patch("requests.post")
-    def test_search_by_owner(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_search_by_owner(self, mock_post):
         """Test searching by owner like nix-community."""
         mock_response = {
             "hits": {
@@ -125,7 +128,7 @@ class TestImprovedFlakeSearch:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        nixos_flakes_search("nix-community", limit=20)  # Result tested via assertions
+        await nixos_flakes_search("nix-community", limit=20)  # Result tested via assertions
 
         # Should search in owner field
         call_args = mock_post.call_args
@@ -134,7 +137,8 @@ class TestImprovedFlakeSearch:
         assert "nix-community" in str(query_data["query"])
 
     @patch("requests.post")
-    def test_deduplication_by_repo(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_deduplication_by_repo(self, mock_post):
         """Test that multiple packages from same repo are deduplicated."""
         mock_response = {
             "hits": {
@@ -170,7 +174,7 @@ class TestImprovedFlakeSearch:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_flakes_search("haskell", limit=20)
+        result = await nixos_flakes_search("haskell", limit=20)
 
         # Should show only one flake with multiple packages
         assert "1 unique flakes" in result
@@ -178,7 +182,8 @@ class TestImprovedFlakeSearch:
         assert "Packages: hix, hix-build, hix-env" in result
 
     @patch("requests.post")
-    def test_handles_flakes_without_name(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_handles_flakes_without_name(self, mock_post):
         """Test handling flakes with empty flake_name."""
         mock_response = {
             "hits": {
@@ -198,20 +203,21 @@ class TestImprovedFlakeSearch:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_flakes_search("home-manager", limit=20)
+        result = await nixos_flakes_search("home-manager", limit=20)
 
         # Should use repo name when flake_name is empty
         assert "home-manager" in result
         assert "nix-community/home-manager" in result
 
     @patch("requests.post")
-    def test_no_results_shows_suggestions(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_no_results_shows_suggestions(self, mock_post):
         """Test that no results shows helpful suggestions."""
         mock_response = {"hits": {"total": {"value": 0}, "hits": []}}
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_flakes_search("nonexistent", limit=20)
+        result = await nixos_flakes_search("nonexistent", limit=20)
 
         assert "No flakes found" in result
         assert "Popular flakes: nixpkgs, home-manager, flake-utils, devenv" in result
@@ -220,7 +226,8 @@ class TestImprovedFlakeSearch:
         assert "FlakeHub: https://flakehub.com/" in result
 
     @patch("requests.post")
-    def test_handles_git_urls(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_handles_git_urls(self, mock_post):
         """Test handling of non-GitHub Git URLs."""
         mock_response = {
             "hits": {
@@ -239,19 +246,20 @@ class TestImprovedFlakeSearch:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        result = nixos_flakes_search("python", limit=20)
+        result = await nixos_flakes_search("python", limit=20)
 
         assert "python-trovo" in result
 
     @patch("requests.post")
-    def test_search_tracks_total_hits(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_search_tracks_total_hits(self, mock_post):
         """Test that search tracks total hits."""
         mock_response = {"hits": {"total": {"value": 894}, "hits": []}}
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
         # Make the call
-        nixos_flakes_search("", limit=20)
+        await nixos_flakes_search("", limit=20)
 
         # Check that track_total_hits was set
         call_args = mock_post.call_args
@@ -259,13 +267,14 @@ class TestImprovedFlakeSearch:
         assert query_data.get("track_total_hits") is True
 
     @patch("requests.post")
-    def test_increased_size_multiplier(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_increased_size_multiplier(self, mock_post):
         """Test that we request more results to account for duplicates."""
         mock_response = {"hits": {"total": {"value": 0}, "hits": []}}
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = mock_response
 
-        nixos_flakes_search("test", limit=20)
+        await nixos_flakes_search("test", limit=20)
 
         # Should request more than limit to account for duplicates
         call_args = mock_post.call_args

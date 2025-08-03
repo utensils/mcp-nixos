@@ -11,7 +11,8 @@ class TestFlakeSearchDeduplication:
     """Test that flake search properly deduplicates results."""
 
     @patch("mcp_nixos.server.requests.post")
-    def test_flake_search_deduplicates_packages(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_deduplicates_packages(self, mock_post):
         """Test that multiple packages from same flake are grouped."""
         # Mock response with duplicate flakes (different packages)
         mock_response = MagicMock()
@@ -60,7 +61,7 @@ class TestFlakeSearchDeduplication:
         }
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("home-manager", limit=10)
+        result = await nixos_flakes_search("home-manager", limit=10)
 
         # Should only show 1 unique flake
         assert "Found 1 unique flakes matching 'home-manager':" in result
@@ -69,7 +70,8 @@ class TestFlakeSearchDeduplication:
         assert "Packages: default, docs-html, docs-json" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_flake_search_handles_many_packages(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_handles_many_packages(self, mock_post):
         """Test that flakes with many packages are handled properly."""
         # Create a flake with 10 packages
         hits = []
@@ -94,14 +96,15 @@ class TestFlakeSearchDeduplication:
         mock_response.json.return_value = {"hits": {"hits": hits}}
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("multi-package", limit=20)
+        result = await nixos_flakes_search("multi-package", limit=20)
 
         # Should show only first 5 packages with total count
         assert "Found 1 unique flakes matching 'multi-package':" in result
         assert "Packages: package0, package1, package2, package3, package4, ... (10 total)" in result
 
     @patch("mcp_nixos.server.requests.post")
-    def test_flake_search_handles_mixed_flakes(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_flake_search_handles_mixed_flakes(self, mock_post):
         """Test deduplication with multiple different flakes."""
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -151,7 +154,7 @@ class TestFlakeSearchDeduplication:
         }
         mock_post.return_value = mock_response
 
-        result = nixos_flakes_search("test", limit=10)
+        result = await nixos_flakes_search("test", limit=10)
 
         # Should show 2 unique flakes
         assert "Found 2 unique flakes matching 'test':" in result
@@ -167,7 +170,8 @@ class TestHomeManagerStats:
     """Test improved home_manager_stats functionality."""
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_home_manager_stats_returns_statistics(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_returns_statistics(self, mock_parse):
         """Test that home_manager_stats returns actual statistics."""
         # Mock parsed options
         mock_parse.return_value = [
@@ -179,7 +183,7 @@ class TestHomeManagerStats:
             {"name": "wayland.enable", "type": "null or boolean", "description": "Enable wayland"},
         ]
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         # Should return statistics, not redirect message
         assert "Home Manager Statistics:" in result
@@ -195,20 +199,22 @@ class TestHomeManagerStats:
         assert "Use home_manager_list_options" not in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_home_manager_stats_handles_errors(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_handles_errors(self, mock_parse):
         """Test that home_manager_stats handles errors gracefully."""
         mock_parse.side_effect = Exception("Network error")
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         assert "Error (ERROR): Network error" in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_home_manager_stats_handles_no_options(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_handles_no_options(self, mock_parse):
         """Test that home_manager_stats handles empty results."""
         mock_parse.return_value = []
 
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         assert "Error (ERROR): Failed to fetch Home Manager statistics" in result
 
@@ -217,7 +223,8 @@ class TestDarwinStats:
     """Test improved darwin_stats functionality."""
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_darwin_stats_returns_statistics(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_returns_statistics(self, mock_parse):
         """Test that darwin_stats returns actual statistics."""
         # Mock parsed options
         mock_parse.return_value = [
@@ -233,7 +240,7 @@ class TestDarwinStats:
             {"name": "launchd.agents.test", "type": "attribute set", "description": "Test agent"},
         ]
 
-        result = darwin_stats()
+        result = await darwin_stats()
 
         # Should return statistics, not redirect message
         assert "nix-darwin Statistics:" in result
@@ -250,20 +257,22 @@ class TestDarwinStats:
         assert "Use darwin_list_options" not in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_darwin_stats_handles_errors(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_handles_errors(self, mock_parse):
         """Test that darwin_stats handles errors gracefully."""
         mock_parse.side_effect = Exception("Connection timeout")
 
-        result = darwin_stats()
+        result = await darwin_stats()
 
         assert "Error (ERROR): Connection timeout" in result
 
     @patch("mcp_nixos.server.parse_html_options")
-    def test_darwin_stats_handles_no_options(self, mock_parse):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_handles_no_options(self, mock_parse):
         """Test that darwin_stats handles empty results."""
         mock_parse.return_value = []
 
-        result = darwin_stats()
+        result = await darwin_stats()
 
         assert "Error (ERROR): Failed to fetch nix-darwin statistics" in result
 
@@ -272,9 +281,10 @@ class TestIntegration:
     """Integration tests for all fixes."""
 
     @pytest.mark.integration
-    def test_flake_search_real_deduplication(self):
+    @pytest.mark.asyncio
+    async def test_flake_search_real_deduplication(self):
         """Test flake deduplication against real API."""
-        result = nixos_flakes_search("home-manager", limit=20)
+        result = await nixos_flakes_search("home-manager", limit=20)
 
         # Count how many times "• home-manager" appears
         # Should be 1 after deduplication
@@ -288,9 +298,10 @@ class TestIntegration:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    def test_home_manager_stats_real_data(self):
+    @pytest.mark.asyncio
+    async def test_home_manager_stats_real_data(self):
         """Test home_manager_stats with real data."""
-        result = home_manager_stats()
+        result = await home_manager_stats()
 
         # Should return real statistics
         assert "Home Manager Statistics:" in result
@@ -305,9 +316,10 @@ class TestIntegration:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    def test_darwin_stats_real_data(self):
+    @pytest.mark.asyncio
+    async def test_darwin_stats_real_data(self):
         """Test darwin_stats with real data."""
-        result = darwin_stats()
+        result = await darwin_stats()
 
         # Should return real statistics
         assert "nix-darwin Statistics:" in result

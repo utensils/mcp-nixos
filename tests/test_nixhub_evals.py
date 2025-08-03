@@ -8,15 +8,16 @@ from mcp_nixos.server import nixhub_package_versions
 class TestNixHubEvaluations:
     """Test expected AI assistant behaviors when using NixHub tools."""
 
-    def test_finding_older_ruby_version(self):
+    @pytest.mark.asyncio
+    async def test_finding_older_ruby_version(self):
         """Test that older Ruby versions can be found with appropriate limit."""
         # Scenario: User asks for Ruby 2.6
         # Default behavior (limit=10) won't find it
-        result_default = nixhub_package_versions("ruby", limit=10)
+        result_default = await nixhub_package_versions("ruby", limit=10)
         assert "2.6" not in result_default, "Ruby 2.6 shouldn't appear with default limit"
 
         # But with higher limit, it should be found
-        result_extended = nixhub_package_versions("ruby", limit=50)
+        result_extended = await nixhub_package_versions("ruby", limit=50)
         assert "2.6.7" in result_extended, "Ruby 2.6.7 should be found with limit=50"
         assert "ruby_2_6" in result_extended, "Should show ruby_2_6 attribute"
 
@@ -39,13 +40,14 @@ class TestNixHubEvaluations:
         assert len(commit_hash) == 40, f"Commit hash should be 40 chars, got {len(commit_hash)}"
         assert commit_hash == "3e0ce8c5d478d06b37a4faa7a4cc8642c6bb97de", "Should find specific commit for Ruby 2.6.7"
 
-    def test_incremental_search_strategy(self):
+    @pytest.mark.asyncio
+    async def test_incremental_search_strategy(self):
         """Test that AI should incrementally increase limit to find older versions."""
         # Test different limit values to understand the pattern
         limits_and_oldest = []
 
         for limit in [10, 20, 30, 40, 50]:
-            result = nixhub_package_versions("ruby", limit=limit)
+            result = await nixhub_package_versions("ruby", limit=limit)
             lines = result.split("\n")
 
             # Find oldest version in this result
@@ -75,10 +77,11 @@ class TestNixHubEvaluations:
 
         # This demonstrates the AI needs to increase limit when searching for older versions
 
-    def test_version_not_in_nixhub(self):
+    @pytest.mark.asyncio
+    async def test_version_not_in_nixhub(self):
         """Test behavior when a version truly doesn't exist."""
         # Test with a very high limit to ensure we check everything
-        result = nixhub_package_versions("ruby", limit=50)
+        result = await nixhub_package_versions("ruby", limit=50)
 
         # Ruby 2.4 and earlier should not exist in NixHub (based on actual data)
         assert "2.4." not in result, "Ruby 2.4.x should not be available in NixHub"
@@ -90,9 +93,10 @@ class TestNixHubEvaluations:
         assert "2.6." in result, "Ruby 2.6.x should be available"
         assert "2.7." in result, "Ruby 2.7.x should be available"
 
-    def test_package_version_recommendations(self):
+    @pytest.mark.asyncio
+    async def test_package_version_recommendations(self):
         """Test that results provide actionable information."""
-        result = nixhub_package_versions("python3", limit=5)
+        result = await nixhub_package_versions("python3", limit=5)
 
         # Should include usage instructions
         assert "To use a specific version" in result
@@ -111,16 +115,17 @@ class TestNixHubEvaluations:
             ("python", 30),  # Python 2.x (if available) would need higher limit
         ],
     )
-    def test_version_2_search_patterns(self, package, min_limit_for_v2):
+    @pytest.mark.asyncio
+    async def test_version_2_search_patterns(self, package, min_limit_for_v2):
         """Test that version 2.x of packages requires higher limits."""
         # Low limit shouldn't find version 2
-        result_low = nixhub_package_versions(package, limit=10)
+        result_low = await nixhub_package_versions(package, limit=10)
 
         # Count version 2.x occurrences
         v2_count_low = sum(1 for line in result_low.split("\n") if "• Version 2." in line)
 
         # High limit might find version 2 (if it exists)
-        result_high = nixhub_package_versions(package, limit=50)
+        result_high = await nixhub_package_versions(package, limit=50)
         v2_count_high = sum(1 for line in result_high.split("\n") if "• Version 2." in line)
 
         # Higher limit should find more or equal v2 versions
@@ -130,14 +135,15 @@ class TestNixHubEvaluations:
 class TestNixHubAIBehaviorPatterns:
     """Test patterns that AI assistants should follow when using NixHub."""
 
-    def test_ai_should_try_higher_limits_for_older_versions(self):
+    @pytest.mark.asyncio
+    async def test_ai_should_try_higher_limits_for_older_versions(self):
         """Document the pattern AI should follow for finding older versions."""
         # Pattern 1: Start with default/low limit
-        result1 = nixhub_package_versions("ruby", limit=10)
+        result1 = await nixhub_package_versions("ruby", limit=10)
 
         # If user asks for version not found, AI should:
         # Pattern 2: Increase limit significantly
-        result2 = nixhub_package_versions("ruby", limit=50)
+        result2 = await nixhub_package_versions("ruby", limit=50)
 
         # Verify this pattern works
         assert "2.6" not in result1, "Step 1: Default search doesn't find old version"
@@ -145,14 +151,15 @@ class TestNixHubAIBehaviorPatterns:
 
         # This demonstrates the expected AI behavior pattern
 
-    def test_ai_response_for_missing_version(self):
+    @pytest.mark.asyncio
+    async def test_ai_response_for_missing_version(self):
         """Test how AI should respond when version is not found."""
         # Search for Ruby 2.6 with default limit
-        result = nixhub_package_versions("ruby", limit=10)
+        result = await nixhub_package_versions("ruby", limit=10)
 
         if "2.6" not in result:
             # AI should recognize the pattern and try higher limit
-            extended_result = nixhub_package_versions("ruby", limit=50)
+            extended_result = await nixhub_package_versions("ruby", limit=50)
 
             assert "2.6" in extended_result, "Should find Ruby 2.6 with higher limit"
 
@@ -176,7 +183,8 @@ class TestNixHubAIBehaviorPatterns:
             assert commit_found, "Should find commit hash for Ruby 2.6.7"
             assert "Attribute:" in extended_result, "Should have attribute path"
 
-    def test_efficient_search_strategy(self):
+    @pytest.mark.asyncio
+    async def test_efficient_search_strategy(self):
         """Test efficient strategies for finding specific versions."""
         # Strategy 1: If looking for very old version, start with higher limit
         # This is more efficient than multiple calls
@@ -186,7 +194,7 @@ class TestNixHubAIBehaviorPatterns:
         found = False
         for limit in [10, 20, 30, 40, 50]:
             calls_made += 1
-            result = nixhub_package_versions("ruby", limit=limit)
+            result = await nixhub_package_versions("ruby", limit=limit)
             if "2.6.7" in result:
                 found = True
                 break
@@ -195,7 +203,7 @@ class TestNixHubAIBehaviorPatterns:
         assert calls_made > 3, "Inefficient approach needs multiple calls"
 
         # Efficient: Start with reasonable limit for old versions
-        result = nixhub_package_versions("ruby", limit=50)
+        result = await nixhub_package_versions("ruby", limit=50)
         assert "2.6.7" in result, "Efficient approach finds it in one call"
 
         # This demonstrates why AI should use higher limits for older versions
