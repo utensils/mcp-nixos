@@ -76,7 +76,7 @@ jobs:
     
     - name: Check package
       run: |
-        uv pip install twine
+        uv sync --extra dev
         uv run twine check dist/*
     
     - name: Upload artifacts
