@@ -33,6 +33,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "pytest-asyncio>=1.1.0",
+    "pytest-xdist>=3.6.0",
     "ruff>=0.12.4",
     "mypy>=1.17.0",
     "types-beautifulsoup4>=4.12.0.20250516",
