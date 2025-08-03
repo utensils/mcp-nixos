@@ -235,9 +235,8 @@
             nixos-option
             git
 
-            # AI Tools
-            code2prompt
-            llm
+            # GitHub CLI for repository management
+            gh
 
             # Remove Node.js from main dev shell to avoid conflicts
           ];

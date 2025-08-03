@@ -34,9 +34,14 @@ class MockAssistant:
 
         self.tool_calls.append({"tool": tool_name, "args": kwargs})
 
-        # Call the actual tool
+        # Call the actual tool - get the underlying function from FastMCP tool
         tool_func = getattr(server, tool_name)
-        result = await tool_func(**kwargs)
+        if hasattr(tool_func, 'fn'):
+            # FastMCP wrapped function - use the underlying function
+            result = await tool_func.fn(**kwargs)
+        else:
+            # Direct function call
+            result = await tool_func(**kwargs)
         self.responses.append(result)
         return result
 
@@ -170,29 +175,31 @@ class TestMCPBehaviorEvals:
             assert "provided by" in response
             assert "gcc" in response.lower()
 
-    def test_scenario_complex_option_exploration(self):
+    @pytest.mark.asyncio
+    async def test_scenario_complex_option_exploration(self):
         """User wants to understand complex NixOS options."""
         assistant = MockAssistant()
 
         # Look for virtualisation options
-        response1 = assistant.use_tool("nixos_search", query="virtualisation.docker", search_type="options", limit=20)
+        response1 = await assistant.use_tool("nixos_search", query="virtualisation.docker", search_type="options", limit=20)
 
         if "virtualisation.docker.enable" in response1:
             # Get details on enable option
-            assistant.use_tool("nixos_info", name="virtualisation.docker.enable", type="option")
+            await assistant.use_tool("nixos_info", name="virtualisation.docker.enable", type="option")
 
             # Search for related options
-            assistant.use_tool("nixos_search", query="docker", search_type="options", limit=10)
+            await assistant.use_tool("nixos_search", query="docker", search_type="options", limit=10)
 
             # Verify we get comprehensive docker configuration options
             assert any(r for r in assistant.responses if "docker" in r.lower())
 
-    def test_scenario_git_configuration(self):
+    @pytest.mark.asyncio
+    async def test_scenario_git_configuration(self):
         """User wants to configure git with Home Manager."""
         assistant = MockAssistant()
 
         # Explore git options
-        response1 = assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs.git")
+        response1 = await assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs.git")
 
         # Count git-related options
         git_options = response1.count("programs.git")
@@ -203,30 +210,32 @@ class TestMCPBehaviorEvals:
         found_features = sum(1 for f in features if f in response1)
         assert found_features >= 2  # Should find at least some features
 
-    def test_scenario_error_recovery(self):
+    @pytest.mark.asyncio
+    async def test_scenario_error_recovery(self):
         """Test how tools handle errors and guide users."""
         assistant = MockAssistant()
 
         # Try invalid channel
-        response1 = assistant.use_tool("nixos_search", query="test", channel="invalid-channel")
+        response1 = await assistant.use_tool("nixos_search", query="test", channel="invalid-channel")
         assert "Error" in response1
         assert "Invalid channel" in response1
 
         # Try non-existent package
-        response2 = assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", type="package")
+        response2 = await assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", type="package")
         assert "not found" in response2.lower()
 
         # Try invalid type
-        response3 = assistant.use_tool("nixos_search", query="test", search_type="invalid-type")
+        response3 = await assistant.use_tool("nixos_search", query="test", search_type="invalid-type")
         assert "Error" in response3
         assert "Invalid type" in response3
 
-    def test_scenario_bulk_option_discovery(self):
+    @pytest.mark.asyncio
+    async def test_scenario_bulk_option_discovery(self):
         """User wants to discover all options for a service."""
         assistant = MockAssistant()
 
         # Search for all nginx options
-        response1 = assistant.use_tool("nixos_search", query="services.nginx", search_type="options", limit=50)
+        response1 = await assistant.use_tool("nixos_search", query="services.nginx", search_type="options", limit=50)
 
         if "Found" in response1:
             # Count unique option types
@@ -239,20 +248,21 @@ class TestMCPBehaviorEvals:
             # nginx should have various option types
             assert len(option_types) >= 2
 
-    def test_scenario_multi_tool_workflow(self):
+    @pytest.mark.asyncio
+    async def test_scenario_multi_tool_workflow(self):
         """Test realistic multi-step workflows."""
         assistant = MockAssistant()
 
         # Workflow: Set up a development environment
 
         # 1. Check statistics
-        stats = assistant.use_tool("nixos_stats")
+        stats = await assistant.use_tool("nixos_stats")
         assert "Packages:" in stats
 
         # 2. Search for development tools
         dev_tools = ["vscode", "git", "docker", "nodejs"]
         for tool in dev_tools[:2]:  # Test first two to save time
-            response = assistant.use_tool("nixos_search", query=tool, search_type="packages", limit=3)
+            response = await assistant.use_tool("nixos_search", query=tool, search_type="packages", limit=3)
             if "Found" in response:
                 # Get info on first result
                 package_name = None
@@ -263,17 +273,18 @@ class TestMCPBehaviorEvals:
                         break
 
                 if package_name:
-                    info = assistant.use_tool("nixos_info", name=package_name, type="package")
+                    info = await assistant.use_tool("nixos_info", name=package_name, type="package")
                     assert "Package:" in info
 
         # 3. Configure git in Home Manager
-        assistant.use_tool("home_manager_search", query="git", limit=10)
+        await assistant.use_tool("home_manager_search", query="git", limit=10)
 
         # Verify workflow completed
         assert len(assistant.tool_calls) >= 4
         assert not any("Error" in r for r in assistant.responses[:3])  # First 3 should succeed
 
-    def test_scenario_performance_monitoring(self):
+    @pytest.mark.asyncio
+    async def test_scenario_performance_monitoring(self):
         """Monitor performance characteristics of tool calls."""
         import time
 
@@ -291,7 +302,7 @@ class TestMCPBehaviorEvals:
         for op_name, op_args in operations:
             start = time.time()
             try:
-                assistant.use_tool(op_name, **op_args)
+                await assistant.use_tool(op_name, **op_args)
                 elapsed = time.time() - start
                 timings[op_name] = elapsed
             except Exception:
@@ -302,7 +313,8 @@ class TestMCPBehaviorEvals:
             if timing > 0:
                 assert timing < 30, f"{op} took too long: {timing}s"
 
-    def test_scenario_option_value_types(self):
+    @pytest.mark.asyncio
+    async def test_scenario_option_value_types(self):
         """Test understanding different option value types."""
         assistant = MockAssistant()
 
@@ -316,7 +328,7 @@ class TestMCPBehaviorEvals:
 
         found_types = {}
         for type_name, search_term in type_examples.items():
-            response = assistant.use_tool("nixos_search", query=search_term, search_type="options", limit=5)
+            response = await assistant.use_tool("nixos_search", query=search_term, search_type="options", limit=5)
             if "Type:" in response:
                 found_types[type_name] = response
 
