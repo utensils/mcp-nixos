@@ -108,28 +108,8 @@
             ];
             
             propagatedBuildInputs = with pkgs.python311Packages; [
-              # Building fastmcp from PyPI since it's not in nixpkgs
-              (buildPythonPackage rec {
-                pname = "fastmcp";
-                version = "2.11.0";
-                src = fetchPypi {
-                  inherit pname version;
-                  sha256 = "af0c52988607d8e9197df300e91880169e8fe24fd6ca177dca6a9eb6b245ce3c";
-                };
-                propagatedBuildInputs = with pkgs.python311Packages; [
-                  mcp
-                  cyclopts
-                  httpx
-                  openapi-core
-                  openapi-pydantic
-                  pydantic
-                  pyperclip
-                  python-dotenv
-                  rich
-                  exceptiongroup
-                ];
-                doCheck = false;
-              })
+              # Note: FastMCP is installed via pip/uv, not available in nixpkgs yet
+              # We list the core dependencies that are available in nixpkgs
               requests
               beautifulsoup4
             ];
