@@ -96,3 +96,4 @@ TODO.md
 /website/.pnpm-store/
 /website/.DS_Store
 /website/*.pem
+reference-mcp-coroot/
