@@ -759,7 +759,7 @@ def home_manager_list_options() -> str:
     """
     try:
         # Get more options to see all categories (default 100 is too few)
-        options = parse_html_options(HOME_MANAGER_URL, limit=4000)
+        options = parse_html_options(HOME_MANAGER_URL, limit=5000)
         categories = {}
 
         for opt in options:
