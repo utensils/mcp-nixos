@@ -13,7 +13,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -43,6 +43,7 @@ jobs:
         uv run mypy mcp_nixos/
     
     - name: Test with pytest
+      timeout-minutes: 10
       run: |
         uv run pytest -v --cov=mcp_nixos --cov-report=xml --cov-report=term
     
