@@ -4,7 +4,22 @@ from dataclasses import dataclass
 from unittest.mock import Mock, patch
 
 import pytest
-from mcp_nixos.server import darwin_search, home_manager_search, nixos_info, nixos_search
+from mcp_nixos import server
+
+
+def get_tool_function(tool_name: str):
+    """Get the underlying function from a FastMCP tool."""
+    tool = getattr(server, tool_name)
+    if hasattr(tool, 'fn'):
+        return tool.fn
+    return tool
+
+
+# Get the underlying functions for direct use
+darwin_search = get_tool_function('darwin_search')
+home_manager_search = get_tool_function('home_manager_search')
+nixos_info = get_tool_function('nixos_info')
+nixos_search = get_tool_function('nixos_search')
 
 
 class TestPackageDiscoveryEvals:
@@ -353,6 +368,7 @@ class TestCompleteScenarioEval:
 
 
 # ===== Content from test_evals_comprehensive.py =====
+@dataclass
 class EvalScenario:
     """Represents an evaluation scenario."""
 
