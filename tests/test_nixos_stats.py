@@ -15,8 +15,8 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
-nixos_channels = get_tool_function("nixos_channels")
-nixos_stats = get_tool_function("nixos_stats")
+channels = get_tool_function("channels")
+stats = get_tool_function("stats")
 
 
 def setup_channel_mocks(mock_cache, mock_validate, channels=None):
@@ -41,7 +41,7 @@ class TestNixOSStatsRegression:
     @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_uses_correct_query_fields(self, mock_post, mock_cache, mock_validate):
+    async def test_stats_uses_correct_query_fields(self, mock_post, mock_cache, mock_validate):
         """Test that stats uses 'type' field with term query, not 'package'/'option' with exists query."""
         # Setup channel mocks
         setup_channel_mocks(mock_cache, mock_validate)
@@ -56,10 +56,10 @@ class TestNixOSStatsRegression:
         mock_post.side_effect = [pkg_resp, opt_resp]
 
         # Call the function
-        result = await nixos_stats()
+        result = await stats()
 
         # Verify the function returns expected output
-        assert "NixOS Statistics for unstable channel:" in result
+        assert "STATS: unstable" in result
         assert "• Packages: 129,865" in result
         assert "• Options: 21,933" in result
 
@@ -78,7 +78,7 @@ class TestNixOSStatsRegression:
     @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_handles_zero_counts(self, mock_post, mock_cache, mock_validate):
+    async def test_stats_handles_zero_counts(self, mock_post, mock_cache, mock_validate):
         """Test that stats correctly handles zero counts."""
         # Setup channel mocks
         setup_channel_mocks(mock_cache, mock_validate)
@@ -88,16 +88,16 @@ class TestNixOSStatsRegression:
         mock_resp.json.return_value = {"count": 0}
         mock_post.return_value = mock_resp
 
-        result = await nixos_stats()
+        result = await stats()
 
         # Should return error when both counts are zero (our improved logic)
-        assert "Error (ERROR): Failed to retrieve statistics" in result
+        assert "Error (FETCH_ERROR): Failed to retrieve statistics" in result
 
     @patch("mcp_nixos.server.validate_channel")
     @patch("mcp_nixos.server.channel_cache")
     @patch("mcp_nixos.server.requests.post")
     @pytest.mark.asyncio
-    async def test_nixos_stats_all_channels(self, mock_post, mock_cache, mock_validate):
+    async def test_stats_all_channels(self, mock_post, mock_cache, mock_validate):
         """Test that stats works for all defined channels."""
         # Setup channel mocks
         setup_channel_mocks(mock_cache, mock_validate)
@@ -109,8 +109,8 @@ class TestNixOSStatsRegression:
 
         # Test with known channels
         for channel in ["stable", "unstable"]:
-            result = await nixos_stats(channel=channel)
-            assert f"NixOS Statistics for {channel} channel:" in result
+            result = await stats(channel=channel)
+            assert f"STATS: {channel}" in result
             assert "• Packages: 12,345" in result
             assert "• Options: 12,345" in result
 
@@ -246,7 +246,7 @@ class TestPackageCountsEval:
         mock_post.side_effect = side_effect
 
         # Step 1: Get available channels
-        channels_result = await nixos_channels()
+        channels_result = await channels()
         assert "24.11" in channels_result
         assert "25.05" in channels_result
         assert "unstable" in channels_result
@@ -255,14 +255,14 @@ class TestPackageCountsEval:
         assert "Available" in channels_result
 
         # Step 2: Get stats for each channel
-        stats_unstable = await nixos_stats("unstable")
+        stats_unstable = await stats("unstable")
         assert "Packages:" in stats_unstable
         assert "Options:" in stats_unstable
 
-        stats_stable = await nixos_stats("stable")  # Should resolve to 25.05
+        stats_stable = await stats("stable")  # Should resolve to 25.05
         assert "Packages:" in stats_stable
 
-        stats_24_11 = await nixos_stats("24.11")
+        stats_24_11 = await stats("24.11")
         assert "Packages:" in stats_24_11
 
         # Verify package count differences
@@ -329,7 +329,7 @@ class TestPackageCountsEval:
         mock_post.side_effect = side_effect
 
         # Beta should resolve to stable (25.05)
-        result = await nixos_stats("beta")
+        result = await stats("beta")
         assert "Packages:" in result
         assert "beta" in result
 
@@ -419,7 +419,7 @@ class TestPackageCountsEval:
         # Get stats for multiple channels to compare growth
         # Only use channels that are currently available
         for channel in ["24.11", "25.05", "unstable"]:
-            stats = await nixos_stats(channel)
+            result = await stats(channel)
             # Just verify we get stats back with package info
-            assert "Packages:" in stats
-            assert "channel:" in stats.lower()  # Check case-insensitively
+            assert "Packages:" in result
+            assert "channel:" in result.lower()  # Check case-insensitively

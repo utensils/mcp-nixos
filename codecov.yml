@@ -1,0 +1,38 @@
+# Codecov configuration
+# https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        target: 85%
+        threshold: 1%
+        paths:
+          - "mcp_nixos/"
+    patch:
+      default:
+        target: 85%
+        threshold: 1%
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
+  require_base: yes
+  require_head: yes
+
+ignore:
+  - "tests/**"
+  - "setup.py"
+  - "**/__pycache__/**"
+  - "**/*.egg-info/**"
+  - "website/**"
+  - "docs/**"

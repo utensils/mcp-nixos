@@ -16,16 +16,16 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
-darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
+darwin_browse = get_tool_function("darwin_browse")
 darwin_search = get_tool_function("darwin_search")
-home_manager_info = get_tool_function("home_manager_info")
-home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
-home_manager_search = get_tool_function("home_manager_search")
-home_manager_stats = get_tool_function("home_manager_stats")
-nixos_channels = get_tool_function("nixos_channels")
-nixos_info = get_tool_function("nixos_info")
-nixos_search = get_tool_function("nixos_search")
-nixos_stats = get_tool_function("nixos_stats")
+hm_show = get_tool_function("hm_show")
+hm_browse = get_tool_function("hm_browse")
+hm_search = get_tool_function("hm_search")
+hm_stats = get_tool_function("hm_stats")
+channels = get_tool_function("channels")
+show = get_tool_function("show")
+search = get_tool_function("search")
+stats = get_tool_function("stats")
 
 
 class TestRealWorldScenarios:
@@ -47,7 +47,7 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = await nixos_search("git")
+            result = await search("git")
             assert "git (2.49.0)" in result
             assert "Distributed version control system" in result
 
@@ -65,8 +65,8 @@ class TestRealWorldScenarios:
                 }
             ]
 
-            result = await nixos_info("git")
-            assert "Package: git" in result
+            result = await show("git")
+            assert "Name: git" in result
             assert "Homepage: https://git-scm.com/" in result
 
         # Step 3: Configure Git in Home Manager
@@ -78,12 +78,15 @@ class TestRealWorldScenarios:
                 {"name": "programs.git.userEmail", "type": "string", "description": "Default user email"},
             ]
 
-            result = await home_manager_options_by_prefix("programs.git")
+            result = await hm_browse("programs.git")
             assert "programs.git.enable" in result
             assert "programs.git.userName" in result
 
         # Step 4: Get specific option details
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             mock_parse.return_value = [
                 {
                     "name": "programs.git.enable",
@@ -91,8 +94,9 @@ class TestRealWorldScenarios:
                     "description": "Whether to enable Git",
                 }
             ]
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git.enable")
+            result = await hm_show("programs.git.enable")
             assert "Type: boolean" in result
 
     @pytest.mark.asyncio
@@ -105,11 +109,19 @@ class TestRealWorldScenarios:
                 "latest-43-nixos-24.11": "142,034 documents",
                 "latest-43-nixos-unstable": "151,798 documents",
             }
+            # Also need to mock get_channels to ensure stable maps to 25.05
+            with patch("mcp_nixos.server.get_channels") as mock_get_channels:
+                mock_get_channels.return_value = {
+                    "stable": "latest-43-nixos-25.05",
+                    "25.05": "latest-43-nixos-25.05",
+                    "24.11": "latest-43-nixos-24.11",
+                    "unstable": "latest-43-nixos-unstable",
+                }
 
-            result = await nixos_channels()
-            assert "stable (current: 25.05)" in result
-            assert "24.11" in result
-            assert "unstable" in result
+                result = await channels()
+                assert "stable (current: 25.05)" in result
+                assert "24.11" in result
+                assert "unstable" in result
 
         # Step 2: Compare package availability across channels
         channels_to_test = ["stable", "24.11", "unstable"]
@@ -124,7 +136,7 @@ class TestRealWorldScenarios:
 
                 with patch("mcp_nixos.server.es_query") as mock_es:
                     mock_es.return_value = []
-                    result = await nixos_search("firefox", channel=channel)
+                    result = await search("firefox", channel=channel)
                     # Should work with all valid channels
                     assert "Error" not in result or "Invalid channel" not in result
 
@@ -153,7 +165,7 @@ class TestRealWorldScenarios:
                 {"name": "system.defaults.dock.show-recents", "type": "boolean", "description": "Show recent apps"},
             ]
 
-            result = await darwin_options_by_prefix("system.defaults.dock")
+            result = await darwin_browse("system.defaults.dock")
             assert "system.defaults.dock.autohide" in result
             assert "system.defaults.dock.orientation" in result
 
@@ -168,7 +180,7 @@ class TestRealWorldScenarios:
                 {"name": "programs.fish.enable", "type": "boolean", "description": "Whether to enable fish"},
             ]
 
-            result = await home_manager_search("shell")
+            result = await hm_search("shell")
             # At least one shell option should be found
             assert any(shell in result for shell in ["zsh", "bash", "fish"])
 
@@ -181,7 +193,7 @@ class TestRealWorldScenarios:
                 {"name": "programs.zsh.shellAliases", "type": "attribute set", "description": "Shell aliases"},
             ]
 
-            result = await home_manager_options_by_prefix("programs.zsh")
+            result = await hm_browse("programs.zsh")
             assert "programs.zsh.oh-my-zsh.enable" in result
             assert "programs.zsh.shellAliases" in result
 
@@ -199,7 +211,7 @@ class TestRealWorldScenarios:
             with patch("mcp_nixos.server.parse_html_options") as mock_parse:
                 mock_parse.return_value = []  # No exact match
 
-                result = await home_manager_info(invalid_name)
+                result = await hm_show(invalid_name)
                 assert "not found" in result.lower()
 
     @pytest.mark.asyncio
@@ -226,7 +238,7 @@ class TestRealWorldScenarios:
                     }
                 ]
 
-                result = await nixos_search(search_term)
+                result = await search(search_term)
                 assert any(pkg in result for pkg in expected_packages)
 
     @pytest.mark.asyncio
@@ -246,7 +258,10 @@ class TestRealWorldScenarios:
         ]
 
         for option_name, type_str, _ in option_examples:
-            with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+            with (
+                patch("mcp_nixos.server.parse_html_options") as mock_parse,
+                patch("mcp_nixos.server.requests.get") as mock_get,
+            ):
                 mock_parse.return_value = [
                     {
                         "name": option_name,
@@ -254,8 +269,9 @@ class TestRealWorldScenarios:
                         "description": "Test option",
                     }
                 ]
+                mock_get.side_effect = Exception("Use basic parsing")
 
-                result = await home_manager_info(option_name)
+                result = await hm_show(option_name)
                 assert f"Type: {type_str}" in result
 
     @pytest.mark.asyncio
@@ -276,7 +292,7 @@ class TestRealWorldScenarios:
                     "24.11": "latest-43-nixos-24.11",
                 }
 
-                result = await nixos_search("test", channel=typo)
+                result = await search("test", channel=typo)
                 assert "Invalid channel" in result
                 assert "Available channels:" in result
                 # At least one suggestion should be present
@@ -299,7 +315,7 @@ class TestRealWorldScenarios:
             ]
 
             # Search for options with wildcards
-            result = await nixos_search("*.nginx.*", search_type="options")
+            result = await search("*.nginx.*", search_type="options")
             assert "services.nginx.enable" in result
 
     @pytest.mark.asyncio
@@ -322,7 +338,7 @@ class TestRealWorldScenarios:
                 mock_resp.raise_for_status.return_value = None
                 mock_post.return_value = mock_resp
 
-                result = await nixos_stats("unstable")
+                result = await stats("unstable")
                 assert "129,865" in result  # Formatted number
                 assert "21,933" in result
 
@@ -338,7 +354,7 @@ class TestRealWorldScenarios:
                 {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
             ]
 
-            result = await home_manager_stats()
+            result = await hm_stats()
             assert "Home Manager Statistics:" in result
             assert "Total options:" in result
             assert "Categories:" in result

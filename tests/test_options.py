@@ -15,20 +15,20 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
-darwin_info = get_tool_function("darwin_info")
+darwin_show = get_tool_function("darwin_show")
 darwin_stats = get_tool_function("darwin_stats")
-home_manager_info = get_tool_function("home_manager_info")
-home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
-home_manager_stats = get_tool_function("home_manager_stats")
-nixos_info = get_tool_function("nixos_info")
+hm_show = get_tool_function("hm_show")
+hm_browse = get_tool_function("hm_browse")
+hm_stats = get_tool_function("hm_stats")
+show = get_tool_function("show")
 
 
 class TestNixosInfoOptions:
-    """Test nixos_info with option lookups."""
+    """Test show with option lookups."""
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_with_exact_match(self, mock_query):
+    async def test_show_option_with_exact_match(self, mock_query):
         """Test info retrieval for exact option match."""
         mock_query.return_value = [
             {
@@ -42,7 +42,7 @@ class TestNixosInfoOptions:
             }
         ]
 
-        result = await nixos_info("services.nginx.enable", type="option")
+        result = await show("services.nginx.enable", type="option")
 
         # Verify the query
         mock_query.assert_called_once()
@@ -60,16 +60,17 @@ class TestNixosInfoOptions:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_not_found(self, mock_query):
+    async def test_show_option_not_found(self, mock_query):
         """Test info when option is not found."""
         mock_query.return_value = []
 
-        result = await nixos_info("services.nginx.nonexistent", type="option")
-        assert result == "Error (NOT_FOUND): Option 'services.nginx.nonexistent' not found"
+        result = await show("services.nginx.nonexistent", type="option")
+        assert result.startswith("Error (NOT_FOUND): Option 'services.nginx.nonexistent' not found")
+        assert "Try:" in result
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_with_minimal_fields(self, mock_query):
+    async def test_show_option_with_minimal_fields(self, mock_query):
         """Test info with minimal option fields."""
         mock_query.return_value = [
             {
@@ -80,7 +81,7 @@ class TestNixosInfoOptions:
             }
         ]
 
-        result = await nixos_info("services.test.enable", type="option")
+        result = await show("services.test.enable", type="option")
         assert "Option: services.test.enable" in result
         assert "Description: Enable test service" in result
         # No type, default, or example should not cause errors
@@ -90,7 +91,7 @@ class TestNixosInfoOptions:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_complex_description(self, mock_query):
+    async def test_show_option_complex_description(self, mock_query):
         """Test option with complex HTML description."""
         mock_query.return_value = [
             {
@@ -105,7 +106,7 @@ class TestNixosInfoOptions:
             }
         ]
 
-        result = await nixos_info("programs.zsh.enable", type="option")
+        result = await show("programs.zsh.enable", type="option")
         assert "Option: programs.zsh.enable" in result
         assert "Type: boolean" in result
         assert "Whether to configure zsh as an interactive shell" in result
@@ -115,7 +116,7 @@ class TestNixosInfoOptions:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_hierarchical_names(self, mock_query):
+    async def test_show_option_hierarchical_names(self, mock_query):
         """Test options with deeply nested hierarchical names."""
         test_cases = [
             "services.xserver.displayManager.gdm.enable",
@@ -135,7 +136,7 @@ class TestNixosInfoOptions:
                 }
             ]
 
-            result = await nixos_info(option_name, type="option")
+            result = await show(option_name, type="option")
 
             # Verify query uses correct field
             query = mock_query.call_args[0][1]
@@ -147,16 +148,16 @@ class TestNixosInfoOptions:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_api_error(self, mock_query):
+    async def test_show_option_api_error(self, mock_query):
         """Test error handling for API failures."""
         mock_query.side_effect = Exception("Connection timeout")
 
-        result = await nixos_info("services.nginx.enable", type="option")
+        result = await show("services.nginx.enable", type="option")
         assert "Error (ERROR): Connection timeout" in result
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_empty_fields(self, mock_query):
+    async def test_show_option_empty_fields(self, mock_query):
         """Test handling of empty option fields."""
         mock_query.return_value = [
             {
@@ -170,12 +171,13 @@ class TestNixosInfoOptions:
             }
         ]
 
-        result = await nixos_info("test.option", type="option")
+        result = await show("test.option", type="option")
         assert "Option: test.option" in result
         # Empty fields should not appear in output
         lines = result.split("\n")
         for line in lines:
-            if ":" in line and line != "Option: test.option":
+            # Skip header lines and the main option line
+            if ":" in line and line not in ["Option: test.option", "NEXT STEPS:", "SHOW: option 'test.option'"]:
                 _, value = line.split(":", 1)
                 assert value.strip() != ""  # No empty values after colon
 
@@ -187,7 +189,7 @@ class TestNixosInfoOptionsIntegration:
     @pytest.mark.asyncio
     async def test_real_option_lookup_services_nginx_enable(self):
         """Test real lookup of services.nginx.enable."""
-        result = await nixos_info("services.nginx.enable", type="option")
+        result = await show("services.nginx.enable", type="option")
 
         if "NOT_FOUND" in result:
             # If not found, it might be due to API changes
@@ -208,7 +210,7 @@ class TestNixosInfoOptionsIntegration:
         ]
 
         for option_name in common_options:
-            result = await nixos_info(option_name, type="option")
+            result = await show(option_name, type="option")
 
             # These options should exist
             if "NOT_FOUND" not in result:
@@ -218,12 +220,13 @@ class TestNixosInfoOptionsIntegration:
     @pytest.mark.asyncio
     async def test_real_option_not_found(self):
         """Test real lookup of non-existent option."""
-        result = await nixos_info("services.completely.fake.option", type="option")
+        result = await show("services.completely.fake.option", type="option")
         assert "Error (NOT_FOUND):" in result
         assert "services.completely.fake.option" in result
+        assert "Try:" in result
 
 
-# ===== Content from test_nixos_info_option_evals.py =====
+# ===== Content from test_show_option_evals.py =====
 class TestNixosInfoOptionEvals:
     """Evaluation tests for nixos_info with options."""
 
@@ -245,7 +248,7 @@ class TestNixosInfoOptionEvals:
         ]
 
         # User query equivalent: "Get details about services.nginx.enable"
-        result = await nixos_info("services.nginx.enable", type="option")
+        result = await show("services.nginx.enable", type="option")
 
         # Expected behaviors:
         # 1. Should use correct option name without .keyword suffix
@@ -291,7 +294,7 @@ class TestNixosInfoOptionEvals:
         ]
 
         # User query: "Show me the services.xserver.displayManager.gdm.enable option"
-        result = await nixos_info("services.xserver.displayManager.gdm.enable", type="option")
+        result = await show("services.xserver.displayManager.gdm.enable", type="option")
 
         # Expected: should handle long hierarchical names correctly
         assert "Option: services.xserver.displayManager.gdm.enable" in result
@@ -306,7 +309,7 @@ class TestNixosInfoOptionEvals:
         mock_query.return_value = []
 
         # User query: "Get info about services.fake.option"
-        result = await nixos_info("services.fake.option", type="option")
+        result = await show("services.fake.option", type="option")
 
         # Expected: clear error message
         assert "Error (NOT_FOUND):" in result
@@ -335,7 +338,7 @@ class TestNixosInfoOptionEvals:
                 }
             ]
 
-            result = await nixos_info(option_name, type="option")
+            result = await show(option_name, type="option")
 
             # Verify each option is handled correctly
             assert f"Option: {option_name}" in result
@@ -364,7 +367,7 @@ class TestNixosInfoOptionEvals:
             }
         ]
 
-        result = await nixos_info("programs.firefox.policies", type="option")
+        result = await show("programs.firefox.policies", type="option")
 
         # Should clean up HTML nicely
         assert "Option: programs.firefox.policies" in result
@@ -383,7 +386,7 @@ class TestNixosInfoOptionEvals:
     async def test_eval_real_option_lookup_integration(self):
         """Integration test: evaluate real option lookup behavior."""
         # Test with a real option that should exist
-        result = await nixos_info("services.nginx.enable", type="option")
+        result = await show("services.nginx.enable", type="option")
 
         if "NOT_FOUND" not in result:
             # If found (API is available)
@@ -405,26 +408,35 @@ class TestOptionInfoImprovements:
     """Test improvements to option info lookup based on real usage."""
 
     @pytest.mark.asyncio
-    async def test_home_manager_info_requires_exact_match(self):
+    async def test_hm_show_requires_exact_match(self):
         """Test that home_manager_info requires exact option names."""
         # User tries "programs.git" but it's not a valid option
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             # Return git-related options but no exact "programs.git" match
             mock_parse.return_value = [
                 {"name": "programs.git.enable", "type": "boolean", "description": "Enable Git"},
                 {"name": "programs.git.userName", "type": "string", "description": "Git username"},
             ]
+            # Make enhanced parsing fail to use basic parsing
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git")
+            result = await hm_show("programs.git")
             assert "not found" in result.lower()
 
         # User provides exact option name
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             mock_parse.return_value = [
                 {"name": "programs.git.enable", "type": "boolean", "description": "Enable Git"},
             ]
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git.enable")
+            result = await hm_show("programs.git.enable")
             assert "Option: programs.git.enable" in result
             assert "Type: boolean" in result
 
@@ -440,22 +452,26 @@ class TestOptionInfoImprovements:
                 {"name": "programs.git.signing.key", "type": "string", "description": "GPG key"},
             ]
 
-            result = await home_manager_options_by_prefix("programs.git")
+            result = await hm_browse("programs.git")
             assert "programs.git.enable" in result
             assert "programs.git.signing.key" in result
 
         # Step 2: Get info with exact name from browse results
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             mock_parse.return_value = [
                 {"name": "programs.git.signing.key", "type": "string", "description": "GPG signing key"},
             ]
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git.signing.key")
+            result = await hm_show("programs.git.signing.key")
             assert "Option: programs.git.signing.key" in result
             assert "Type: string" in result
 
     @pytest.mark.asyncio
-    async def test_darwin_info_same_behavior(self):
+    async def test_darwin_show_same_behavior(self):
         """Test that darwin_info has the same exact-match requirement."""
         # Partial name fails
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
@@ -463,7 +479,7 @@ class TestOptionInfoImprovements:
                 {"name": "system.defaults.dock.autohide", "type": "boolean", "description": "Auto-hide dock"},
             ]
 
-            result = await darwin_info("system")
+            result = await darwin_show("system")
             assert "not found" in result.lower()
 
         # Exact name works
@@ -472,7 +488,7 @@ class TestOptionInfoImprovements:
                 {"name": "system.defaults.dock.autohide", "type": "boolean", "description": "Auto-hide dock"},
             ]
 
-            result = await darwin_info("system.defaults.dock.autohide")
+            result = await darwin_show("system.defaults.dock.autohide")
             assert "Option: system.defaults.dock.autohide" in result
 
     @pytest.mark.asyncio
@@ -490,7 +506,7 @@ class TestOptionInfoImprovements:
             # Wrong name returns not found
             with patch("mcp_nixos.server.parse_html_options") as mock_parse:
                 mock_parse.return_value = []
-                result = await home_manager_info(wrong_name)
+                result = await hm_show(wrong_name)
                 assert "not found" in result.lower()
 
     @pytest.mark.asyncio
@@ -500,7 +516,7 @@ class TestOptionInfoImprovements:
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
             mock_parse.return_value = []
 
-            result = await home_manager_info("programs.git")
+            result = await hm_show("programs.git")
             assert "not found" in result.lower()
             # Could improve by suggesting: "Try home_manager_options_by_prefix('programs.git')"
 
@@ -513,14 +529,14 @@ class TestOptionInfoImprovements:
             ]
 
             # Exact case works
-            result = await home_manager_info("programs.git.enable")
+            result = await hm_show("programs.git.enable")
             assert "Option: programs.git.enable" in result
 
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
             mock_parse.return_value = []
 
             # Wrong case fails
-            result = await home_manager_info("programs.Git.enable")
+            result = await hm_show("programs.Git.enable")
             assert "not found" in result.lower()
 
     @pytest.mark.asyncio
@@ -534,7 +550,7 @@ class TestOptionInfoImprovements:
                 {"name": "programs.git.signing.gpgPath", "type": "string", "description": "Path to gpg"},
             ]
 
-            result = await home_manager_options_by_prefix("programs.git.signing")
+            result = await hm_browse("programs.git.signing")
             assert "programs.git.signing.key" in result
             assert "programs.git.signing.signByDefault" in result
 
@@ -549,19 +565,23 @@ class TestOptionInfoImprovements:
         ]
 
         for type_str, option_name in complex_types:
-            with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+            with (
+                patch("mcp_nixos.server.parse_html_options") as mock_parse,
+                patch("mcp_nixos.server.requests.get") as mock_get,
+            ):
                 mock_parse.return_value = [
                     {"name": option_name, "type": type_str, "description": "Complex option"},
                 ]
+                mock_get.side_effect = Exception("Use basic parsing")
 
-                result = await home_manager_info(option_name)
+                result = await hm_show(option_name)
                 assert f"Type: {type_str}" in result
 
     @pytest.mark.asyncio
     async def test_stats_limitations_are_clear(self):
         """Test that stats function limitations are clearly communicated."""
         # Home Manager stats
-        result = await home_manager_stats()
+        result = await hm_stats()
         assert "Home Manager Statistics:" in result
         assert "Total options:" in result
         assert "Categories:" in result

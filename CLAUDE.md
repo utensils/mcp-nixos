@@ -62,11 +62,31 @@ mypy mcp_nixos/
 
 ## Testing Approach
 
-- 367+ async tests using pytest-asyncio
+- 334+ async tests using pytest-asyncio (89% coverage)
 - Real API calls (no mocks) for integration tests
 - Unit tests marked with `@pytest.mark.unit`
 - Integration tests marked with `@pytest.mark.integration`
 - Tests ensure plain text output (no XML/JSON leakage)
+- Comprehensive test coverage including:
+  - Search relevance fixes (darwin_search dock prioritization)
+  - Enhanced Home Manager option display
+  - Error handling edge cases
+  - AI usability evaluations
+
+## Code Quality Commands
+
+When making changes, always run:
+```bash
+# Lint and format
+ruff check mcp_nixos/ --fix
+ruff format mcp_nixos/
+
+# Run tests
+pytest tests/
+
+# Type check (note: some type issues are known and non-critical)
+mypy mcp_nixos/
+```
 
 ## Local Development with MCP Clients
 
@@ -95,11 +115,20 @@ Create `.mcp.json` in project root (already gitignored):
 
 2. **Error Handling**: All tools return helpful plain text error messages. API failures gracefully degrade with user-friendly messages.
 
-3. **No Caching**: Version 1.0+ removed all caching for simplicity. All queries hit live APIs.
+3. **No Caching**: Version 1.0+ removed all caching for simplicity. All queries hit live APIs. **IMPORTANT**: Never implement caching for external services like NixHub - this is over-engineering for an MCP server. Always prefer simple, direct API calls.
 
 4. **Async Everything**: Version 1.0.1 migrated to FastMCP 2.x. All tools are async functions.
 
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
+
+6. **Keep It Simple**: This is an MCP server, not a web application. Avoid over-engineering solutions like:
+   - Caching layers for external APIs
+   - Complex retry mechanisms with backoff
+   - Database storage
+   - Background workers or queues
+   - Complicated state management
+   
+   Always prefer simple, direct implementations that are easy to understand and maintain.
 
 ## CI/CD Workflows
 

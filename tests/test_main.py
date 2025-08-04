@@ -42,9 +42,9 @@ class TestServerImport:
 
         assert hasattr(server, "mcp")
         assert hasattr(server, "main")
-        assert hasattr(server, "nixos_search")
-        assert hasattr(server, "nixos_info")
-        assert hasattr(server, "home_manager_search")
+        assert hasattr(server, "search")
+        assert hasattr(server, "show")
+        assert hasattr(server, "hm_search")
         assert hasattr(server, "darwin_search")
 
 

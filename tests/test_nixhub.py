@@ -16,8 +16,8 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
-nixhub_find_version = get_tool_function("nixhub_find_version")
-nixhub_package_versions = get_tool_function("nixhub_package_versions")
+find_version = get_tool_function("find_version")
+versions = get_tool_function("versions")
 
 
 class TestNixHubIntegration:
@@ -53,7 +53,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("firefox", limit=5)
+            result = await versions("firefox", limit=5)
 
             # Check the request was made correctly
             mock_get.assert_called_once()
@@ -76,7 +76,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
 
-            result = await nixhub_package_versions("nonexistent-package")
+            result = await versions("nonexistent-package")
 
             assert "Error (NOT_FOUND):" in result
             assert "nonexistent-package" in result
@@ -88,7 +88,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=503)
 
-            result = await nixhub_package_versions("firefox")
+            result = await versions("firefox")
 
             assert "Error (SERVICE_ERROR):" in result
             assert "temporarily unavailable" in result
@@ -96,18 +96,23 @@ class TestNixHubIntegration:
     @pytest.mark.asyncio
     async def test_nixhub_invalid_package_name(self):
         """Test validation of package names."""
+        # Reset context to avoid pollution from other tests
+        from mcp_nixos import server
+
+        server.context.last_package_name = None
+
         # Test empty name
-        result = await nixhub_package_versions("")
+        result = await versions("")
         assert "Error" in result
         assert "Package name is required" in result
 
         # Test invalid characters
-        result = await nixhub_package_versions("package$name")
+        result = await versions("package$name")
         assert "Error" in result
         assert "Invalid package name" in result
 
         # Test SQL injection attempt
-        result = await nixhub_package_versions("package'; DROP TABLE--")
+        result = await versions("package'; DROP TABLE--")
         assert "Error" in result
         assert "Invalid package name" in result
 
@@ -120,11 +125,11 @@ class TestNixHubIntegration:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
             # Test limits
-            result = await nixhub_package_versions("test", limit=0)
+            result = await versions("test", limit=0)
             assert "Error" in result
             assert "Limit must be between 1 and 50" in result
 
-            result = await nixhub_package_versions("test", limit=51)
+            result = await versions("test", limit=51)
             assert "Error" in result
             assert "Limit must be between 1 and 50" in result
 
@@ -136,7 +141,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("test-package")
+            result = await versions("test-package")
 
             assert "Package: test-package" in result
             assert "No version history available" in result
@@ -160,7 +165,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("test", limit=5)
+            result = await versions("test", limit=5)
 
             assert "showing 5 of 20" in result
             # Count version entries (each starts with "• Version")
@@ -181,7 +186,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("test")
+            result = await versions("test")
 
             # Valid hash should not have warning
             assert "abcdef0123456789abcdef0123456789abcdef01" in result
@@ -198,10 +203,10 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("test")
+            result = await versions("test")
 
-            assert "To use a specific version" in result
-            assert "Pin nixpkgs to the commit hash" in result
+            assert "NEXT STEPS:" in result
+            assert "Pin nixpkgs to a specific commit hash" in result
 
     @pytest.mark.asyncio
     async def test_nixhub_network_timeout(self):
@@ -211,7 +216,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.side_effect = requests.Timeout("Connection timed out")
 
-            result = await nixhub_package_versions("firefox")
+            result = await versions("firefox")
 
             assert "Error (TIMEOUT):" in result
             assert "timed out" in result
@@ -222,7 +227,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=Mock(side_effect=ValueError("Invalid JSON")))
 
-            result = await nixhub_package_versions("firefox")
+            result = await versions("firefox")
 
             assert "Error (PARSE_ERROR):" in result
             assert "Failed to parse" in result
@@ -246,7 +251,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("firefox")
+            result = await versions("firefox")
 
             # Should not show attribute for firefox (same as name)
             assert "Attribute: firefox\n" not in result
@@ -275,7 +280,7 @@ class TestNixHubIntegration:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_package_versions("ruby")
+            result = await versions("ruby")
 
             # Count how many times the commit hash appears
             commit_count = result.count("a" * 40)
@@ -291,7 +296,7 @@ class TestNixHubRealIntegration:
     @pytest.mark.asyncio
     async def test_nixhub_real_firefox(self):
         """Test fetching real data for Firefox package."""
-        result = await nixhub_package_versions("firefox", limit=3)
+        result = await versions("firefox", limit=3)
 
         # Should not be an error
         assert "Error" not in result
@@ -319,7 +324,7 @@ class TestNixHubRealIntegration:
     @pytest.mark.asyncio
     async def test_nixhub_real_python(self):
         """Test fetching real data for Python package."""
-        result = await nixhub_package_versions("python3", limit=2)
+        result = await versions("python3", limit=2)
 
         # Should not be an error
         assert "Error" not in result
@@ -331,7 +336,7 @@ class TestNixHubRealIntegration:
     @pytest.mark.asyncio
     async def test_nixhub_real_nonexistent(self):
         """Test fetching data for non-existent package."""
-        result = await nixhub_package_versions("definitely-not-a-real-package-xyz123")
+        result = await versions("definitely-not-a-real-package-xyz123")
 
         # Should be a proper error
         assert "Error (NOT_FOUND):" in result
@@ -340,11 +345,11 @@ class TestNixHubRealIntegration:
     @pytest.mark.asyncio
     async def test_nixhub_real_usage_hint(self):
         """Test that usage hint appears for packages with commits."""
-        result = await nixhub_package_versions("git", limit=1)
+        result = await versions("git", limit=1)
 
         if "Error" not in result and "Nixpkgs commit:" in result:
-            assert "To use a specific version" in result
-            assert "Pin nixpkgs to the commit hash" in result
+            assert "NEXT STEPS:" in result
+            assert "Pin nixpkgs to a specific commit hash" in result
 
 
 # ===== Content from test_nixhub_find_version.py =====
@@ -372,9 +377,9 @@ class TestNixHubFindVersion:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_find_version("ruby", "2.6.7")
+            result = await find_version("ruby", "2.6.7")
 
-            assert "✓ Found ruby version 2.6.7" in result
+            assert "Found ruby version 2.6.7" in result
             assert "2021-07-05 19:22 UTC" in result
             assert "3e0ce8c5d478d06b37a4faa7a4cc8642c6bb97de" in result
             assert "ruby_2_6" in result
@@ -398,9 +403,9 @@ class TestNixHubFindVersion:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_find_version("python3", "3.5.9")
+            result = await find_version("python3", "3.5.9")
 
-            assert "✗ python3 version 3.5.9 not found" in result
+            assert "[NOT FOUND] python3 version 3.5.9 not found" in result
             assert "Newest: 3.12.0" in result
             assert "Oldest: 3.7.7" in result
             assert "Major versions available: 3" in result
@@ -433,9 +438,9 @@ class TestNixHubFindVersion:
             return Mock(status_code=200, json=lambda: mock_response)
 
         with patch("requests.get", side_effect=side_effect):
-            result = await nixhub_find_version("ruby", "2.6.7")
+            result = await find_version("ruby", "2.6.7")
 
-            assert "✓ Found ruby version 2.6.7" in result
+            assert "Found ruby version 2.6.7" in result
             # Should have tried with limit=10 first, then limit=25 and found it
             assert call_count == 2
 
@@ -445,7 +450,7 @@ class TestNixHubFindVersion:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
 
-            result = await nixhub_find_version("nonexistent", "1.0.0")
+            result = await find_version("nonexistent", "1.0.0")
 
             assert "Error (NOT_FOUND):" in result
             assert "nonexistent" in result
@@ -459,7 +464,7 @@ class TestNixHubFindVersion:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
             # Test "python" -> "python3" mapping
-            await nixhub_find_version("python", "3.12.0")
+            await find_version("python", "3.12.0")
 
             call_args = mock_get.call_args[0][0]
             assert "python3" in call_args
@@ -482,7 +487,7 @@ class TestNixHubFindVersion:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_find_version("test", "3.7.0")
+            result = await find_version("test", "3.7.0")
 
             # Check correct version ordering
             assert "Newest: 3.11.1" in result
@@ -503,11 +508,11 @@ class TestNixHubFindVersion:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
             # Test older version
-            result = await nixhub_find_version("test", "3.6.0")
+            result = await find_version("test", "3.6.0")
             assert "Version 3.6.0 is older than the oldest available (3.7.0)" in result
 
             # Test same major, older minor
-            result = await nixhub_find_version("test", "3.5.0")
+            result = await find_version("test", "3.5.0")
             assert "Version 3.5.0 is older than the oldest available (3.7.0)" in result
 
     @pytest.mark.asyncio
@@ -517,28 +522,28 @@ class TestNixHubFindVersion:
         import requests
 
         with patch("requests.get", side_effect=requests.Timeout("Timeout")):
-            result = await nixhub_find_version("test", "1.0.0")
+            result = await find_version("test", "1.0.0")
             assert "Error (TIMEOUT):" in result
 
         # Test service error
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=503)
-            result = await nixhub_find_version("test", "1.0.0")
+            result = await find_version("test", "1.0.0")
             assert "Error (SERVICE_ERROR):" in result
 
     @pytest.mark.asyncio
     async def test_input_validation(self):
         """Test input validation."""
         # Empty package name
-        result = await nixhub_find_version("", "1.0.0")
+        result = await find_version("", "1.0.0")
         assert "Package name is required" in result
 
         # Empty version
-        result = await nixhub_find_version("test", "")
+        result = await find_version("test", "")
         assert "Version is required" in result
 
         # Invalid package name
-        result = await nixhub_find_version("test$package", "1.0.0")
+        result = await find_version("test$package", "1.0.0")
         assert "Invalid package name" in result
 
     @pytest.mark.asyncio
@@ -561,7 +566,7 @@ class TestNixHubFindVersion:
         with patch("requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, json=lambda: mock_response)
 
-            result = await nixhub_find_version("test", "1.0.0")
+            result = await find_version("test", "1.0.0")
 
             # Should only show each commit once
             assert result.count("a" * 40) == 1
@@ -577,11 +582,11 @@ class TestNixHubEvaluations:
         """Test that older Ruby versions can be found with appropriate limit."""
         # Scenario: User asks for Ruby 2.6
         # Default behavior (limit=10) won't find it
-        result_default = await nixhub_package_versions("ruby", limit=10)
+        result_default = await versions("ruby", limit=10)
         assert "2.6" not in result_default, "Ruby 2.6 shouldn't appear with default limit"
 
         # But with higher limit, it should be found
-        result_extended = await nixhub_package_versions("ruby", limit=50)
+        result_extended = await versions("ruby", limit=50)
         assert "2.6.7" in result_extended, "Ruby 2.6.7 should be found with limit=50"
         assert "ruby_2_6" in result_extended, "Should show ruby_2_6 attribute"
 
@@ -611,7 +616,7 @@ class TestNixHubEvaluations:
         limits_and_oldest = []
 
         for limit in [10, 20, 30, 40, 50]:
-            result = await nixhub_package_versions("ruby", limit=limit)
+            result = await versions("ruby", limit=limit)
             lines = result.split("\n")
 
             # Find oldest version in this result
@@ -645,7 +650,7 @@ class TestNixHubEvaluations:
     async def test_version_not_in_nixhub(self):
         """Test behavior when a version truly doesn't exist."""
         # Test with a very high limit to ensure we check everything
-        result = await nixhub_package_versions("ruby", limit=50)
+        result = await versions("ruby", limit=50)
 
         # Ruby 2.5 and earlier should not exist in NixHub (based on actual data)
         assert "2.5." not in result, "Ruby 2.5.x should not be available in NixHub"
@@ -660,11 +665,11 @@ class TestNixHubEvaluations:
     @pytest.mark.asyncio
     async def test_package_version_recommendations(self):
         """Test that results provide actionable information."""
-        result = await nixhub_package_versions("python3", limit=5)
+        result = await versions("python3", limit=5)
 
         # Should include usage instructions
-        assert "To use a specific version" in result
-        assert "Pin nixpkgs to the commit hash" in result
+        assert "NEXT STEPS:" in result
+        assert "Pin nixpkgs to a specific commit hash" in result
 
         # Should have commit hashes
         assert "Nixpkgs commit:" in result
@@ -683,13 +688,13 @@ class TestNixHubEvaluations:
     async def test_version_2_search_patterns(self, package, min_limit_for_v2):
         """Test that version 2.x of packages requires higher limits."""
         # Low limit shouldn't find version 2
-        result_low = await nixhub_package_versions(package, limit=10)
+        result_low = await versions(package, limit=10)
 
         # Count version 2.x occurrences
         v2_count_low = sum(1 for line in result_low.split("\n") if "• Version 2." in line)
 
         # High limit might find version 2 (if it exists)
-        result_high = await nixhub_package_versions(package, limit=50)
+        result_high = await versions(package, limit=50)
         v2_count_high = sum(1 for line in result_high.split("\n") if "• Version 2." in line)
 
         # Higher limit should find more or equal v2 versions
@@ -703,11 +708,11 @@ class TestNixHubAIBehaviorPatterns:
     async def test_ai_should_try_higher_limits_for_older_versions(self):
         """Document the pattern AI should follow for finding older versions."""
         # Pattern 1: Start with default/low limit
-        result1 = await nixhub_package_versions("ruby", limit=10)
+        result1 = await versions("ruby", limit=10)
 
         # If user asks for version not found, AI should:
         # Pattern 2: Increase limit significantly
-        result2 = await nixhub_package_versions("ruby", limit=50)
+        result2 = await versions("ruby", limit=50)
 
         # Verify this pattern works
         assert "2.6" not in result1, "Step 1: Default search doesn't find old version"
@@ -719,11 +724,11 @@ class TestNixHubAIBehaviorPatterns:
     async def test_ai_response_for_missing_version(self):
         """Test how AI should respond when version is not found."""
         # Search for Ruby 2.6 with default limit
-        result = await nixhub_package_versions("ruby", limit=10)
+        result = await versions("ruby", limit=10)
 
         if "2.6" not in result:
             # AI should recognize the pattern and try higher limit
-            extended_result = await nixhub_package_versions("ruby", limit=50)
+            extended_result = await versions("ruby", limit=50)
 
             assert "2.6" in extended_result, "Should find Ruby 2.6 with higher limit"
 
@@ -758,7 +763,7 @@ class TestNixHubAIBehaviorPatterns:
         found = False
         for limit in [10, 20, 30, 40, 50]:
             calls_made += 1
-            result = await nixhub_package_versions("ruby", limit=limit)
+            result = await versions("ruby", limit=limit)
             if "2.6.7" in result:
                 found = True
                 break
@@ -767,7 +772,7 @@ class TestNixHubAIBehaviorPatterns:
         assert calls_made > 3, "Inefficient approach needs multiple calls"
 
         # Efficient: Start with reasonable limit for old versions
-        result = await nixhub_package_versions("ruby", limit=50)
+        result = await versions("ruby", limit=50)
         assert "2.6.7" in result, "Efficient approach finds it in one call"
 
         # This demonstrates why AI should use higher limits for older versions

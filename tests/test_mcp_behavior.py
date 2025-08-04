@@ -16,19 +16,19 @@ def get_tool_function(tool_name: str):
 
 
 # Get the underlying functions for direct use
-darwin_info = get_tool_function("darwin_info")
-darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
+darwin_show = get_tool_function("darwin_show")
+darwin_browse = get_tool_function("darwin_browse")
 darwin_search = get_tool_function("darwin_search")
 darwin_stats = get_tool_function("darwin_stats")
-home_manager_info = get_tool_function("home_manager_info")
-home_manager_list_options = get_tool_function("home_manager_list_options")
-home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
-home_manager_search = get_tool_function("home_manager_search")
-home_manager_stats = get_tool_function("home_manager_stats")
-nixos_channels = get_tool_function("nixos_channels")
-nixos_info = get_tool_function("nixos_info")
-nixos_search = get_tool_function("nixos_search")
-nixos_stats = get_tool_function("nixos_stats")
+hm_show = get_tool_function("hm_show")
+hm_options = get_tool_function("hm_options")
+hm_browse = get_tool_function("hm_browse")
+hm_search = get_tool_function("hm_search")
+hm_stats = get_tool_function("hm_stats")
+channels = get_tool_function("channels")
+show = get_tool_function("show")
+search = get_tool_function("search")
+stats = get_tool_function("stats")
 
 
 class MockAssistant:
@@ -44,8 +44,11 @@ class MockAssistant:
 
         self.tool_calls.append({"tool": tool_name, "args": kwargs})
 
+        # Tool names are already in snake_case format
+        func_name = tool_name
+
         # Call the actual tool - get the underlying function from FastMCP tool
-        tool_func = getattr(server, tool_name)
+        tool_func = getattr(server, func_name)
         if hasattr(tool_func, "fn"):
             # FastMCP wrapped function - use the underlying function
             result = await tool_func.fn(**kwargs)
@@ -58,8 +61,10 @@ class MockAssistant:
     def analyze_response(self, response: str) -> dict[str, bool | int]:
         """Analyze tool response for key information."""
         analysis = {
-            "has_results": "Found" in response or ":" in response,
-            "is_error": "Error" in response,
+            "has_results": (
+                "Found" in response or "Results:" in response or ("SEARCH:" in response and "found" in response)
+            ),
+            "is_error": "Error" in response and "NOT_FOUND" not in response,  # NOT_FOUND errors are expected
             "has_bullet_points": "•" in response,
             "line_count": len(response.strip().split("\n")),
             "mentions_not_found": "not found" in response.lower(),
@@ -77,7 +82,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Step 1: Search for the package
-        response1 = await assistant.use_tool("nixos_search", query="neovim", search_type="packages", limit=5)
+        response1 = await assistant.use_tool("search", query="neovim", search_type="packages", limit=5)
         analysis1 = assistant.analyze_response(response1)
 
         assert analysis1["has_results"] or analysis1["mentions_not_found"]
@@ -85,16 +90,16 @@ class TestMCPBehaviorEvals:
 
         # Step 2: Get detailed info if found
         if analysis1["has_results"]:
-            response2 = await assistant.use_tool("nixos_info", name="neovim", type="package")
+            response2 = await assistant.use_tool("show", name="neovim", type="package")
             analysis2 = assistant.analyze_response(response2)
 
-            assert "Package:" in response2
+            assert "Name:" in response2
             assert "Version:" in response2
             assert not analysis2["is_error"]
 
         # Verify tool usage pattern
         assert len(assistant.tool_calls) >= 1
-        assert assistant.tool_calls[0]["tool"] == "nixos_search"
+        assert assistant.tool_calls[0]["tool"] == "search"
 
     @pytest.mark.asyncio
     async def test_scenario_configure_service(self):
@@ -102,11 +107,11 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Step 1: Search for service options
-        response1 = await assistant.use_tool("nixos_search", query="nginx", search_type="options", limit=10)
+        response1 = await assistant.use_tool("search", query="nginx", search_type="options", limit=10)
 
         # Step 2: Get specific option details
         if "services.nginx.enable" in response1:
-            response2 = await assistant.use_tool("nixos_info", name="services.nginx.enable", type="option")
+            response2 = await assistant.use_tool("show", name="services.nginx.enable", type="option")
 
             assert "Type: boolean" in response2
             assert "Default:" in response2
@@ -117,19 +122,19 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Step 1: List categories
-        response1 = await assistant.use_tool("home_manager_list_options")
+        response1 = await assistant.use_tool("hm_options")
         assert "programs" in response1
         assert "services" in response1
 
         # Step 2: Explore programs category
-        await assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs")
+        await assistant.use_tool("hm_browse", option_prefix="programs")
 
         # Step 3: Search for specific program
-        response3 = await assistant.use_tool("home_manager_search", query="firefox", limit=5)
+        response3 = await assistant.use_tool("hm_search", query="firefox", limit=5)
 
         # Step 4: Get details on specific option
         if "programs.firefox.enable" in response3:
-            response4 = await assistant.use_tool("home_manager_info", name="programs.firefox.enable")
+            response4 = await assistant.use_tool("hm_show", name="programs.firefox.enable")
             assert "Option:" in response4
 
     @pytest.mark.asyncio
@@ -141,15 +146,15 @@ class TestMCPBehaviorEvals:
         await assistant.use_tool("darwin_search", query="homebrew", limit=10)
 
         # Step 2: Explore system defaults
-        response2 = await assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults")
+        response2 = await assistant.use_tool("darwin_browse", option_prefix="system.defaults")
 
         # Step 3: Get specific dock settings
         if "system.defaults.dock" in response2:
-            response3 = await assistant.use_tool("darwin_options_by_prefix", option_prefix="system.defaults.dock")
+            response3 = await assistant.use_tool("darwin_browse", option_prefix="system.defaults.dock")
 
             # Check for autohide option
             if "autohide" in response3:
-                response4 = await assistant.use_tool("darwin_info", name="system.defaults.dock.autohide")
+                response4 = await assistant.use_tool("darwin_show", name="system.defaults.dock.autohide")
                 assert "Option:" in response4
 
     @pytest.mark.asyncio
@@ -162,7 +167,7 @@ class TestMCPBehaviorEvals:
 
         results = {}
         for channel in channels:
-            response = await assistant.use_tool("nixos_info", name=package, type="package", channel=channel)
+            response = await assistant.use_tool("show", name=package, type="package", channel=channel)
             if "Version:" in response:
                 # Extract version
                 for line in response.split("\n"):
@@ -178,7 +183,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Search for package that provides 'gcc'
-        response = await assistant.use_tool("nixos_search", query="gcc", search_type="programs", limit=10)
+        response = await assistant.use_tool("search", query="gcc", search_type="programs", limit=10)
 
         analysis = assistant.analyze_response(response)
         if analysis["has_results"]:
@@ -191,16 +196,14 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Look for virtualisation options
-        response1 = await assistant.use_tool(
-            "nixos_search", query="virtualisation.docker", search_type="options", limit=20
-        )
+        response1 = await assistant.use_tool("search", query="virtualisation.docker", search_type="options", limit=20)
 
         if "virtualisation.docker.enable" in response1:
             # Get details on enable option
-            await assistant.use_tool("nixos_info", name="virtualisation.docker.enable", type="option")
+            await assistant.use_tool("show", name="virtualisation.docker.enable", type="option")
 
             # Search for related options
-            await assistant.use_tool("nixos_search", query="docker", search_type="options", limit=10)
+            await assistant.use_tool("search", query="docker", search_type="options", limit=10)
 
             # Verify we get comprehensive docker configuration options
             assert any(r for r in assistant.responses if "docker" in r.lower())
@@ -211,7 +214,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Explore git options
-        response1 = await assistant.use_tool("home_manager_options_by_prefix", option_prefix="programs.git")
+        response1 = await assistant.use_tool("hm_browse", option_prefix="programs.git")
 
         # Count git-related options
         git_options = response1.count("programs.git")
@@ -228,16 +231,16 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Try invalid channel
-        response1 = await assistant.use_tool("nixos_search", query="test", channel="invalid-channel")
+        response1 = await assistant.use_tool("search", query="test", channel="invalid-channel")
         assert "Error" in response1
         assert "Invalid channel" in response1
 
         # Try non-existent package
-        response2 = await assistant.use_tool("nixos_info", name="definitely-not-a-real-package-12345", type="package")
+        response2 = await assistant.use_tool("show", name="definitely-not-a-real-package-12345", type="package")
         assert "not found" in response2.lower()
 
         # Try invalid type
-        response3 = await assistant.use_tool("nixos_search", query="test", search_type="invalid-type")
+        response3 = await assistant.use_tool("search", query="test", search_type="invalid-type")
         assert "Error" in response3
         assert "Invalid type" in response3
 
@@ -247,7 +250,7 @@ class TestMCPBehaviorEvals:
         assistant = MockAssistant()
 
         # Search for all nginx options
-        response1 = await assistant.use_tool("nixos_search", query="services.nginx", search_type="options", limit=50)
+        response1 = await assistant.use_tool("search", query="services.nginx", search_type="options", limit=50)
 
         if "Found" in response1:
             # Count unique option types
@@ -268,13 +271,13 @@ class TestMCPBehaviorEvals:
         # Workflow: Set up a development environment
 
         # 1. Check statistics
-        stats = await assistant.use_tool("nixos_stats")
+        stats = await assistant.use_tool("stats")
         assert "Packages:" in stats
 
         # 2. Search for development tools
         dev_tools = ["vscode", "git", "docker", "nodejs"]
         for tool in dev_tools[:2]:  # Test first two to save time
-            response = await assistant.use_tool("nixos_search", query=tool, search_type="packages", limit=3)
+            response = await assistant.use_tool("search", query=tool, search_type="packages", limit=3)
             if "Found" in response:
                 # Get info on first result
                 package_name = None
@@ -285,11 +288,11 @@ class TestMCPBehaviorEvals:
                         break
 
                 if package_name:
-                    info = await assistant.use_tool("nixos_info", name=package_name, type="package")
-                    assert "Package:" in info
+                    info = await assistant.use_tool("show", name=package_name, type="package")
+                    assert "Name:" in info
 
         # 3. Configure git in Home Manager
-        await assistant.use_tool("home_manager_search", query="git", limit=10)
+        await assistant.use_tool("hm_search", query="git", limit=10)
 
         # Verify workflow completed
         assert len(assistant.tool_calls) >= 4
@@ -305,9 +308,9 @@ class TestMCPBehaviorEvals:
 
         # Time different operations
         operations = [
-            ("nixos_stats", {}),
-            ("nixos_search", {"query": "python", "limit": 20}),
-            ("home_manager_list_options", {}),
+            ("stats", {}),
+            ("search", {"query": "python", "limit": 20}),
+            ("hm_options", {}),
             ("darwin_search", {"query": "system", "limit": 10}),
         ]
 
@@ -340,7 +343,7 @@ class TestMCPBehaviorEvals:
 
         found_types = {}
         for type_name, search_term in type_examples.items():
-            response = await assistant.use_tool("nixos_search", query=search_term, search_type="options", limit=5)
+            response = await assistant.use_tool("search", query=search_term, search_type="options", limit=5)
             if "Type:" in response:
                 found_types[type_name] = response
 
@@ -376,7 +379,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await nixos_search("git", limit=5)
+            result = await search("git", limit=5)
             assert "git (2.49.0)" in result
             assert "Distributed version control system" in result
             assert "gitoxide" in result
@@ -396,8 +399,8 @@ class TestMCPBehaviorComprehensive:
                 }
             ]
 
-            result = await nixos_info("git")
-            assert "Package: git" in result
+            result = await show("git")
+            assert "Name: git" in result
             assert "Version: 2.49.0" in result
             assert "Homepage: https://git-scm.com/" in result
             assert "License: GNU General Public License v2.0" in result
@@ -412,12 +415,20 @@ class TestMCPBehaviorComprehensive:
                 "latest-43-nixos-25.05": "151,698 documents",
                 "latest-43-nixos-24.11": "142,034 documents",
             }
+            # Also need to mock get_channels to ensure stable maps to 25.05
+            with patch("mcp_nixos.server.get_channels") as mock_get_channels:
+                mock_get_channels.return_value = {
+                    "stable": "latest-43-nixos-25.05",
+                    "25.05": "latest-43-nixos-25.05",
+                    "24.11": "latest-43-nixos-24.11",
+                    "unstable": "latest-43-nixos-unstable",
+                }
 
-            result = await nixos_channels()
-            assert "NixOS Channels" in result
-            assert "stable (current: 25.05)" in result
-            assert "unstable" in result
-            assert "✓ Available" in result
+                result = await channels()
+                assert "CHANNELS: Available" in result
+                assert "stable (current: 25.05)" in result
+                assert "unstable" in result
+                assert "[Available]" in result
 
         # 2. Get stats for a channel
         with patch("requests.post") as mock_post:
@@ -430,8 +441,8 @@ class TestMCPBehaviorComprehensive:
             mock_resp.raise_for_status.return_value = None
             mock_post.return_value = mock_resp
 
-            result = await nixos_stats()
-            assert "NixOS Statistics" in result
+            result = await stats()
+            assert "STATS:" in result
             assert "129,865" in result
             assert "21,933" in result
 
@@ -458,7 +469,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await home_manager_search("git", limit=3)
+            result = await hm_search("git", limit=3)
             assert "programs.git.enable" in result
             assert "programs.git.userName" in result
             assert "programs.git.userEmail" in result
@@ -483,13 +494,16 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await home_manager_options_by_prefix("programs.git")
+            result = await hm_browse("programs.git")
             assert "programs.git.enable" in result
             assert "programs.git.aliases" in result
             assert "programs.git.delta.enable" in result
 
         # 3. Get specific option info (requires exact name)
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             mock_parse.return_value = [
                 {
                     "name": "programs.git.enable",
@@ -497,8 +511,9 @@ class TestMCPBehaviorComprehensive:
                     "description": "Whether to enable Git",
                 }
             ]
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git.enable")
+            result = await hm_show("programs.git.enable")
             assert "Option: programs.git.enable" in result
             assert "Type: boolean" in result
             assert "Whether to enable Git" in result
@@ -516,7 +531,7 @@ class TestMCPBehaviorComprehensive:
                 {"name": "accounts.email.accounts", "type": "", "description": ""},
             ]
 
-            result = await home_manager_list_options()
+            result = await hm_options()
             assert "Home Manager option categories" in result
             assert "programs (2 options)" in result
             assert "services (1 options)" in result
@@ -571,7 +586,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await darwin_options_by_prefix("system.defaults.dock")
+            result = await darwin_browse("system.defaults.dock")
             assert "system.defaults.dock.autohide" in result
             assert "system.defaults.dock.autohide-delay" in result
             assert "system.defaults.dock.orientation" in result
@@ -588,7 +603,7 @@ class TestMCPBehaviorComprehensive:
                 "24.11": "latest-43-nixos-24.11",
             }
 
-            result = await nixos_search("test", channel="24.05")
+            result = await search("test", channel="24.05")
             assert "Invalid channel" in result
             assert "Available channels:" in result
             assert "24.11" in result or "25.05" in result
@@ -610,7 +625,7 @@ class TestMCPBehaviorComprehensive:
             for channel in ["stable", "unstable", "25.05", "beta"]:
                 with patch("mcp_nixos.server.es_query") as mock_es:
                     mock_es.return_value = []
-                    result = await nixos_search("test", channel=channel)
+                    result = await search("test", channel=channel)
                     assert "Error" not in result or "Invalid channel" not in result
 
     @pytest.mark.asyncio
@@ -633,7 +648,7 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await home_manager_search("git user")
+            result = await hm_search("git user")
             assert "programs.git.userName" in result
 
         # Step 2: Browse all git options
@@ -650,13 +665,16 @@ class TestMCPBehaviorComprehensive:
                 },
             ]
 
-            result = await home_manager_options_by_prefix("programs.git")
+            result = await hm_browse("programs.git")
             assert "programs.git.userName" in result
             assert "programs.git.userEmail" in result
             assert "programs.git.signing.key" in result
 
         # Step 3: Get details for specific options
-        with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+        with (
+            patch("mcp_nixos.server.parse_html_options") as mock_parse,
+            patch("mcp_nixos.server.requests.get") as mock_get,
+        ):
             mock_parse.return_value = [
                 {
                     "name": "programs.git.signing.signByDefault",
@@ -664,8 +682,9 @@ class TestMCPBehaviorComprehensive:
                     "description": "Whether to sign commits by default",
                 }
             ]
+            mock_get.side_effect = Exception("Use basic parsing")
 
-            result = await home_manager_info("programs.git.signing.signByDefault")
+            result = await hm_show("programs.git.signing.signByDefault")
             assert "Type: boolean" in result
             assert "sign commits by default" in result
 
@@ -686,7 +705,7 @@ class TestMCPBehaviorComprehensive:
                 )
             mock_parse.return_value = mock_options
 
-            result = await home_manager_list_options()
+            result = await hm_options()
             assert "2129 options" in result or "programs (" in result
 
     @pytest.mark.asyncio
@@ -696,14 +715,14 @@ class TestMCPBehaviorComprehensive:
         with patch("mcp_nixos.server.es_query") as mock_es:
             mock_es.return_value = []
 
-            result = await nixos_info("nonexistent-package")
+            result = await show("nonexistent-package")
             assert "not found" in result.lower()
 
         # Option not found
         with patch("mcp_nixos.server.parse_html_options") as mock_parse:
             mock_parse.return_value = []
 
-            result = await home_manager_info("nonexistent.option")
+            result = await hm_show("nonexistent.option")
             assert "not found" in result.lower()
 
     @pytest.mark.asyncio
@@ -721,13 +740,13 @@ class TestMCPBehaviorComprehensive:
             # Can still query old channel
             with patch("mcp_nixos.server.es_query") as mock_es:
                 mock_es.return_value = []
-                result = await nixos_search("test", channel="24.11")
+                result = await search("test", channel="24.11")
                 assert "Error" not in result or "Invalid channel" not in result
 
             # Can query new stable
             with patch("mcp_nixos.server.es_query") as mock_es:
                 mock_es.return_value = []
-                result = await nixos_search("test", channel="stable")
+                result = await search("test", channel="stable")
                 assert "Error" not in result or "Invalid channel" not in result
 
     @pytest.mark.asyncio
@@ -742,7 +761,10 @@ class TestMCPBehaviorComprehensive:
         ]
 
         for desc, type_str, option_name in test_cases:
-            with patch("mcp_nixos.server.parse_html_options") as mock_parse:
+            with (
+                patch("mcp_nixos.server.parse_html_options") as mock_parse,
+                patch("mcp_nixos.server.requests.get") as mock_get,
+            ):
                 mock_parse.return_value = [
                     {
                         "name": option_name,
@@ -750,8 +772,9 @@ class TestMCPBehaviorComprehensive:
                         "description": f"Test {desc}",
                     }
                 ]
+                mock_get.side_effect = Exception("Use basic parsing")
 
-                result = await home_manager_info(option_name)
+                result = await hm_show(option_name)
                 assert f"Type: {type_str}" in result
 
     @pytest.mark.asyncio
@@ -769,7 +792,7 @@ class TestMCPBehaviorComprehensive:
         ]
 
         # Home Manager stats now return actual statistics
-        result = await home_manager_stats()
+        result = await hm_stats()
         assert "Home Manager Statistics:" in result
         assert "Total options:" in result
         assert "Categories:" in result

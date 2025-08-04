@@ -17,16 +17,16 @@ def get_tool_function(tool_name: str):
 
 # Get the underlying functions for direct use
 darwin_search = get_tool_function("darwin_search")
-darwin_info = get_tool_function("darwin_info")
-darwin_list_options = get_tool_function("darwin_list_options")
-darwin_options_by_prefix = get_tool_function("darwin_options_by_prefix")
-home_manager_search = get_tool_function("home_manager_search")
-home_manager_info = get_tool_function("home_manager_info")
-home_manager_list_options = get_tool_function("home_manager_list_options")
-home_manager_options_by_prefix = get_tool_function("home_manager_options_by_prefix")
-nixos_info = get_tool_function("nixos_info")
-nixos_search = get_tool_function("nixos_search")
-nixos_stats = get_tool_function("nixos_stats")
+darwin_show = get_tool_function("darwin_show")
+darwin_options = get_tool_function("darwin_options")
+darwin_browse = get_tool_function("darwin_browse")
+hm_search = get_tool_function("hm_search")
+hm_show = get_tool_function("hm_show")
+hm_options = get_tool_function("hm_options")
+hm_browse = get_tool_function("hm_browse")
+show = get_tool_function("show")
+search = get_tool_function("search")
+stats = get_tool_function("stats")
 
 
 # Removed duplicate classes - kept the more comprehensive versions below
@@ -48,7 +48,7 @@ class TestErrorHandlingEvals:
     @pytest.mark.asyncio
     async def test_invalid_channel_error(self):
         """User specifies invalid channel - should get clear error."""
-        result = await nixos_search("firefox", channel="invalid-channel")
+        result = await search("firefox", channel="invalid-channel")
 
         # Should get a clear error message
         assert "Error (ERROR): Invalid channel 'invalid-channel'" in result
@@ -62,7 +62,7 @@ class TestErrorHandlingEvals:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        result = await nixos_info("nonexistentpackage", type="package")
+        result = await show("nonexistentpackage", type="package")
 
         # Should get informative not found error
         assert "Error (NOT_FOUND): Package 'nonexistentpackage' not found" in result
@@ -140,23 +140,24 @@ class TestCompleteScenarioEval:
 
         # Execute the flow
         # 1. Search for Firefox
-        result1 = await nixos_search("firefox")
-        assert "Found 1 packages matching 'firefox':" in result1
+        result1 = await search("firefox")
+        assert "SEARCH: packages" in result1
+        assert "Results: 1 packages found" in result1
         assert "• firefox (121.0)" in result1
 
         # 2. Get detailed info
-        result2 = await nixos_info("firefox")
-        assert "Package: firefox" in result2
+        result2 = await show("firefox")
+        assert "Name: firefox" in result2
         assert "Homepage: https://www.mozilla.org/firefox/" in result2
 
         # 3. Check Home Manager options
-        result3 = await home_manager_search("firefox")
+        result3 = await hm_search("firefox")
         assert "• programs.firefox.enable" in result3
 
         # AI should now have all info needed to guide user through installation
 
 
-# ===== Content from test_evals_comprehensive.py =====
+# ===== Content from test_ai_usability_evaluations_comprehensive.py =====
 @dataclass
 class EvalScenario:
     """Represents an evaluation scenario."""
@@ -214,17 +215,17 @@ class MockAIAssistant:
         """Make a tool call and record it."""
         # Map tool names to actual functions
         tools = {
-            "nixos_search": nixos_search,
-            "nixos_info": nixos_info,
-            "nixos_stats": nixos_stats,
-            "home_manager_search": home_manager_search,
-            "home_manager_info": home_manager_info,
-            "home_manager_list_options": home_manager_list_options,
-            "home_manager_options_by_prefix": home_manager_options_by_prefix,
+            "search": search,
+            "show": show,
+            "stats": stats,
+            "hm_search": hm_search,
+            "hm_show": hm_show,
+            "hm_options": hm_options,
+            "hm_browse": hm_browse,
             "darwin_search": darwin_search,
-            "darwin_info": darwin_info,
-            "darwin_list_options": darwin_list_options,
-            "darwin_options_by_prefix": darwin_options_by_prefix,
+            "darwin_show": darwin_show,
+            "darwin_options": darwin_options,
+            "darwin_browse": darwin_browse,
         }
 
         if tool_name in tools:
@@ -246,50 +247,50 @@ class MockAIAssistant:
 
         if package:
             # Search for the package
-            await self._make_tool_call("nixos_search", query=package, search_type="packages")
+            await self._make_tool_call("search", query=package, search_type="packages")
 
             # If it's a command, also search programs
             if package == "git":
-                await self._make_tool_call("nixos_search", query=package, search_type="programs")
+                await self._make_tool_call("search", query=package, search_type="programs")
 
             # Get detailed info
-            await self._make_tool_call("nixos_info", name=package, type="package")
+            await self._make_tool_call("show", name=package, type="package")
 
     async def _handle_service_configuration(self, query: str):
         """Handle service configuration queries."""
         if "nginx" in query.lower():
             # Search for nginx options
-            await self._make_tool_call("nixos_search", query="services.nginx", search_type="options")
+            await self._make_tool_call("search", query="services.nginx", search_type="options")
             # Get specific option info
-            await self._make_tool_call("nixos_info", name="services.nginx.enable", type="option")
-            await self._make_tool_call("nixos_info", name="services.nginx.virtualHosts", type="option")
+            await self._make_tool_call("show", name="services.nginx.enable", type="option")
+            await self._make_tool_call("show", name="services.nginx.virtualHosts", type="option")
 
     async def _handle_home_manager_query(self, query: str):
         """Handle Home Manager related queries."""
         if "git" in query.lower():
             # Search both system and user options
-            await self._make_tool_call("nixos_search", query="git", search_type="packages")
-            await self._make_tool_call("home_manager_search", query="programs.git")
-            await self._make_tool_call("home_manager_info", name="programs.git.enable")
+            await self._make_tool_call("search", query="git", search_type="packages")
+            await self._make_tool_call("hm_search", query="programs.git")
+            await self._make_tool_call("hm_show", name="programs.git.enable")
         elif "shell" in query.lower():
             # Handle shell configuration queries
-            await self._make_tool_call("home_manager_search", query="programs.zsh")
-            await self._make_tool_call("home_manager_info", name="programs.zsh.enable")
-            await self._make_tool_call("home_manager_options_by_prefix", option_prefix="programs.zsh")
+            await self._make_tool_call("hm_search", query="programs.zsh")
+            await self._make_tool_call("hm_show", name="programs.zsh.enable")
+            await self._make_tool_call("hm_browse", option_prefix="programs.zsh")
 
     async def _handle_darwin_query(self, query: str):
         """Handle Darwin/macOS queries."""
         if "dock" in query.lower():
             await self._make_tool_call("darwin_search", query="system.defaults.dock")
-            await self._make_tool_call("darwin_info", name="system.defaults.dock.autohide")
-            await self._make_tool_call("darwin_options_by_prefix", option_prefix="system.defaults.dock")
+            await self._make_tool_call("darwin_show", name="system.defaults.dock.autohide")
+            await self._make_tool_call("darwin_browse", option_prefix="system.defaults.dock")
 
     async def _handle_comparison_query(self, query: str):
         """Handle package comparison queries."""
         if "firefox" in query.lower():
-            await self._make_tool_call("nixos_search", query="firefox", search_type="packages")
-            await self._make_tool_call("nixos_info", name="firefox", type="package")
-            await self._make_tool_call("nixos_info", name="firefox-esr", type="package")
+            await self._make_tool_call("search", query="firefox", search_type="packages")
+            await self._make_tool_call("show", name="firefox", type="package")
+            await self._make_tool_call("show", name="firefox-esr", type="package")
 
 
 class EvalFramework:
@@ -344,8 +345,12 @@ class EvalFramework:
 
         for criterion in scenario.success_criteria:
             if "finds" in criterion and "package" in criterion:
-                # Check if package was found
-                criteria_met[criterion] = any("Found" in call[2] and "packages" in call[2] for call in tool_calls)
+                # Check if package was found (new format)
+                criteria_met[criterion] = any(
+                    ("Results:" in call[2] and "packages found" in call[2])
+                    or ("Found" in call[2] and "packages" in call[2])  # Support old format too
+                    for call in tool_calls
+                )
             elif "mentions" in criterion:
                 # Check if certain text is mentioned
                 key_term = criterion.split("mentions")[1].strip()
@@ -411,8 +416,8 @@ class TestPackageDiscoveryEvals:
             name="find_vscode",
             user_query="I want to install VSCode on NixOS",
             expected_tool_calls=[
-                "await nixos_search(query='vscode', search_type='packages')",
-                "await nixos_info(name='vscode', type='package')",
+                "await search(query='vscode', search_type='packages')",
+                "await show(name='vscode', type='package')",
             ],
             success_criteria=["finds vscode package", "mentions configuration.nix", "provides installation syntax"],
         )
@@ -451,8 +456,8 @@ class TestPackageDiscoveryEvals:
             name="find_git_command",
             user_query="How do I get the 'git' command on NixOS?",
             expected_tool_calls=[
-                "await nixos_search(query='git', search_type='programs')",
-                "await nixos_info(name='git', type='package')",
+                "await search(query='git', search_type='programs')",
+                "await show(name='git', type='package')",
             ],
             success_criteria=[
                 "identifies git package",
@@ -491,9 +496,9 @@ class TestPackageDiscoveryEvals:
             name="compare_firefox_variants",
             user_query="What's the difference between firefox and firefox-esr?",
             expected_tool_calls=[
-                "await nixos_search(query='firefox', search_type='packages')",
-                "await nixos_info(name='firefox', type='package')",
-                "await nixos_info(name='firefox-esr', type='package')",
+                "await search(query='firefox', search_type='packages')",
+                "await show(name='firefox', type='package')",
+                "await show(name='firefox-esr', type='package')",
             ],
             success_criteria=[
                 "explains ESR vs regular versions",
@@ -533,9 +538,9 @@ class TestServiceConfigurationEvals:
             name="nginx_setup",
             user_query="How do I set up nginx on NixOS to serve static files?",
             expected_tool_calls=[
-                "await nixos_search(query='services.nginx', search_type='options')",
-                "await nixos_info(name='services.nginx.enable', type='option')",
-                "await nixos_info(name='services.nginx.virtualHosts', type='option')",
+                "await search(query='services.nginx', search_type='options')",
+                "await show(name='services.nginx.enable', type='option')",
+                "await show(name='services.nginx.virtualHosts', type='option')",
             ],
             success_criteria=[
                 "enables nginx service",
@@ -571,10 +576,10 @@ class TestServiceConfigurationEvals:
             name="postgresql_setup",
             user_query="Set up PostgreSQL with a database for my app",
             expected_tool_calls=[
-                "await nixos_search(query='services.postgresql', search_type='options')",
-                "await nixos_info(name='services.postgresql.enable', type='option')",
-                "await nixos_info(name='services.postgresql.ensureDatabases', type='option')",
-                "await nixos_info(name='services.postgresql.ensureUsers', type='option')",
+                "await search(query='services.postgresql', search_type='options')",
+                "await show(name='services.postgresql.enable', type='option')",
+                "await show(name='services.postgresql.ensureDatabases', type='option')",
+                "await show(name='services.postgresql.ensureUsers', type='option')",
             ],
             success_criteria=[
                 "enables postgresql service",
@@ -625,9 +630,9 @@ class TestHomeManagerIntegrationEvals:
             name="git_config_location",
             user_query="Should I configure git in NixOS or Home Manager?",
             expected_tool_calls=[
-                "await nixos_search(query='git', search_type='packages')",
-                "await home_manager_search(query='programs.git')",
-                "await home_manager_info(name='programs.git.enable')",
+                "await search(query='git', search_type='packages')",
+                "await hm_search(query='programs.git')",
+                "await hm_show(name='programs.git.enable')",
             ],
             success_criteria=[
                 "explains system vs user configuration",
@@ -640,7 +645,7 @@ class TestHomeManagerIntegrationEvals:
         result = await self.framework.run_eval(scenario)
 
         assert len(result.tool_calls_made) >= 3
-        assert any("home_manager" in call[0] for call in result.tool_calls_made)
+        assert any("hm_" in call[0] for call in result.tool_calls_made)
 
     @patch("mcp_nixos.server.parse_html_options")
     @pytest.mark.asyncio
@@ -655,9 +660,9 @@ class TestHomeManagerIntegrationEvals:
             name="shell_config",
             user_query="How do I manage my shell configuration with Home Manager?",
             expected_tool_calls=[
-                "await home_manager_search(query='programs.zsh')",
-                "await home_manager_info(name='programs.zsh.enable')",
-                "await home_manager_options_by_prefix(option_prefix='programs.zsh')",
+                "await hm_search(query='programs.zsh')",
+                "await hm_show(name='programs.zsh.enable')",
+                "await hm_browse(option_prefix='programs.zsh')",
             ],
             success_criteria=[
                 "enables shell program",
@@ -692,8 +697,8 @@ class TestDarwinPlatformEvals:
             user_query="How do I configure dock settings with nix-darwin?",
             expected_tool_calls=[
                 "await darwin_search(query='system.defaults.dock')",
-                "await darwin_info(name='system.defaults.dock.autohide')",
-                "await darwin_options_by_prefix(option_prefix='system.defaults.dock')",
+                "await darwin_show(name='system.defaults.dock.autohide')",
+                "await darwin_browse(option_prefix='system.defaults.dock')",
             ],
             success_criteria=[
                 "finds dock configuration options",
@@ -719,7 +724,7 @@ class TestEvalReporting:
         scenario = EvalScenario(
             name="test_scenario",
             user_query="Test query",
-            expected_tool_calls=["await nixos_search(query='test')"],
+            expected_tool_calls=["await search(query='test')"],
             success_criteria=["finds test package"],
         )
 
@@ -727,9 +732,7 @@ class TestEvalReporting:
             scenario=scenario,
             passed=True,
             score=1.0,
-            tool_calls_made=[
-                ("nixos_search", {"query": "test"}, "Found 1 packages matching 'test':\n\n• test (1.0.0)")
-            ],
+            tool_calls_made=[("search", {"query": "test"}, "Found 1 packages matching 'test':\n\n• test (1.0.0)")],
             criteria_met={"finds test package": True},
             reasoning="Made 1 tool calls; Met 1/1 criteria",
         )
@@ -794,19 +797,19 @@ class TestCompleteEvalSuite:
             EvalScenario(
                 name="basic_package_install",
                 user_query="How do I install Firefox?",
-                expected_tool_calls=["await nixos_search(query='firefox')"],
+                expected_tool_calls=["await search(query='firefox')"],
                 success_criteria=["finds firefox package"],
             ),
             EvalScenario(
                 name="service_config",
                 user_query="Configure nginx web server",
-                expected_tool_calls=["await nixos_search(query='nginx', search_type='options')"],
+                expected_tool_calls=["await search(query='nginx', search_type='options')"],
                 success_criteria=["finds nginx options"],
             ),
             EvalScenario(
                 name="home_manager_usage",
                 user_query="Should I use Home Manager for git config?",
-                expected_tool_calls=["await home_manager_search(query='git')"],
+                expected_tool_calls=["await hm_search(query='git')"],
                 success_criteria=["recommends Home Manager"],
             ),
         ]

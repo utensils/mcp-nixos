@@ -17,20 +17,20 @@ def get_tool_function(tool_name: str):
 
 # Get the underlying functions for direct use
 darwin_stats = get_tool_function("darwin_stats")
-home_manager_info = get_tool_function("home_manager_info")
-home_manager_list_options = get_tool_function("home_manager_list_options")
-home_manager_search = get_tool_function("home_manager_search")
-home_manager_stats = get_tool_function("home_manager_stats")
-nixos_info = get_tool_function("nixos_info")
-nixos_search = get_tool_function("nixos_search")
+hm_show = get_tool_function("hm_show")
+hm_options = get_tool_function("hm_options")
+hm_search = get_tool_function("hm_search")
+hm_stats = get_tool_function("hm_stats")
+show = get_tool_function("show")
+search = get_tool_function("search")
 
 
 class TestNixOSSearchIssues:
-    """Test issues with nixos_search specifically for options."""
+    """Test issues with search specifically for options."""
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_search_options_now_returns_relevant_results(self, mock_es):
+    async def test_search_options_now_returns_relevant_results(self, mock_es):
         """Test that searching for 'services.nginx' returns relevant nginx options."""
         # Mock proper nginx-related results
         mock_es.return_value = [
@@ -50,7 +50,7 @@ class TestNixOSSearchIssues:
             },
         ]
 
-        result = await nixos_search("services.nginx", search_type="options", limit=2, channel="stable")
+        result = await search("services.nginx", search_type="options", limit=2, channel="stable")
 
         # After fix, should return nginx-related options
         assert "services.nginx.enable" in result
@@ -60,11 +60,11 @@ class TestNixOSSearchIssues:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_info_option_not_found(self, mock_es):
-        """Test that nixos_info fails to find specific options like services.nginx.enable."""
+    async def test_show_option_not_found(self, mock_es):
+        """Test that show fails to find specific options like services.nginx.enable."""
         mock_es.return_value = []  # Empty results
 
-        result = await nixos_info("services.nginx.enable", type="option", channel="stable")
+        result = await show("services.nginx.enable", type="option", channel="stable")
         assert "Error (NOT_FOUND)" in result
         assert "services.nginx.enable" in result
 
@@ -74,8 +74,8 @@ class TestHomeManagerIssues:
 
     @patch("mcp_nixos.server.parse_html_options")
     @pytest.mark.asyncio
-    async def test_home_manager_list_options_incomplete(self, mock_parse):
-        """Test that home_manager_list_options only returns 2 categories (incomplete)."""
+    async def test_hm_options_incomplete(self, mock_parse):
+        """Test that hm_options only returns 2 categories (incomplete)."""
         # Mock returns only 2 categories as seen in the issue
         mock_parse.return_value = [
             {"name": "_module.args", "description": "", "type": ""},
@@ -83,7 +83,7 @@ class TestHomeManagerIssues:
             {"name": "accounts.email.enable", "description": "", "type": ""},
         ]
 
-        result = await home_manager_list_options()
+        result = await hm_options()
         assert "_module (1 options)" in result
         assert "accounts (2 options)" in result
         assert "programs" not in result  # Missing many categories!
@@ -93,8 +93,8 @@ class TestHomeManagerIssues:
 
     @patch("mcp_nixos.server.parse_html_options")
     @pytest.mark.asyncio
-    async def test_home_manager_stats_placeholder(self, mock_parse):
-        """Test that home_manager_stats returns actual statistics."""
+    async def test_hm_stats_placeholder(self, mock_parse):
+        """Test that hm_stats returns actual statistics."""
         # Mock parsed options
         mock_parse.return_value = [
             {"name": "programs.git.enable", "type": "boolean", "description": "Enable git"},
@@ -105,7 +105,7 @@ class TestHomeManagerIssues:
             {"name": "xsession.enable", "type": "boolean", "description": "Enable X session"},
         ]
 
-        result = await home_manager_stats()
+        result = await hm_stats()
         assert "Home Manager Statistics:" in result
         assert "Total options: 6" in result
         assert "Categories: 5" in result
@@ -167,7 +167,7 @@ class TestHTMLParsingIssues:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = await home_manager_info("programs.git.enable")
+        result = await hm_show("programs.git.enable")
 
         # Check if type info is properly extracted
         assert "Type:" in result or "boolean" in result
@@ -190,7 +190,7 @@ class TestElasticsearchQueryIssues:
         mock_post.return_value = mock_response
 
         # Test options search
-        await nixos_search("nginx", search_type="options", limit=1)
+        await search("nginx", search_type="options", limit=1)
 
         # Check the query sent to ES
         call_args = mock_post.call_args
@@ -209,9 +209,9 @@ class TestElasticsearchQueryIssues:
         assert "option_name" in field_names or any("option_name" in str(clause) for clause in should_clauses)
         assert "option_description" in field_names
 
-        # Test exact match for nixos_info
+        # Test exact match for show
         mock_post.reset_mock()
-        await nixos_info("services.nginx.enable", type="option")
+        await show("services.nginx.enable", type="option")
 
         call_args = mock_post.call_args
         query_data = call_args[1]["json"]["query"]
@@ -229,7 +229,7 @@ class TestPlainTextFormatting:
 
     @patch("mcp_nixos.server.es_query")
     @pytest.mark.asyncio
-    async def test_nixos_search_strips_html(self, mock_es):
+    async def test_search_strips_html(self, mock_es):
         """Test that HTML tags in descriptions are properly handled."""
         mock_es.return_value = [
             {
@@ -243,7 +243,7 @@ class TestPlainTextFormatting:
             }
         ]
 
-        result = await nixos_search("test", search_type="options")
+        result = await search("test", search_type="options")
 
         # Should not contain HTML tags
         assert "<rendered-html>" not in result
@@ -258,20 +258,20 @@ class TestErrorHandling:
     """Test error handling across all tools."""
 
     @pytest.mark.asyncio
-    async def test_nixos_search_invalid_parameters(self):
-        """Test parameter validation in nixos_search."""
+    async def test_search_invalid_parameters(self):
+        """Test parameter validation in search."""
         # Invalid type
-        result = await nixos_search("test", search_type="invalid")
+        result = await search("test", search_type="invalid")
         assert "Error" in result
         assert "Invalid type" in result
 
         # Invalid channel
-        result = await nixos_search("test", channel="invalid")
+        result = await search("test", channel="invalid")
         assert "Error" in result
         assert "Invalid channel" in result
 
         # Invalid limit
-        result = await nixos_search("test", limit=0)
+        result = await search("test", limit=0)
         assert "Error" in result
         assert "Limit must be 1-100" in result
 
@@ -281,7 +281,7 @@ class TestErrorHandling:
         """Test handling of network errors."""
         mock_get.side_effect = Exception("Network error")
 
-        result = await home_manager_search("test")
+        result = await hm_search("test")
         assert "Error" in result
         assert "Failed to fetch docs" in result or "Network error" in result
 
@@ -294,7 +294,7 @@ class TestRealAPIBehavior:
     async def test_real_nixos_option_search(self):
         """Test real NixOS API option search behavior."""
         # This would make actual API calls to verify the issue
-        result = await nixos_search("services.nginx.enable", search_type="options", channel="stable")
+        result = await search("services.nginx.enable", search_type="options", channel="stable")
 
         # The search should return nginx-related options, not random ones
         if "appstream.enable" in result:
@@ -304,7 +304,7 @@ class TestRealAPIBehavior:
     @pytest.mark.asyncio
     async def test_real_home_manager_parsing(self):
         """Test real Home Manager HTML parsing."""
-        result = await home_manager_list_options()
+        result = await hm_options()
 
         # Should have many categories, not just 2
         if "(2 total)" in result:
@@ -350,12 +350,12 @@ class TestOutputFormat:
             }
         ]
 
-        result = await nixos_search("nginx", search_type="packages", limit=1)
+        result = await search("nginx", search_type="packages", limit=1)
 
         # Check format
-        assert "Found 1 packages matching" in result
+        assert "Results: 1 packages found" in result
         assert "• nginx (1.24.0)" in result
-        assert "  A web server" in result  # Indented description
+        assert "   A web server" in result  # Indented description
 
         # Check plain text
         assert has_plain_text_format(result)
@@ -368,9 +368,9 @@ class TestOutputFormat:
             {"name": "programs.git.enable", "description": "Whether to enable Git.", "type": "boolean"}
         ]
 
-        result = await home_manager_search("git", limit=1)
+        result = await hm_search("git", limit=1)
 
-        # Check format matches nixos_search style
+        # Check format matches search style
         assert "Found 1 Home Manager options matching" in result
         assert "• programs.git.enable" in result
         assert "  Type: boolean" in result

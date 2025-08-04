@@ -139,6 +139,8 @@ nix profile install github:utensils/mcp-nixos
 - **Deduped flake results** - No more duplicate spam
 - **Version-aware searches** - Find that old Ruby version you need
 - **Category browsing** - Explore options systematically
+- **Search relevance fixes** - Darwin dock searches now find dock, not Docker (revolutionary!)
+- **Enhanced Home Manager display** - Now shows default values like a proper tool
 
 ## For Developers (The Brave Ones)
 
@@ -205,11 +207,12 @@ twine upload dist/*    # Upload to PyPI
 ```
 
 ### Testing Philosophy
-- **367 tests** that actually test things (now async because why not)
+- **334 tests** that actually test things (now async because why not)
+- **89% coverage** because perfection is overrated (but we're close)
 - **Real API calls** because mocks are for cowards (await real_courage())
 - **Plain text validation** ensuring no XML leaks through
 - **Cross-platform tests** because Windows users deserve pain too
-- **15 test files** down from 29 because organization is a virtue
+- **19 test files** perfectly organized because naming things is half the battle
 
 ## Environment Variables
 
