@@ -108,13 +108,141 @@ uv pip install mcp-nixos
 ```
 
 ### For Nix Users (You Know Who You Are)
+
+#### Imperative Installation (Quick & Dirty)
 ```bash
 # Run without installing
 nix run github:utensils/mcp-nixos
 
-# Install to profile
+# Install to profile (not recommended for most Nix users)
 nix profile install github:utensils/mcp-nixos
 ```
+
+#### Declarative Installation (The Nix Way™)
+
+Most Nix users prefer declarative configuration. Here's how to properly integrate MCP-NixOS:
+
+##### Using Flakes (Recommended)
+
+Add to your `flake.nix`:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    mcp-nixos.url = "github:utensils/mcp-nixos";
+  };
+
+  outputs = { self, nixpkgs, mcp-nixos, ... }: {
+    # For NixOS systems
+    nixosConfigurations.mysystem = nixpkgs.lib.nixosSystem {
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            mcp-nixos.packages.${pkgs.system}.default
+          ];
+        })
+      ];
+    };
+
+    # For Home Manager users
+    homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      modules = [
+        ({ pkgs, ... }: {
+          home.packages = [
+            mcp-nixos.packages.${pkgs.system}.default
+          ];
+        })
+      ];
+    };
+
+    # For nix-darwin (macOS) users
+    darwinConfigurations.mymac = darwin.lib.darwinSystem {
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            mcp-nixos.packages.${pkgs.system}.default
+          ];
+        })
+      ];
+    };
+  };
+}
+```
+
+##### Using Home Manager (without flakes)
+
+Add to your `home.nix`:
+
+```nix
+{ pkgs, ... }:
+
+let
+  mcp-nixos = pkgs.fetchFromGitHub {
+    owner = "utensils";
+    repo = "mcp-nixos";
+    rev = "main"; # Or pin to a specific commit/tag
+    sha256 = "0000000000000000000000000000000000000000000000000000"; # Use nix-prefetch-github
+  };
+  
+  mcp-nixos-pkg = pkgs.callPackage "${mcp-nixos}/default.nix" { };
+in
+{
+  home.packages = [
+    mcp-nixos-pkg
+  ];
+}
+```
+
+##### Using NixOS Configuration (without flakes)
+
+Add to your `configuration.nix`:
+
+```nix
+{ config, pkgs, ... }:
+
+let
+  mcp-nixos = pkgs.fetchFromGitHub {
+    owner = "utensils";
+    repo = "mcp-nixos";
+    rev = "main"; # Or pin to a specific commit/tag
+    sha256 = "0000000000000000000000000000000000000000000000000000"; # Use nix-prefetch-github
+  };
+  
+  mcp-nixos-pkg = pkgs.callPackage "${mcp-nixos}/default.nix" { };
+in
+{
+  environment.systemPackages = with pkgs; [
+    mcp-nixos-pkg
+  ];
+}
+```
+
+##### Using an Overlay
+
+Create an overlay in `~/.config/nixpkgs/overlays/mcp-nixos.nix`:
+
+```nix
+self: super: {
+  mcp-nixos = super.callPackage (super.fetchFromGitHub {
+    owner = "utensils";
+    repo = "mcp-nixos";
+    rev = "main";
+    sha256 = "0000000000000000000000000000000000000000000000000000";
+  } + "/default.nix") { };
+}
+```
+
+Then use it in any Nix expression:
+```nix
+{ pkgs, ... }: {
+  environment.systemPackages = [ pkgs.mcp-nixos ];
+}
+```
+
+After installation, configure your MCP client as shown in the Quick Start section above.
+
+📁 **See the `examples/` directory for complete, copy-paste ready configuration files for all installation methods.**
 
 ## Features Worth Mentioning
 
