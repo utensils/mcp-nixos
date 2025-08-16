@@ -63,7 +63,7 @@ Provide:
 ```python
 from fastmcp import FastMCP
 import asyncio
-import requests
+import httpx
 from typing import Any
 
 class APIError(Exception):
@@ -75,14 +75,14 @@ mcp = FastMCP("server-name")
 async def search_data(query: str) -> str:
     """Search external API and format as plain text."""
     try:
-        # Real API call (no caching)
-        response = requests.get(f"https://api.example.com/search?q={query}")
-        response.raise_for_status()
-        
-        # Format as plain text for LLM
-        data = response.json()
-        return format_search_results(data)
-    except requests.RequestException as e:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://api.example.com/search", params={"q": query})
+            response.raise_for_status()
+            
+            # Format as plain text for LLM
+            data = response.json()
+            return format_search_results(data)
+    except httpx.RequestError as e:
         return f"Search failed: {str(e)}"
 
 def format_search_results(data: dict[str, Any]) -> str:
