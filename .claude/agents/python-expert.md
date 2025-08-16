@@ -55,7 +55,7 @@ Provide:
 - **Custom exception classes** with graceful error handling
 - Performance benchmarks for I/O-bound operations
 - Docstrings following Google/NumPy style
-- **pyproject.toml** with async dependencies (fastmcp>=2.11.0, requests, beautifulsoup4)
+- **pyproject.toml** with async dependencies (fastmcp>=2.11.0, httpx, beautifulsoup4)
 - **Development workflow integration** (Nix shell commands: run, run-tests, lint, format, typecheck)
 
 ## MCP Server Example:
