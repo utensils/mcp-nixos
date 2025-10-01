@@ -55,7 +55,7 @@ jobs:
     needs: deploy-test
     runs-on: ubuntu-latest
     # Only deploy to PyPI for non-prerelease versions and skip when manually triggered with docker_only
-    if: ${{ github.event_name == 'release' && !github.event.release.prerelease && (github.event_name == 'release' || !inputs.docker_only) }}
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease && !inputs.docker_only }}
     environment: pypi
     permissions:
       id-token: write
@@ -83,8 +83,8 @@ jobs:
 
   docker:
     # Run if: (1) release event after test deploy, or (2) manual trigger
-    needs: [deploy-test]
-    if: ${{ always() && (github.event_name == 'release' && needs.deploy-test.result == 'success') || (github.event_name == 'workflow_dispatch') }}
+    # Note: Docker builds are independent and don't strictly require PyPI deployment
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -93,7 +93,33 @@ jobs:
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.tag || github.ref }}
-    
+
+    - name: Validate tag format
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-\.]+)?$ ]]; then
+          echo "❌ Invalid tag format. Expected: v1.2.3 or v1.2.3-alpha"
+          exit 1
+        fi
+
+    - name: Verify tag exists
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        if ! git rev-parse --verify "refs/tags/${{ inputs.tag }}" >/dev/null 2>&1; then
+          echo "❌ Tag ${{ inputs.tag }} does not exist"
+          exit 1
+        fi
+        echo "✓ Tag ${{ inputs.tag }} verified"
+
+    - name: Normalize tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
 
@@ -105,7 +131,7 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
+
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -124,11 +150,11 @@ jobs:
           # Latest tag for stable releases (not for prereleases)
           type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' }}
           # Version tag from release or manual input
-          type=semver,pattern={{version}},value=${{ inputs.tag || github.ref_name }}
+          type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }}
           # Major.minor tag
-          type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }}
+          type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }}
           # Major tag (only for stable releases)
-          type=semver,pattern={{major}},value=${{ inputs.tag || github.ref_name }},enable=${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' }}
+          type=semver,pattern={{major}},value=${{ steps.tag.outputs.tag }},enable=${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' }}
     
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
