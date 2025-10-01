@@ -3,6 +3,17 @@ name: Publish Package
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      docker_only:
+        description: 'Build and push Docker images only (skip PyPI)'
+        required: false
+        type: boolean
+        default: true
+      tag:
+        description: 'Git tag to build from (e.g., v1.0.1)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,12 +22,16 @@ permissions:
 jobs:
   deploy-test:
     runs-on: ubuntu-latest
+    # Skip PyPI deployment when manually triggered with docker_only
+    if: ${{ github.event_name == 'release' || !inputs.docker_only }}
     environment: testpypi
     permissions:
       id-token: write
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
     
     - name: Install Nix
       uses: cachix/install-nix-action@v31
@@ -39,14 +54,16 @@ jobs:
   deploy-prod:
     needs: deploy-test
     runs-on: ubuntu-latest
-    # Only deploy to PyPI for non-prerelease versions
-    if: ${{ !github.event.release.prerelease }}
+    # Only deploy to PyPI for non-prerelease versions and skip when manually triggered with docker_only
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease && (github.event_name == 'release' || !inputs.docker_only) }}
     environment: pypi
     permissions:
       id-token: write
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
     
     - name: Install Nix
       uses: cachix/install-nix-action@v31
@@ -65,13 +82,17 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
 
   docker:
-    needs: deploy-test
+    # Run if: (1) release event after test deploy, or (2) manual trigger
+    needs: [deploy-test]
+    if: ${{ always() && (github.event_name == 'release' && needs.deploy-test.result == 'success') || (github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     permissions:
       packages: write
-    
+
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
     
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -100,14 +121,14 @@ jobs:
           utensils/mcp-nixos
           ghcr.io/utensils/mcp-nixos
         tags: |
-          # Latest tag for stable releases
-          type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
-          # Version tag from release
-          type=semver,pattern={{version}}
+          # Latest tag for stable releases (not for prereleases)
+          type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' }}
+          # Version tag from release or manual input
+          type=semver,pattern={{version}},value=${{ inputs.tag || github.ref_name }}
           # Major.minor tag
-          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }}
           # Major tag (only for stable releases)
-          type=semver,pattern={{major}},enable=${{ !github.event.release.prerelease }}
+          type=semver,pattern={{major}},value=${{ inputs.tag || github.ref_name }},enable=${{ github.event_name == 'release' && !github.event.release.prerelease || github.event_name == 'workflow_dispatch' }}
     
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
