@@ -407,17 +407,30 @@ class TestMCPBehaviorComprehensive:
         """Test channel discovery and usage."""
         # 1. List available channels
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
-            mock_discover.return_value = {
-                "latest-43-nixos-unstable": "151,798 documents",
-                "latest-43-nixos-25.05": "151,698 documents",
-                "latest-43-nixos-24.11": "142,034 documents",
-            }
+            with patch("mcp_nixos.server.channel_cache.get_resolved") as mock_resolved:
+                mock_discover.return_value = {
+                    "latest-43-nixos-unstable": "151,798 documents",
+                    "latest-43-nixos-25.05": "151,698 documents",
+                    "latest-43-nixos-25.11": "152,000 documents",
+                }
+                mock_resolved.return_value = {
+                    "unstable": "latest-43-nixos-unstable",
+                    "stable": "latest-43-nixos-25.11",
+                    "25.05": "latest-43-nixos-25.05",
+                    "25.11": "latest-43-nixos-25.11",
+                    "beta": "latest-43-nixos-25.11",
+                }
 
-            result = await nixos_channels()
-            assert "NixOS Channels" in result
-            assert "stable (current: 25.05)" in result
-            assert "unstable" in result
-            assert "✓ Available" in result
+                # Mock that we're not using fallback
+                from mcp_nixos.server import channel_cache
+
+                channel_cache.using_fallback = False
+
+                result = await nixos_channels()
+                assert "NixOS Channels" in result
+                assert "stable (current: 25.11)" in result
+                assert "unstable" in result
+                assert "✓ Available" in result
 
         # 2. Get stats for a channel
         with patch("requests.post") as mock_post:

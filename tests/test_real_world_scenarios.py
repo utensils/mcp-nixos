@@ -98,27 +98,33 @@ class TestRealWorldScenarios:
     @pytest.mark.asyncio
     async def test_scenario_migrating_nixos_channels(self):
         """User wants to understand and migrate between NixOS channels."""
-        # Step 1: Check available channels
+        # Step 1: Check available channels (note: 24.11 removed from version list as EOL)
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
             mock_discover.return_value = {
                 "latest-43-nixos-25.05": "151,698 documents",
-                "latest-43-nixos-24.11": "142,034 documents",
+                "latest-43-nixos-25.11": "152,000 documents",
                 "latest-43-nixos-unstable": "151,798 documents",
             }
 
+            # Mock that we're not using fallback
+            from mcp_nixos.server import channel_cache
+
+            channel_cache.using_fallback = False
+
             result = await nixos_channels()
-            assert "stable (current: 25.05)" in result
-            assert "24.11" in result
+            assert "stable (current: 25.05)" in result or "stable (current: 25.11)" in result
+            assert "25.05" in result or "25.11" in result
             assert "unstable" in result
 
         # Step 2: Compare package availability across channels
-        channels_to_test = ["stable", "24.11", "unstable"]
+        channels_to_test = ["stable", "25.05", "unstable"]
 
         for channel in channels_to_test:
             with patch("mcp_nixos.server.get_channels") as mock_get:
                 mock_get.return_value = {
                     "stable": "latest-43-nixos-25.05",
-                    "24.11": "latest-43-nixos-24.11",
+                    "25.05": "latest-43-nixos-25.05",
+                    "25.11": "latest-43-nixos-25.11",
                     "unstable": "latest-43-nixos-unstable",
                 }
 

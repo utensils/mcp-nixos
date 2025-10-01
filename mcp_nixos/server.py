@@ -38,6 +38,16 @@ BASE_CHANNELS = {
     "25.05": "nixos-25.05",
 }
 
+# Fallback channels when API discovery fails
+# These are static mappings based on most recent known patterns
+FALLBACK_CHANNELS = {
+    "unstable": "latest-44-nixos-unstable",
+    "stable": "latest-44-nixos-25.05",
+    "25.05": "latest-44-nixos-25.05",
+    "25.11": "latest-44-nixos-25.11",  # For when 25.11 is released
+    "beta": "latest-44-nixos-25.05",
+}
+
 HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 
@@ -49,6 +59,7 @@ class ChannelCache:
         """Initialize empty cache."""
         self.available_channels: dict[str, str] | None = None
         self.resolved_channels: dict[str, str] | None = None
+        self.using_fallback: bool = False
 
     def get_available(self) -> dict[str, str]:
         """Get available channels, discovering if needed."""
@@ -66,7 +77,8 @@ class ChannelCache:
         """Discover available NixOS channels by testing API patterns."""
         # Test multiple generation patterns (43, 44, 45) and versions
         generations = [43, 44, 45, 46]  # Future-proof
-        versions = ["unstable", "20.09", "24.11", "25.05", "25.11", "26.05", "30.05"]  # Past, current and future
+        # Removed deprecated versions (20.09, 24.11 - EOL June 2025)
+        versions = ["unstable", "25.05", "25.11", "26.05", "30.05"]  # Current and future
 
         available = {}
         for gen in generations:
@@ -77,7 +89,7 @@ class ChannelCache:
                         f"{NIXOS_API}/{pattern}/_count",
                         json={"query": {"match_all": {}}},
                         auth=NIXOS_AUTH,
-                        timeout=5,
+                        timeout=10,  # Increased from 5s to 10s for slow connections
                     )
                     if resp.status_code == 200:
                         count = resp.json().get("count", 0)
@@ -91,6 +103,12 @@ class ChannelCache:
     def _resolve_channels(self) -> dict[str, str]:
         """Resolve user-friendly channel names to actual indices."""
         available = self.get_available()
+
+        # If no channels were discovered, use fallback channels
+        if not available:
+            self.using_fallback = True
+            return FALLBACK_CHANNELS.copy()
+
         resolved = {}
 
         # Find unstable (should be consistent)
@@ -139,6 +157,11 @@ class ChannelCache:
         # Add beta (alias for stable)
         if "stable" in resolved:
             resolved["beta"] = resolved["stable"]
+
+        # If we still have no channels after all that, use fallback
+        if not resolved:
+            self.using_fallback = True
+            return FALLBACK_CHANNELS.copy()
 
         return resolved
 
@@ -523,7 +546,15 @@ async def nixos_channels() -> str:
         available = channel_cache.get_available()
 
         results = []
-        results.append("NixOS Channels (auto-discovered):\n")
+
+        # Show warning if using fallback channels
+        if channel_cache.using_fallback:
+            results.append("⚠️  WARNING: Using fallback channels (API discovery failed)")
+            results.append("    Check network connectivity to search.nixos.org")
+            results.append("")
+            results.append("NixOS Channels (fallback mode):\n")
+        else:
+            results.append("NixOS Channels (auto-discovered):\n")
 
         # Show user-friendly channel names
         for name, index in sorted(configured.items()):
@@ -543,19 +574,26 @@ async def nixos_channels() -> str:
             if index in available:
                 results.append(f"  Status: {status} ({doc_count})")
             else:
-                results.append(f"  Status: {status}")
+                if channel_cache.using_fallback:
+                    results.append("  Status: Fallback (may not be current)")
+                else:
+                    results.append(f"  Status: {status}")
             results.append("")
 
         # Show additional discovered channels not in our mapping
-        discovered_only = set(available.keys()) - set(configured.values())
-        if discovered_only:
-            results.append("Additional available channels:")
-            for index in sorted(discovered_only):
-                results.append(f"• {index} ({available[index]})")
+        if not channel_cache.using_fallback:
+            discovered_only = set(available.keys()) - set(configured.values())
+            if discovered_only:
+                results.append("Additional available channels:")
+                for index in sorted(discovered_only):
+                    results.append(f"• {index} ({available[index]})")
 
         # Add deprecation warnings
         results.append("\nNote: Channels are dynamically discovered.")
         results.append("'stable' always points to the current stable release.")
+        if channel_cache.using_fallback:
+            results.append("\n⚠️  Fallback channels may not reflect the latest available versions.")
+            results.append("   Please check your network connection to search.nixos.org.")
 
         return "\n".join(results).strip()
     except Exception as e:
