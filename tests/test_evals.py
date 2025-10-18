@@ -124,7 +124,7 @@ class TestCompleteScenarioEval:
 
         # Step 3: Search Home Manager options
         hm_resp = Mock()
-        hm_resp.text = """
+        hm_resp.content = b"""
         <html>
             <dt>programs.firefox.enable</dt>
             <dd>

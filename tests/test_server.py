@@ -129,7 +129,7 @@ class TestHelperFunctions:
     def test_parse_html_options_success(self, mock_get):
         """Test successful HTML parsing."""
         mock_resp = Mock()
-        mock_resp.text = """
+        html_content = """
         <html>
             <dt>programs.git.enable</dt>
             <dd>
@@ -143,6 +143,7 @@ class TestHelperFunctions:
             </dd>
         </html>
         """
+        mock_resp.content = html_content.encode("utf-8")
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -156,7 +157,7 @@ class TestHelperFunctions:
     def test_parse_html_options_with_query(self, mock_get):
         """Test HTML parsing with query filter."""
         mock_resp = Mock()
-        mock_resp.text = """
+        html_content = """
         <html>
             <dt>programs.git.enable</dt>
             <dd><p>Enable git</p></dd>
@@ -164,6 +165,7 @@ class TestHelperFunctions:
             <dd><p>Enable vim</p></dd>
         </html>
         """
+        mock_resp.content = html_content.encode("utf-8")
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -175,7 +177,7 @@ class TestHelperFunctions:
     def test_parse_html_options_with_prefix(self, mock_get):
         """Test HTML parsing with prefix filter."""
         mock_resp = Mock()
-        mock_resp.text = """
+        html_content = """
         <html>
             <dt>programs.git.enable</dt>
             <dd><p>Enable git</p></dd>
@@ -183,6 +185,7 @@ class TestHelperFunctions:
             <dd><p>Enable nginx</p></dd>
         </html>
         """
+        mock_resp.content = html_content.encode("utf-8")
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -194,7 +197,7 @@ class TestHelperFunctions:
     def test_parse_html_options_empty_response(self, mock_get):
         """Test HTML parsing with empty response."""
         mock_resp = Mock()
-        mock_resp.text = "<html></html>"
+        mock_resp.content = b"<html></html>"
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -217,12 +220,91 @@ class TestHelperFunctions:
         options_html = ""
         for i in range(10):
             options_html += f"<dt>option.{i}</dt><dd><p>desc{i}</p></dd>"
-        mock_resp.text = f"<html>{options_html}</html>"
+        mock_resp.content = f"<html>{options_html}</html>".encode()
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = parse_html_options("http://test.com", limit=5)
         assert len(result) == 5
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_parse_html_options_windows_1252_encoding(self, mock_get):
+        """Test HTML parsing with windows-1252 encoding."""
+        # Create HTML content with special characters
+        html_content = """
+        <html>
+            <head><meta charset="windows-1252"></head>
+            <dt>programs.git.userName</dt>
+            <dd>
+                <p>Git user name with special chars: café</p>
+                <span class="term">Type: string</span>
+            </dd>
+        </html>
+        """
+
+        mock_resp = Mock()
+        # Simulate windows-1252 encoded content
+        mock_resp.content = html_content.encode("windows-1252")
+        mock_resp.encoding = "windows-1252"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        # Should not raise encoding errors
+        result = parse_html_options("http://test.com")
+        assert len(result) == 1
+        assert result[0]["name"] == "programs.git.userName"
+        assert "café" in result[0]["description"]
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_parse_html_options_utf8_with_bom(self, mock_get):
+        """Test HTML parsing with UTF-8 BOM."""
+        html_content = """
+        <html>
+            <dt>programs.neovim.enable</dt>
+            <dd>
+                <p>Enable Neovim with unicode: 你好</p>
+                <span class="term">Type: boolean</span>
+            </dd>
+        </html>
+        """
+
+        mock_resp = Mock()
+        # Add UTF-8 BOM at the beginning
+        mock_resp.content = b"\xef\xbb\xbf" + html_content.encode("utf-8")
+        mock_resp.encoding = "utf-8-sig"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = parse_html_options("http://test.com")
+        assert len(result) == 1
+        assert result[0]["name"] == "programs.neovim.enable"
+        assert "你好" in result[0]["description"]
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_parse_html_options_iso_8859_1_encoding(self, mock_get):
+        """Test HTML parsing with ISO-8859-1 encoding."""
+        html_content = """
+        <html>
+            <head><meta charset="iso-8859-1"></head>
+            <dt>services.nginx.virtualHosts</dt>
+            <dd>
+                <p>Nginx config with special: naïve résumé</p>
+            </dd>
+        </html>
+        """
+
+        mock_resp = Mock()
+        # Simulate ISO-8859-1 encoded content
+        mock_resp.content = html_content.encode("iso-8859-1")
+        mock_resp.encoding = "iso-8859-1"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = parse_html_options("http://test.com")
+        assert len(result) == 1
+        assert result[0]["name"] == "services.nginx.virtualHosts"
+        assert "naïve" in result[0]["description"]
+        assert "résumé" in result[0]["description"]
 
 
 class TestNixOSTools:
@@ -516,8 +598,10 @@ class TestHomeManagerTools:
         </body>
         </html>
         """
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.text = mock_html
+        mock_resp = Mock()
+        mock_resp.content = mock_html.encode("utf-8")
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
 
         result = await home_manager_stats()
         assert "Home Manager Statistics:" in result
@@ -604,8 +688,10 @@ class TestDarwinTools:
         </body>
         </html>
         """
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.text = mock_html
+        mock_resp = Mock()
+        mock_resp.content = mock_html.encode("utf-8")
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
 
         result = await darwin_stats()
         assert "nix-darwin Statistics:" in result
@@ -664,7 +750,7 @@ class TestEdgeCases:
     def test_malformed_html_response(self, mock_get):
         """Test parsing malformed HTML."""
         mock_resp = Mock()
-        mock_resp.text = "<html><dt>broken"  # Malformed HTML
+        mock_resp.content = b"<html><dt>broken"  # Malformed HTML
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 

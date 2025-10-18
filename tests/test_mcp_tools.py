@@ -148,7 +148,7 @@ class TestHTMLParsingIssues:
         """Test that type information is not properly extracted from HTML."""
         # Mock HTML response with proper structure
         mock_response = MagicMock()
-        mock_response.text = """
+        mock_response.content = """.encode("utf-8")
         <html>
         <body>
             <dt>programs.git.enable</dt>

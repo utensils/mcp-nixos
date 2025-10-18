@@ -143,7 +143,7 @@ class TestPlainTextOutput:
         """Test home_manager_search returns plain text."""
         # Mock HTML response
         mock_response = Mock()
-        mock_response.text = """
+        mock_response.content = """.encode("utf-8")
         <html>
             <dt>programs.git.enable</dt>
             <dd>
@@ -168,7 +168,7 @@ class TestPlainTextOutput:
         """Test home_manager_info returns plain text."""
         # Mock HTML response
         mock_response = Mock()
-        mock_response.text = """
+        mock_response.content = """.encode("utf-8")
         <html>
             <dt>programs.git.enable</dt>
             <dd>
@@ -215,7 +215,7 @@ class TestPlainTextOutput:
         """Test home_manager_list_options returns plain text."""
         # Mock HTML response
         mock_response = Mock()
-        mock_response.text = """
+        mock_response.content = """.encode("utf-8")
         <html>
             <dt>programs.git.enable</dt>
             <dd><p>Enable git</p></dd>
@@ -238,7 +238,7 @@ class TestPlainTextOutput:
         """Test darwin_search returns plain text."""
         # Mock HTML response
         mock_response = Mock()
-        mock_response.text = """
+        mock_response.content = """.encode("utf-8")
         <html>
             <dt>system.defaults.dock.autohide</dt>
             <dd>
@@ -263,7 +263,7 @@ class TestPlainTextOutput:
         """Test empty results return appropriate plain text."""
         # Mock empty HTML response
         mock_response = Mock()
-        mock_response.text = "<html></html>"
+        mock_response.content = b"<html></html>"
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 

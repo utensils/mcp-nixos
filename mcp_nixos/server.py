@@ -249,7 +249,9 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
     try:
         resp = requests.get(url, timeout=30)  # Increase timeout for large docs
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        # Use resp.content to let BeautifulSoup handle encoding detection
+        # This prevents encoding errors like "unknown encoding: windows-1252"
+        soup = BeautifulSoup(resp.content, "html.parser")
         options = []
 
         # Get all dt elements

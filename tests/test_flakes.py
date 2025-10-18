@@ -249,7 +249,7 @@ class TestFlakeSearchEvals:
         """Test flake search error handling."""
         mock_response = MagicMock()
         mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
+        mock_response.content = b"Internal Server Error"
 
         # Create an HTTPError with a response attribute
         http_error = requests.HTTPError("500 Server Error")
@@ -314,7 +314,7 @@ class TestImprovedStatsEvals:
         """
 
         mock_get.return_value.status_code = 200
-        mock_get.return_value.text = mock_html
+        mock_get.return_value.content = mock_html.encode("utf-8")
 
         result = await home_manager_stats()
 
@@ -329,7 +329,7 @@ class TestImprovedStatsEvals:
     async def test_home_manager_stats_error_handling(self, mock_get):
         """Test home_manager_stats error handling."""
         mock_get.return_value.status_code = 404
-        mock_get.return_value.text = "Not Found"
+        mock_get.return_value.content = b"Not Found"
 
         result = await home_manager_stats()
 
@@ -359,7 +359,7 @@ class TestImprovedStatsEvals:
         """
 
         mock_get.return_value.status_code = 200
-        mock_get.return_value.text = mock_html
+        mock_get.return_value.content = mock_html.encode("utf-8")
 
         result = await darwin_stats()
 
@@ -374,7 +374,7 @@ class TestImprovedStatsEvals:
     async def test_darwin_stats_error_handling(self, mock_get):
         """Test darwin_stats error handling."""
         mock_get.return_value.status_code = 500
-        mock_get.return_value.text = "Server Error"
+        mock_get.return_value.content = b"Server Error"
 
         result = await darwin_stats()
 
@@ -402,7 +402,7 @@ class TestImprovedStatsEvals:
         """
 
         mock_get.return_value.status_code = 200
-        mock_get.return_value.text = mock_html
+        mock_get.return_value.content = mock_html.encode("utf-8")
 
         result = await home_manager_stats()
 
@@ -416,7 +416,7 @@ class TestImprovedStatsEvals:
     async def test_stats_with_empty_html(self, mock_get):
         """Test stats functions with empty HTML."""
         mock_get.return_value.status_code = 200
-        mock_get.return_value.text = "<html><body></body></html>"
+        mock_get.return_value.content = b"<html><body></body></html>"
 
         result = await home_manager_stats()
 
@@ -546,7 +546,7 @@ class TestRealWorldScenarios:
         """
 
         mock_get.return_value.status_code = 200
-        mock_get.return_value.text = stats_html
+        mock_get.return_value.content = stats_html.encode("utf-8")
 
         stats_result = await home_manager_stats()
 

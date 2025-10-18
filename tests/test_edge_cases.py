@@ -108,7 +108,7 @@ class TestEdgeCases:
 
         mock_resp = Mock()
         mock_resp.raise_for_status = Mock()
-        mock_resp.text = large_html
+        mock_resp.content = large_html.encode("utf-8")
         mock_get.return_value = mock_resp
 
         # Should respect limit
@@ -135,7 +135,7 @@ class TestEdgeCases:
 
         mock_resp = Mock()
         mock_resp.raise_for_status = Mock()
-        mock_resp.text = malformed_html
+        mock_resp.content = malformed_html.encode("utf-8")
         mock_get.return_value = mock_resp
 
         options = parse_html_options("http://test.com")
@@ -160,7 +160,7 @@ class TestEdgeCases:
 
         mock_resp = Mock()
         mock_resp.raise_for_status = Mock()
-        mock_resp.text = html_with_entities
+        mock_resp.content = html_with_entities.encode("utf-8")
         mock_get.return_value = mock_resp
 
         options = parse_html_options("http://test.com")
