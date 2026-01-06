@@ -1,4 +1,4 @@
-# MCP-NixOS - Because Your AI Assistant Shouldn't Hallucinate About Packages
+# MCP-NixOS - Because Your AI Shouldn't Hallucinate Package Names
 
 [![CI](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml/badge.svg)](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/utensils/mcp-nixos/graph/badge.svg?token=kdcbgvq4Bh)](https://codecov.io/gh/utensils/mcp-nixos)
@@ -8,11 +8,11 @@
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/utensils/mcp-nixos?utm_source=oss&utm_medium=github&utm_campaign=utensils%2Fmcp-nixos&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![Built with Claude](https://img.shields.io/badge/Built%20with-Claude-D97757?logo=claude&logoColor=white)](https://claude.ai)
 
-## Quick Start (Because You Want to Use It NOW)
+## Quick Start
 
-**🚨 No Nix/NixOS Required!** This tool works on any system - Windows, macOS, Linux. You're just querying web APIs.
+**🚨 No Nix/NixOS Required!** Works on any system - Windows, macOS, Linux. You're just querying APIs.
 
-### Option 1: Using uvx (Recommended for most users)
+### Option 1: uvx (Recommended)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoidXZ4IG1jcC1uaXhvcyJ9)
 
@@ -27,7 +27,7 @@
 }
 ```
 
-### Option 2: Using Nix (For Nix users)
+### Option 2: Nix
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoibml4IHJ1biBnaXRodWI6dXRlbnNpbHMvbWNwLW5peG9zIC0tIn0%3D)
 
@@ -42,7 +42,7 @@
 }
 ```
 
-### Option 3: Using Docker (Container lovers unite)
+### Option 3: Docker
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItLXJtIiwiLWkiLCJnaGNyLmlvL3V0ZW5zaWxzL21jcC1uaXhvcyJdfQ%3D%3D)
 
@@ -57,98 +57,136 @@
 }
 ```
 
-That's it. Your AI assistant now has access to real NixOS data instead of making things up. You're welcome.
+Your AI now has access to real NixOS data instead of making things up. You're welcome.
 
-## What Is This Thing?
+## What Is This?
 
-MCP-NixOS is a Model Context Protocol server that gives your AI assistant accurate, real-time information about:
+An MCP server providing accurate, real-time information about:
 
-- **NixOS packages** (130K+ packages that actually exist)
-- **Configuration options** (23K+ ways to break your system)
-- **Home Manager settings** (4K+ options for the power users)
-- **nix-darwin configurations** (1K+ macOS settings Apple doesn't want you to touch)
-- **Package version history** via [NixHub.io](https://www.nixhub.io) (Find that ancient Ruby 2.6 with commit hashes)
+- **NixOS packages** - 130K+ packages that actually exist
+- **NixOS options** - 23K+ ways to configure your system
+- **Home Manager** - 5K+ options for dotfile enthusiasts
+- **nix-darwin** - 1K+ macOS settings Apple doesn't document
+- **Nixvim** - 5K+ options for Neovim configuration via [NuschtOS search](https://github.com/NuschtOS/search)
+- **Package versions** - Historical versions with commit hashes via [NixHub.io](https://www.nixhub.io)
 
-## The Tools You Actually Care About
+## The Tools
 
-### 🔍 NixOS Tools
+Just two. We consolidated 17 tools into 2 because your AI's context window isn't infinite.
 
-- `nixos_search(query, type, channel)` - Search packages, options, or programs
-- `nixos_info(name, type, channel)` - Get detailed info about packages/options
-- `nixos_stats(channel)` - Package and option counts
-- `nixos_channels()` - List all available channels
-- `nixos_flakes_search(query)` - Search community flakes
-- `nixos_flakes_stats()` - Flake ecosystem statistics
+### `nix` - Unified Query Tool
 
-### 📦 Version History Tools
+One tool to rule them all:
 
-- `nixhub_package_versions(package, limit)` - Get version history with commit hashes
-- `nixhub_find_version(package, version)` - Smart search for specific versions
-
-### 🏠 Home Manager Tools
-
-- `home_manager_search(query)` - Search user config options
-- `home_manager_info(name)` - Get option details (with suggestions!)
-- `home_manager_stats()` - See what's available
-- `home_manager_list_options()` - Browse all 89 categories
-- `home_manager_options_by_prefix(prefix)` - Explore options by prefix
-
-### 🍎 Darwin Tools
-
-- `darwin_search(query)` - Search macOS options
-- `darwin_info(name)` - Get option details
-- `darwin_stats()` - macOS configuration statistics
-- `darwin_list_options()` - Browse all 17 categories
-- `darwin_options_by_prefix(prefix)` - Explore macOS options
-
-## Installation Options
-
-**Remember: You DON'T need Nix/NixOS installed!** This tool runs anywhere Python runs.
-
-### For Regular Humans (Windows/Mac/Linux)
-
-```bash
-# Run directly with uvx (no installation needed)
-uvx mcp-nixos
-
-# Or install globally
-pip install mcp-nixos
-uv pip install mcp-nixos
+```
+nix(action, query, source, type, channel, limit)
 ```
 
-### For Nix Users (You Know Who You Are)
+| Action | What it does |
+|--------|-------------|
+| `search` | Search packages, options, programs, or flakes |
+| `info` | Get detailed info about a package or option |
+| `stats` | Get counts and categories |
+| `options` | Browse Home Manager/Darwin options by prefix |
+| `channels` | List available NixOS channels |
+
+| Source | What it queries |
+|--------|----------------|
+| `nixos` | Packages, options, programs |
+| `home-manager` | Home Manager options |
+| `darwin` | nix-darwin options |
+| `flakes` | Community flakes |
+| `nixvim` | Nixvim Neovim configuration options |
+
+**Examples:**
+
+```python
+# Search NixOS packages
+nix(action="search", query="firefox", source="nixos", type="packages")
+
+# Get package info
+nix(action="info", query="firefox", source="nixos", type="package")
+
+# Search Home Manager options
+nix(action="search", query="git", source="home-manager")
+
+# Browse darwin options
+nix(action="options", source="darwin", query="system.defaults")
+
+# Search Nixvim options
+nix(action="search", query="telescope", source="nixvim")
+
+# Get Nixvim option info
+nix(action="info", query="plugins.telescope.enable", source="nixvim")
+
+# Get stats
+nix(action="stats", source="nixos", channel="stable")
+```
+
+### `nix_versions` - Package Version History
+
+Find historical versions with nixpkgs commit hashes:
+
+```
+nix_versions(package, version, limit)
+```
+
+**Examples:**
+
+```python
+# List recent versions
+nix_versions(package="python", limit=5)
+
+# Find specific version
+nix_versions(package="nodejs", version="20.0.0")
+```
+
+## Installation
+
+**You DON'T need Nix installed.** This runs anywhere Python runs.
 
 ```bash
-# Run without installing
-nix run github:utensils/mcp-nixos
+# Run directly (no install)
+uvx mcp-nixos
 
-# Install to profile
+# Or install
+pip install mcp-nixos
+```
+
+For Nix users:
+
+```bash
+nix run github:utensils/mcp-nixos
 nix profile install github:utensils/mcp-nixos
 ```
 
-## Features Worth Mentioning
+## Development
 
-### 📊 What You Get
+### With Nix
 
-- **Real-time data** - Always current, never stale
-- **Plain text output** - Human and AI readable
-- **Smart suggestions** - Helps when you typo option names
-- **Cross-platform** - Works on Linux, macOS, and yes, even Windows
-- **No configuration** - It just works™
+```bash
+nix develop
+menu        # Show commands
+run         # Start server
+run-tests   # Run tests
+lint        # Format + check
+typecheck   # mypy
+```
 
-### 🎯 Key Improvements
+### Without Nix
 
-- **Dynamic channel resolution** - `stable` always points to current stable
-- **Enhanced error messages** - Actually helpful when things go wrong
-- **Deduped flake results** - No more duplicate spam
-- **Version-aware searches** - Find that old Ruby version you need
-- **Category browsing** - Explore options systematically
+```bash
+uv pip install -e ".[dev]"
+uv run mcp-nixos
+pytest tests/
+ruff format mcp_nixos/
+ruff check mcp_nixos/
+mypy mcp_nixos/
+```
 
-## For Developers (The Brave Ones)
+### Local MCP Testing
 
-### Local Development Setup
-
-Want to test your changes in Claude Code or another MCP client? Create a `.mcp.json` file in your project directory:
+Create `.mcp.json` in your project:
 
 ```json
 {
@@ -156,97 +194,21 @@ Want to test your changes in Claude Code or another MCP client? Create a `.mcp.j
     "nixos": {
       "type": "stdio",
       "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/home/hackerman/Projects/mcp-nixos",
-        "mcp-nixos"
-      ]
+      "args": ["run", "--directory", "/path/to/mcp-nixos", "mcp-nixos"]
     }
   }
 }
 ```
 
-Replace `/home/hackerman/Projects/mcp-nixos` with your actual project path (yes, even you, Windows users with your `C:\Users\CoolDev\...` paths).
-
-This `.mcp.json` file:
-
-- **Automatically activates** when you launch Claude Code from the project directory
-- **Uses your local code** instead of the installed package
-- **Enables real-time testing** - just restart Claude Code after changes
-- **Already in .gitignore** so you won't accidentally commit your path
-
-### With Nix (The Blessed Path)
-
-```bash
-nix develop
-menu  # Shows all available commands
-
-# Common tasks
-run        # Start the server (now with FastMCP!)
-run-tests  # Run all tests (now async!)
-lint       # Format and check code (ruff replaced black/flake8)
-typecheck  # Check types (mypy still judges you)
-build      # Build the package
-publish    # Upload to PyPI (requires credentials)
-```
-
-### Without Nix (The Path of Pain)
-
-```bash
-# Install development dependencies
-uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
-
-# Run the server locally
-uv run mcp-nixos  # or python -m mcp_nixos.server
-
-# Development commands
-pytest tests/          # Now with asyncio goodness
-ruff format mcp_nixos/ # black is so 2023
-ruff check mcp_nixos/  # flake8 is for boomers
-mypy mcp_nixos/        # Still pedantic as ever
-
-# Build and publish
-python -m build        # Build distributions
-twine upload dist/*    # Upload to PyPI
-```
-
-### Testing Philosophy
-
-- **330 tests** that actually test things
-- **Real API calls** because mocks are for cowards (await real_courage())
-- **Plain text validation** ensuring no XML leaks through
-- **Cross-platform tests** because Windows users deserve pain too
-- **14 test files** because organization is a virtue
-
-## Environment Variables
-
-Just one. We're minimalists now:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ELASTICSEARCH_URL` | NixOS API endpoint | <https://search.nixos.org/backend> |
-
 ## Troubleshooting
 
 ### Nix Sandbox Error
-
-If you encounter this error when running via Nix:
-
-```text
-error: derivation '/nix/store/...-python3.11-watchfiles-1.0.4.drv' specifies a sandbox profile,
-but this is only allowed when 'sandbox' is 'relaxed'
-```
-
-**Solution**: Run with relaxed sandbox mode:
 
 ```bash
 nix run --option sandbox relaxed github:utensils/mcp-nixos --
 ```
 
-**Why this happens**: The `watchfiles` package (a transitive dependency via MCP) requires custom sandbox permissions for file system monitoring. This is only allowed when Nix's sandbox is in 'relaxed' mode instead of the default 'strict' mode.
-
-**Permanent fix**: Add to your `/etc/nix/nix.conf`:
+Or add to `/etc/nix/nix.conf`:
 
 ```ini
 sandbox = relaxed
@@ -254,20 +216,16 @@ sandbox = relaxed
 
 ## Acknowledgments
 
-This project queries data from several amazing services:
-
-- **[NixHub.io](https://www.nixhub.io)** - Provides package version history and commit tracking
-- **[search.nixos.org](https://search.nixos.org)** - Official NixOS package and option search
-- **[Jetify](https://www.jetify.com)** - Creators of [Devbox](https://www.jetify.com/devbox) and NixHub
-
-*Note: These services have not endorsed this tool. We're just grateful API consumers.*
+- **[NixHub.io](https://www.nixhub.io)** - Package version history
+- **[search.nixos.org](https://search.nixos.org)** - Official NixOS search
+- **[Jetify](https://www.jetify.com)** - Creators of Devbox and NixHub
+- **[NuschtOS](https://github.com/NuschtOS/search)** - Static option search infrastructure powering Nixvim support
+- **[Nixvim](https://github.com/nix-community/nixvim)** - Neovim configuration framework for Nix
 
 ## License
 
-MIT - Because sharing is caring, even if the code hurts.
+MIT - Because sharing is caring.
 
 ---
 
-*Created by James Brink and maintained by masochists who enjoy Nix and async/await patterns.*
-
-*Special thanks to the NixOS project for creating an OS that's simultaneously the best and worst thing ever.*
+*Created by James Brink. Maintained by mass̶o̶c̶h̶i̶s̶t̶s̶ enthusiasts who enjoy Nix.*

@@ -11,7 +11,9 @@
       "MultiEdit",
       "Write",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "mcp__nixos__nix",
+      "mcp__nixos__nix_versions"
     ]
   },
   "enabledMcpjsonServers": [

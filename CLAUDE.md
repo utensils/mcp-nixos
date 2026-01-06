@@ -8,16 +8,21 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 
 ## Key Architecture
 
-The project is a FastMCP 2.x server (async) with a single main module:
+The project is a FastMCP 2.x server (async) with a single main module (Python 3.11+):
 
-- `mcp_nixos/server.py` - All MCP tools and API interactions (asyncio-based)
+- `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions (~970 lines)
+
+Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
+
+- `nix` - Unified query tool for search/info/stats/options/channels across all sources
+- `nix_versions` - Package version history from NixHub.io
 
 Data sources:
 
 - NixOS packages/options: Elasticsearch API at search.nixos.org
 - Home Manager options: HTML parsing from official docs
 - nix-darwin options: HTML parsing from official docs
-- Package versions: NixHub.io API
+- Package versions: NixHub.io API (search.devbox.sh)
 - Flakes: search.nixos.org flake index
 
 All responses are formatted as plain text for optimal LLM consumption.
@@ -30,6 +35,9 @@ All responses are formatted as plain text for optimal LLM consumption.
 # Enter dev shell (auto-activates Python venv)
 nix develop
 
+# Show all available commands
+menu
+
 # Core commands:
 run           # Start the MCP server
 run-tests     # Run all tests (with coverage in CI)
@@ -40,6 +48,16 @@ format        # Format code with ruff
 typecheck     # Run mypy type checker
 build         # Build package distributions
 publish       # Upload to PyPI
+setup         # Recreate .venv from scratch and reinstall dependencies
+
+# Analysis commands:
+loc                     # Count lines of code
+complexity build        # Build wily cache for complexity analysis
+complexity rank         # Rank files by complexity
+complexity diff         # Compare complexity changes against previous commit
+
+# Website development (separate Node.js shell):
+web-dev       # Launch Node.js shell, then use: install, dev, build, lint
 ```
 
 ### Without Nix
@@ -64,11 +82,13 @@ mypy mcp_nixos/
 
 ## Testing Approach
 
-- Async tests using pytest-asyncio
+- Async tests using pytest-asyncio (auto mode enabled, function-scoped event loops)
 - Real API calls (no mocks) for integration tests
 - Unit tests marked with `@pytest.mark.unit`
 - Integration tests marked with `@pytest.mark.integration`
+- Flaky integration tests use `@pytest.mark.flaky(reruns=3)` for retry handling
 - Tests ensure plain text output (no XML/JSON leakage)
+- Test markers defined in both `pytest.ini` and `tests/conftest.py`
 
 ### Running Specific Tests
 
