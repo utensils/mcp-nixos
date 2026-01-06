@@ -4,12 +4,9 @@
 [![codecov](https://codecov.io/gh/utensils/mcp-nixos/graph/badge.svg?token=kdcbgvq4Bh)](https://codecov.io/gh/utensils/mcp-nixos)
 [![PyPI](https://img.shields.io/pypi/v/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
 [![Python versions](https://img.shields.io/pypi/pyversions/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
-[![smithery badge](https://smithery.ai/badge/@utensils/mcp-nixos)](https://smithery.ai/server/@utensils/mcp-nixos)
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/99cc55fb-a5c5-4473-b315-45a6961b2e8c)
-
-> **🎉 REFACTORED**: Version 1.0.0 represents a complete rewrite that drastically simplified everything. We removed all the complex caching, abstractions, and "enterprise" patterns. Because sometimes less is more, and more is just showing off.
->
-> **🚀 ASYNC UPDATE**: Version 1.0.1 migrated to FastMCP 2.x for modern async goodness. Because who doesn't love adding `await` to everything?
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/utensils/mcp-nixos?utm_source=oss&utm_medium=github&utm_campaign=utensils%2Fmcp-nixos&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+[![Built with Claude](https://img.shields.io/badge/Built%20with-Claude-D97757?logo=claude&logoColor=white)](https://claude.ai)
 
 ## Quick Start (Because You Want to Use It NOW)
 
@@ -67,7 +64,7 @@ That's it. Your AI assistant now has access to real NixOS data instead of making
 MCP-NixOS is a Model Context Protocol server that gives your AI assistant accurate, real-time information about:
 
 - **NixOS packages** (130K+ packages that actually exist)
-- **Configuration options** (22K+ ways to break your system)
+- **Configuration options** (23K+ ways to break your system)
 - **Home Manager settings** (4K+ options for the power users)
 - **nix-darwin configurations** (1K+ macOS settings Apple doesn't want you to touch)
 - **Package version history** via [NixHub.io](https://www.nixhub.io) (Find that ancient Ruby 2.6 with commit hashes)
@@ -83,7 +80,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `nixos_flakes_search(query)` - Search community flakes
 - `nixos_flakes_stats()` - Flake ecosystem statistics
 
-### 📦 Version History Tools (NEW!)
+### 📦 Version History Tools
 
 - `nixhub_package_versions(package, limit)` - Get version history with commit hashes
 - `nixhub_find_version(package, version)` - Smart search for specific versions
@@ -93,7 +90,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `home_manager_search(query)` - Search user config options
 - `home_manager_info(name)` - Get option details (with suggestions!)
 - `home_manager_stats()` - See what's available
-- `home_manager_list_options()` - Browse all 131 categories
+- `home_manager_list_options()` - Browse all 89 categories
 - `home_manager_options_by_prefix(prefix)` - Explore options by prefix
 
 ### 🍎 Darwin Tools
@@ -101,7 +98,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `darwin_search(query)` - Search macOS options
 - `darwin_info(name)` - Get option details
 - `darwin_stats()` - macOS configuration statistics
-- `darwin_list_options()` - Browse all 21 categories
+- `darwin_list_options()` - Browse all 17 categories
 - `darwin_options_by_prefix(prefix)` - Explore macOS options
 
 ## Installation Options
@@ -130,15 +127,6 @@ nix profile install github:utensils/mcp-nixos
 ```
 
 ## Features Worth Mentioning
-
-### 🚀 Version 1.0.1: The Async Revolution (After The Great Simplification)
-
-- **Drastically less code** - v1.0.0 removed thousands of lines, v1.0.1 made them async
-- **100% functionality** - Everything still works, now with more `await`
-- **0% cache corruption** - Because we removed the cache entirely (still gone!)
-- **Stateless operation** - No files to clean up (async doesn't change this)
-- **Direct API access** - No abstraction nonsense (but now it's async nonsense)
-- **Modern MCP** - FastMCP 2.x because the old MCP was too synchronous
 
 ### 📊 What You Get
 
@@ -225,11 +213,11 @@ twine upload dist/*    # Upload to PyPI
 
 ### Testing Philosophy
 
-- **367 tests** that actually test things (now async because why not)
+- **330 tests** that actually test things
 - **Real API calls** because mocks are for cowards (await real_courage())
 - **Plain text validation** ensuring no XML leaks through
 - **Cross-platform tests** because Windows users deserve pain too
-- **15 test files** down from 29 because organization is a virtue
+- **14 test files** because organization is a virtue
 
 ## Environment Variables
 
