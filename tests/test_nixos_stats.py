@@ -23,11 +23,11 @@ def setup_channel_mocks(mock_cache, mock_validate, channels=None):
     """Setup channel mocks with default or custom channels."""
     if channels is None:
         channels = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
     mock_cache.get_available.return_value = {v: f"{v.split('-')[-1]} docs" for v in channels.values() if v}
     mock_cache.get_resolved.return_value = channels
@@ -129,9 +129,9 @@ class TestPackageCountsPerChannel:
 
         # Mock channel discovery responses
         mock_count_responses = {
-            "latest-43-nixos-unstable": {"count": 151798},
-            "latest-43-nixos-25.05": {"count": 151698},
-            "latest-43-nixos-24.11": {"count": 142034},
+            "latest-44-nixos-unstable": {"count": 151798},
+            "latest-44-nixos-25.05": {"count": 151698},
+            "latest-44-nixos-24.11": {"count": 142034},
         }
 
         # Mock stats responses for each channel
@@ -212,9 +212,9 @@ class TestPackageCountsPerChannel:
 
             # Determine which channel from URL
             for channel, index in [
-                ("unstable", "latest-43-nixos-unstable"),
-                ("25.05", "latest-43-nixos-25.05"),
-                ("24.11", "latest-43-nixos-24.11"),
+                ("unstable", "latest-44-nixos-unstable"),
+                ("25.05", "latest-44-nixos-25.05"),
+                ("24.11", "latest-44-nixos-24.11"),
             ]:
                 if index in url:
                     stats = mock_stats_responses.get(channel, mock_stats_responses["unstable"])
@@ -342,10 +342,10 @@ class TestPackageCountsPerChannel:
         setup_channel_mocks(mock_cache, mock_validate)
         # Mock responses with increasing package counts
         mock_count_responses = {
-            "latest-43-nixos-unstable": {"count": 151798},
-            "latest-43-nixos-25.05": {"count": 151698},
-            "latest-43-nixos-24.11": {"count": 142034},
-            "latest-43-nixos-24.05": {"count": 135000},
+            "latest-44-nixos-unstable": {"count": 151798},
+            "latest-44-nixos-25.05": {"count": 151698},
+            "latest-44-nixos-24.11": {"count": 142034},
+            "latest-44-nixos-24.05": {"count": 135000},
         }
 
         channel_stats = {
@@ -378,10 +378,10 @@ class TestPackageCountsPerChannel:
 
             # Extract channel from URL and return appropriate stats
             channel_to_index = {
-                "24.05": "latest-43-nixos-24.05",
-                "24.11": "latest-43-nixos-24.11",
-                "25.05": "latest-43-nixos-25.05",
-                "unstable": "latest-43-nixos-unstable",
+                "24.05": "latest-44-nixos-24.05",
+                "24.11": "latest-44-nixos-24.11",
+                "25.05": "latest-44-nixos-25.05",
+                "unstable": "latest-44-nixos-unstable",
             }
             for channel, count in channel_stats.items():
                 index = channel_to_index.get(channel)

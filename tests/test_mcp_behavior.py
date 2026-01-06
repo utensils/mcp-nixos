@@ -408,16 +408,16 @@ class TestMCPBehaviorComprehensive:
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
             with patch("mcp_nixos.server.channel_cache.get_resolved") as mock_resolved:
                 mock_discover.return_value = {
-                    "latest-43-nixos-unstable": "151,798 documents",
-                    "latest-43-nixos-25.05": "151,698 documents",
-                    "latest-43-nixos-25.11": "152,000 documents",
+                    "latest-44-nixos-unstable": "151,798 documents",
+                    "latest-44-nixos-25.05": "151,698 documents",
+                    "latest-44-nixos-25.11": "152,000 documents",
                 }
                 mock_resolved.return_value = {
-                    "unstable": "latest-43-nixos-unstable",
-                    "stable": "latest-43-nixos-25.11",
-                    "25.05": "latest-43-nixos-25.05",
-                    "25.11": "latest-43-nixos-25.11",
-                    "beta": "latest-43-nixos-25.11",
+                    "unstable": "latest-44-nixos-unstable",
+                    "stable": "latest-44-nixos-25.11",
+                    "25.05": "latest-44-nixos-25.05",
+                    "25.11": "latest-44-nixos-25.11",
+                    "beta": "latest-44-nixos-25.11",
                 }
 
                 # Mock that we're not using fallback
@@ -594,10 +594,10 @@ class TestMCPBehaviorComprehensive:
         # Invalid channel
         with patch("mcp_nixos.server.get_channels") as mock_get:
             mock_get.return_value = {
-                "stable": "latest-43-nixos-25.05",
-                "unstable": "latest-43-nixos-unstable",
-                "25.05": "latest-43-nixos-25.05",
-                "24.11": "latest-43-nixos-24.11",
+                "stable": "latest-44-nixos-25.05",
+                "unstable": "latest-44-nixos-unstable",
+                "25.05": "latest-44-nixos-25.05",
+                "24.11": "latest-44-nixos-24.11",
             }
 
             result = await nixos_search("test", channel="24.05")
@@ -611,10 +611,10 @@ class TestMCPBehaviorComprehensive:
         # Channel consistency
         with patch("mcp_nixos.server.get_channels") as mock_get:
             channels = {
-                "stable": "latest-43-nixos-25.05",
-                "unstable": "latest-43-nixos-unstable",
-                "25.05": "latest-43-nixos-25.05",
-                "beta": "latest-43-nixos-25.05",
+                "stable": "latest-44-nixos-25.05",
+                "unstable": "latest-44-nixos-unstable",
+                "25.05": "latest-44-nixos-25.05",
+                "beta": "latest-44-nixos-25.05",
             }
             mock_get.return_value = channels
 
@@ -724,10 +724,10 @@ class TestMCPBehaviorComprehensive:
         # User on 24.11 wants to upgrade to 25.05
         with patch("mcp_nixos.server.get_channels") as mock_get:
             mock_get.return_value = {
-                "stable": "latest-43-nixos-25.05",
-                "25.05": "latest-43-nixos-25.05",
-                "24.11": "latest-43-nixos-24.11",
-                "unstable": "latest-43-nixos-unstable",
+                "stable": "latest-44-nixos-25.05",
+                "25.05": "latest-44-nixos-25.05",
+                "24.11": "latest-44-nixos-24.11",
+                "unstable": "latest-44-nixos-unstable",
             }
 
             # Can still query old channel

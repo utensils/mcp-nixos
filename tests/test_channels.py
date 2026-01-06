@@ -37,8 +37,8 @@ class TestChannelHandling:
         """Test successful channel discovery."""
         # Mock successful responses for some channels (note: 24.11 removed from version list)
         mock_responses = {
-            "latest-43-nixos-unstable": {"count": 151798},
-            "latest-43-nixos-25.05": {"count": 151698},
+            "latest-44-nixos-unstable": {"count": 151798},
+            "latest-44-nixos-25.05": {"count": 151698},
         }
 
         def side_effect(url, **kwargs):
@@ -59,9 +59,9 @@ class TestChannelHandling:
 
         result = channel_cache.get_available()
 
-        assert "latest-43-nixos-unstable" in result
-        assert "latest-43-nixos-25.05" in result
-        assert "151,798 documents" in result["latest-43-nixos-unstable"]
+        assert "latest-44-nixos-unstable" in result
+        assert "latest-44-nixos-25.05" in result
+        assert "151,798 documents" in result["latest-44-nixos-unstable"]
 
     @patch("requests.post")
     def test_discover_available_channels_with_cache(self, mock_post):
@@ -79,7 +79,7 @@ class TestChannelHandling:
     @patch("requests.post")
     def test_validate_channel_success(self, mock_post, mock_get_channels):
         """Test successful channel validation."""
-        mock_get_channels.return_value = {"stable": "latest-43-nixos-25.05"}
+        mock_get_channels.return_value = {"stable": "latest-44-nixos-25.05"}
 
         mock_resp = Mock()
         mock_resp.status_code = 200
@@ -92,7 +92,7 @@ class TestChannelHandling:
     @patch("mcp_nixos.server.get_channels")
     def test_validate_channel_failure(self, mock_get_channels):
         """Test channel validation failure."""
-        mock_get_channels.return_value = {"stable": "latest-43-nixos-25.05"}
+        mock_get_channels.return_value = {"stable": "latest-44-nixos-25.05"}
 
         result = validate_channel("nonexistent")
         assert result is False
@@ -107,11 +107,11 @@ class TestChannelHandling:
         """Test getting suggestions for similar channel names."""
         # Mock the available channels
         mock_get_channels.return_value = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
 
         result = get_channel_suggestions("unstabl")
@@ -125,11 +125,11 @@ class TestChannelHandling:
         """Test fallback suggestions for completely invalid names."""
         # Mock the available channels
         mock_get_channels.return_value = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
 
         result = get_channel_suggestions("totally-random-xyz")
@@ -143,23 +143,23 @@ class TestChannelHandling:
     async def test_nixos_channels_tool(self, mock_resolved, mock_discover):
         """Test nixos_channels tool output."""
         mock_discover.return_value = {
-            "latest-43-nixos-unstable": "151,798 documents",
-            "latest-43-nixos-25.05": "151,698 documents",
-            "latest-43-nixos-24.11": "142,034 documents",
+            "latest-44-nixos-unstable": "151,798 documents",
+            "latest-44-nixos-25.05": "151,698 documents",
+            "latest-44-nixos-24.11": "142,034 documents",
         }
         mock_resolved.return_value = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
 
         result = await nixos_channels()
 
         assert "NixOS Channels" in result  # Match both old and new format
-        assert "unstable → latest-43-nixos-unstable" in result or "unstable \u2192 latest-43-nixos-unstable" in result
-        assert "stable" in result and "latest-43-nixos-25.05" in result
+        assert "unstable → latest-44-nixos-unstable" in result or "unstable \u2192 latest-44-nixos-unstable" in result
+        assert "stable" in result and "latest-44-nixos-25.05" in result
         assert "✓ Available" in result
         assert "151,798 documents" in result
 
@@ -169,11 +169,11 @@ class TestChannelHandling:
     async def test_nixos_channels_with_unavailable(self, mock_resolved, mock_discover):
         """Test nixos_channels tool with some unavailable channels."""
         # Only return some channels as available
-        mock_discover.return_value = {"latest-43-nixos-unstable": "151,798 documents"}
+        mock_discover.return_value = {"latest-44-nixos-unstable": "151,798 documents"}
         mock_resolved.return_value = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",  # Not available
-            "25.05": "latest-43-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",  # Not available
+            "25.05": "latest-44-nixos-25.05",
         }
 
         # Mock that we're not using fallback (partial availability)
@@ -189,9 +189,9 @@ class TestChannelHandling:
     async def test_nixos_channels_with_extra_discovered(self, mock_discover):
         """Test nixos_channels with extra discovered channels."""
         mock_discover.return_value = {
-            "latest-43-nixos-unstable": "151,798 documents",
-            "latest-43-nixos-25.05": "151,698 documents",
-            "latest-44-nixos-unstable": "152,000 documents",  # New channel
+            "latest-44-nixos-unstable": "151,798 documents",
+            "latest-44-nixos-25.05": "151,698 documents",
+            "latest-45-nixos-unstable": "152,000 documents",  # New channel
         }
 
         # Mock that we're not using fallback
@@ -226,11 +226,11 @@ class TestChannelHandling:
         """Test that dynamic channel mappings work correctly."""
         # Mock the resolved channels
         mock_resolved.return_value = {
-            "stable": "latest-43-nixos-25.05",
-            "unstable": "latest-43-nixos-unstable",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "stable": "latest-44-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
 
         channels = get_channels()
@@ -281,11 +281,11 @@ class TestChannelHandling:
     def test_channel_suggestions_for_legacy_channels(self, mock_get_channels):
         """Test suggestions work for legacy channel references."""
         mock_get_channels.return_value = {
-            "stable": "latest-43-nixos-25.05",
-            "unstable": "latest-43-nixos-unstable",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
-            "beta": "latest-43-nixos-25.05",
+            "stable": "latest-44-nixos-25.05",
+            "unstable": "latest-44-nixos-unstable",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
+            "beta": "latest-44-nixos-25.05",
         }
 
         # Test old stable reference
@@ -373,9 +373,9 @@ class TestDynamicChannelLifecycle:
         """Test stable detection prioritizes higher version numbers."""
         # Same generation, different versions
         responses = {
-            "latest-43-nixos-24.11": {"count": 150000},
-            "latest-43-nixos-25.05": {"count": 140000},  # Lower count but higher version
-            "latest-43-nixos-unstable": {"count": 155000},
+            "latest-44-nixos-24.11": {"count": 150000},
+            "latest-44-nixos-25.05": {"count": 140000},  # Lower count but higher version
+            "latest-44-nixos-unstable": {"count": 155000},
         }
 
         def side_effect(url, **kwargs):
@@ -392,7 +392,7 @@ class TestDynamicChannelLifecycle:
 
         channels = channel_cache.get_resolved()
         # Should pick 25.05 despite lower count (higher version)
-        assert channels["stable"] == "latest-43-nixos-25.05"
+        assert channels["stable"] == "latest-44-nixos-25.05"
 
     @patch("requests.post")
     def test_stable_detection_by_count_when_same_version(self, mock_post):
@@ -400,7 +400,7 @@ class TestDynamicChannelLifecycle:
         responses = {
             "latest-43-nixos-25.05": {"count": 150000},
             "latest-44-nixos-25.05": {"count": 155000},  # Higher count, same version
-            "latest-43-nixos-unstable": {"count": 160000},
+            "latest-44-nixos-unstable": {"count": 160000},
         }
 
         def side_effect(url, **kwargs):
@@ -438,7 +438,7 @@ class TestDynamicChannelLifecycle:
     def test_channel_discovery_partial_availability(self, mock_post):
         """Test handling when only some channels are available."""
         responses = {
-            "latest-43-nixos-unstable": {"count": 150000},
+            "latest-44-nixos-unstable": {"count": 150000},
             # No stable releases available
         }
 
@@ -455,7 +455,7 @@ class TestDynamicChannelLifecycle:
         mock_post.side_effect = side_effect
 
         channels = channel_cache.get_resolved()
-        assert channels["unstable"] == "latest-43-nixos-unstable"
+        assert channels["unstable"] == "latest-44-nixos-unstable"
         assert "stable" not in channels  # No stable release found
 
     @patch("mcp_nixos.server.channel_cache.get_resolved")
@@ -537,8 +537,8 @@ class TestDynamicChannelLifecycle:
     def test_caching_behavior(self, mock_post):
         """Test that caching works correctly."""
         responses = {
-            "latest-43-nixos-unstable": {"count": 150000},
-            "latest-43-nixos-25.05": {"count": 145000},
+            "latest-44-nixos-unstable": {"count": 150000},
+            "latest-44-nixos-25.05": {"count": 145000},
         }
 
         call_count = 0
@@ -572,9 +572,9 @@ class TestDynamicChannelLifecycle:
     def test_malformed_version_handling(self, mock_post):
         """Test handling of malformed version numbers."""
         responses = {
-            "latest-43-nixos-unstable": {"count": 150000},
-            "latest-43-nixos-badversion": {"count": 145000},  # Invalid version
-            "latest-43-nixos-25.05": {"count": 140000},  # Valid version
+            "latest-44-nixos-unstable": {"count": 150000},
+            "latest-44-nixos-badversion": {"count": 145000},  # Invalid version
+            "latest-44-nixos-25.05": {"count": 140000},  # Valid version
         }
 
         def side_effect(url, **kwargs):
@@ -591,7 +591,7 @@ class TestDynamicChannelLifecycle:
 
         channels = channel_cache.get_resolved()
         # Should ignore malformed version and use valid one
-        assert channels["stable"] == "latest-43-nixos-25.05"
+        assert channels["stable"] == "latest-44-nixos-25.05"
         assert "badversion" not in channels
 
     @patch("requests.post")
@@ -613,9 +613,9 @@ class TestDynamicChannelLifecycle:
     def test_zero_document_filtering(self, mock_post):
         """Test that channels with zero documents are filtered out."""
         responses = {
-            "latest-43-nixos-unstable": {"count": 150000},
-            "latest-43-nixos-25.05": {"count": 0},  # Empty index
-            "latest-43-nixos-25.11": {"count": 140000},
+            "latest-44-nixos-unstable": {"count": 150000},
+            "latest-44-nixos-25.05": {"count": 0},  # Empty index
+            "latest-44-nixos-25.11": {"count": 140000},
         }
 
         def side_effect(url, **kwargs):
@@ -631,18 +631,18 @@ class TestDynamicChannelLifecycle:
         mock_post.side_effect = side_effect
 
         available = channel_cache.get_available()
-        assert "latest-43-nixos-unstable" in available
-        assert "latest-43-nixos-25.05" not in available  # Filtered out
-        assert "latest-43-nixos-25.11" in available
+        assert "latest-44-nixos-unstable" in available
+        assert "latest-44-nixos-25.05" not in available  # Filtered out
+        assert "latest-44-nixos-25.11" in available
 
     @patch("requests.post")
     def test_version_comparison_edge_cases(self, mock_post):
         """Test version comparison with edge cases."""
         # Test that higher version numbers are preferred as stable
         responses = {
-            "latest-43-nixos-unstable": {"count": 150000},
-            "latest-43-nixos-25.05": {"count": 145000},  # Older stable
-            "latest-43-nixos-26.05": {"count": 140000},  # Newer stable (lower count)
+            "latest-44-nixos-unstable": {"count": 150000},
+            "latest-44-nixos-25.05": {"count": 145000},  # Older stable
+            "latest-44-nixos-26.05": {"count": 140000},  # Newer stable (lower count)
         }
 
         def side_effect(url, **kwargs):
@@ -659,7 +659,7 @@ class TestDynamicChannelLifecycle:
 
         channels = channel_cache.get_resolved()
         # Should pick highest version (26.05) despite lower document count
-        assert channels["stable"] == "latest-43-nixos-26.05"
+        assert channels["stable"] == "latest-44-nixos-26.05"
         assert "25.05" in channels
         assert "26.05" in channels
 

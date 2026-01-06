@@ -101,9 +101,9 @@ class TestRealWorldScenarios:
         # Step 1: Check available channels (note: 24.11 removed from version list as EOL)
         with patch("mcp_nixos.server.channel_cache.get_available") as mock_discover:
             mock_discover.return_value = {
-                "latest-43-nixos-25.05": "151,698 documents",
-                "latest-43-nixos-25.11": "152,000 documents",
-                "latest-43-nixos-unstable": "151,798 documents",
+                "latest-44-nixos-25.05": "151,698 documents",
+                "latest-44-nixos-25.11": "152,000 documents",
+                "latest-44-nixos-unstable": "151,798 documents",
             }
 
             # Mock that we're not using fallback
@@ -122,10 +122,10 @@ class TestRealWorldScenarios:
         for channel in channels_to_test:
             with patch("mcp_nixos.server.get_channels") as mock_get:
                 mock_get.return_value = {
-                    "stable": "latest-43-nixos-25.05",
-                    "25.05": "latest-43-nixos-25.05",
-                    "25.11": "latest-43-nixos-25.11",
-                    "unstable": "latest-43-nixos-unstable",
+                    "stable": "latest-44-nixos-25.05",
+                    "25.05": "latest-44-nixos-25.05",
+                    "25.11": "latest-44-nixos-25.11",
+                    "unstable": "latest-44-nixos-unstable",
                 }
 
                 with patch("mcp_nixos.server.es_query") as mock_es:
@@ -276,10 +276,10 @@ class TestRealWorldScenarios:
         for typo, expected_suggestions in typo_tests:
             with patch("mcp_nixos.server.get_channels") as mock_get:
                 mock_get.return_value = {
-                    "stable": "latest-43-nixos-25.05",
-                    "unstable": "latest-43-nixos-unstable",
-                    "25.05": "latest-43-nixos-25.05",
-                    "24.11": "latest-43-nixos-24.11",
+                    "stable": "latest-44-nixos-25.05",
+                    "unstable": "latest-44-nixos-unstable",
+                    "25.05": "latest-44-nixos-25.05",
+                    "24.11": "latest-44-nixos-24.11",
                 }
 
                 result = await nixos_search("test", channel=typo)
@@ -314,8 +314,8 @@ class TestRealWorldScenarios:
         # Get stats for different channels
         with patch("mcp_nixos.server.get_channels") as mock_get:
             mock_get.return_value = {
-                "unstable": "latest-43-nixos-unstable",
-                "stable": "latest-43-nixos-25.05",
+                "unstable": "latest-44-nixos-unstable",
+                "stable": "latest-44-nixos-25.05",
             }
 
             with patch("requests.post") as mock_post:

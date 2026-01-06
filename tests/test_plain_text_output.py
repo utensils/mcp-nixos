@@ -32,15 +32,15 @@ def mock_channel_cache():
     with patch("mcp_nixos.server.channel_cache") as mock_cache:
         # Mock the channel cache methods
         mock_cache.get_resolved.return_value = {
-            "unstable": "latest-43-nixos-unstable",
-            "stable": "latest-43-nixos-25.05",
-            "25.05": "latest-43-nixos-25.05",
-            "24.11": "latest-43-nixos-24.11",
+            "unstable": "latest-44-nixos-unstable",
+            "stable": "latest-44-nixos-25.05",
+            "25.05": "latest-44-nixos-25.05",
+            "24.11": "latest-44-nixos-24.11",
         }
         mock_cache.get_available.return_value = {
-            "latest-43-nixos-unstable": 150000,
-            "latest-43-nixos-25.05": 140000,
-            "latest-43-nixos-24.11": 130000,
+            "latest-44-nixos-unstable": 150000,
+            "latest-44-nixos-25.05": 140000,
+            "latest-44-nixos-24.11": 130000,
         }
         yield mock_cache
 
