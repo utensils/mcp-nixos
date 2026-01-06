@@ -26,6 +26,7 @@ nixos_stats = get_tool_function("nixos_stats")
 
 
 @pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestRealIntegration:
     """Test against real APIs to ensure implementation works."""
 
@@ -145,6 +146,7 @@ class TestRealIntegration:
 
 # ===== Content from test_advanced_integration.py =====
 @pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestAdvancedIntegration:
     """Test advanced scenarios with real APIs."""
 

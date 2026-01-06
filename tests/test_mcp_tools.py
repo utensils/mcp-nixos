@@ -286,6 +286,7 @@ class TestErrorHandling:
         assert "Failed to fetch docs" in result or "Network error" in result
 
 
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestRealAPIBehavior:
     """Tests that verify actual API behavior (can be skipped in CI)."""
 

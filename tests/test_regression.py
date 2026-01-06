@@ -291,6 +291,7 @@ class TestDarwinStats:
         assert "Error (ERROR): Failed to fetch nix-darwin statistics" in result
 
 
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestIntegration:
     """Integration tests for all fixes."""
 

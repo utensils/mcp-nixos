@@ -285,6 +285,7 @@ class TestNixHubIntegration:
 
 # ===== Content from test_nixhub_real_integration.py =====
 @pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestNixHubRealIntegration:
     """Test actual NixHub API calls."""
 

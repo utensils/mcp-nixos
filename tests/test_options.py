@@ -181,6 +181,7 @@ class TestNixosInfoOptions:
 
 
 @pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestNixosInfoOptionsIntegration:
     """Integration tests against real NixOS API."""
 
@@ -378,6 +379,7 @@ class TestNixosInfoOptionScenarios:
         assert "</p>" not in result
 
     @pytest.mark.integration
+    @pytest.mark.flaky(reruns=3, reruns_delay=2)
     @pytest.mark.asyncio
     async def test_real_option_lookup_integration(self):
         """Integration test for real option lookup behavior."""
