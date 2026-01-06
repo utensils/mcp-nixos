@@ -20,6 +20,7 @@ This guide explains how to properly release a new version without triggering dup
 ### Option 1: Automatic Release (Recommended)
 
 1. **Update version in code**:
+
    ```bash
    # Update version in pyproject.toml
    # Update __init__.py fallback version if needed
@@ -30,15 +31,17 @@ This guide explains how to properly release a new version without triggering dup
    - Follow the existing format
 
 3. **Create PR as normal**:
+
    ```bash
    gh pr create --title "Release version 1.0.0"
    ```
 
 4. **Merge with release trigger**:
    When merging the PR, edit the merge commit message to include:
-   ```
+
+   ```text
    Merge pull request #28 from utensils/refactor
-   
+
    release: v1.0.0
    ```
 
@@ -53,6 +56,7 @@ This guide explains how to properly release a new version without triggering dup
 1. **Merge PR normally**
 2. **Wait for CI to complete**
 3. **Create and push tag manually**:
+
    ```bash
    git tag -a v1.0.0 -m "Release v1.0.0"
    git push origin v1.0.0
@@ -68,6 +72,7 @@ This guide explains how to properly release a new version without triggering dup
 ## Testing the Workflow
 
 To test documentation-only changes:
+
 ```bash
 # Make changes only to *.md files
 git add README.md
@@ -77,6 +82,7 @@ git push
 ```
 
 To test the release process without actually releasing:
+
 1. Create a test branch
 2. Make a small change
 3. Use the commit message pattern but with a test version
@@ -92,6 +98,7 @@ To test the release process without actually releasing:
 ## Example PR Description for Releases
 
 When creating a release PR, use this template:
+
 ```markdown
 ## Release v1.0.0
 
@@ -104,10 +111,11 @@ This PR prepares the v1.0.0 release.
 - [ ] Documentation updated
 
 ### Release Instructions
+
 When merging, use commit message:
-```
+
+```text
 Merge pull request #XX from utensils/branch-name
 
 release: v1.0.0
-```
 ```

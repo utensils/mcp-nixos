@@ -412,6 +412,7 @@ The following channels are now available for all NixOS tools:
 - `stable` - Alias for the current stable release (currently 24.11)
 
 Example usage:
+
 ```python
 # Search packages in the beta channel
 nixos_search(query="nginx", channel="beta")

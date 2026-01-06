@@ -16,7 +16,9 @@
 **🚨 No Nix/NixOS Required!** This tool works on any system - Windows, macOS, Linux. You're just querying web APIs.
 
 ### Option 1: Using uvx (Recommended for most users)
+
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoidXZ4IG1jcC1uaXhvcyJ9)
+
 ```json
 {
   "mcpServers": {
@@ -29,7 +31,9 @@
 ```
 
 ### Option 2: Using Nix (For Nix users)
+
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoibml4IHJ1biBnaXRodWI6dXRlbnNpbHMvbWNwLW5peG9zIC0tIn0%3D)
+
 ```json
 {
   "mcpServers": {
@@ -42,7 +46,9 @@
 ```
 
 ### Option 3: Using Docker (Container lovers unite)
+
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=nixos&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItLXJtIiwiLWkiLCJnaGNyLmlvL3V0ZW5zaWxzL21jcC1uaXhvcyJdfQ%3D%3D)
+
 ```json
 {
   "mcpServers": {
@@ -59,6 +65,7 @@ That's it. Your AI assistant now has access to real NixOS data instead of making
 ## What Is This Thing?
 
 MCP-NixOS is a Model Context Protocol server that gives your AI assistant accurate, real-time information about:
+
 - **NixOS packages** (130K+ packages that actually exist)
 - **Configuration options** (22K+ ways to break your system)
 - **Home Manager settings** (4K+ options for the power users)
@@ -68,6 +75,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 ## The Tools You Actually Care About
 
 ### 🔍 NixOS Tools
+
 - `nixos_search(query, type, channel)` - Search packages, options, or programs
 - `nixos_info(name, type, channel)` - Get detailed info about packages/options
 - `nixos_stats(channel)` - Package and option counts
@@ -76,10 +84,12 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `nixos_flakes_stats()` - Flake ecosystem statistics
 
 ### 📦 Version History Tools (NEW!)
+
 - `nixhub_package_versions(package, limit)` - Get version history with commit hashes
 - `nixhub_find_version(package, version)` - Smart search for specific versions
 
 ### 🏠 Home Manager Tools
+
 - `home_manager_search(query)` - Search user config options
 - `home_manager_info(name)` - Get option details (with suggestions!)
 - `home_manager_stats()` - See what's available
@@ -87,6 +97,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 - `home_manager_options_by_prefix(prefix)` - Explore options by prefix
 
 ### 🍎 Darwin Tools
+
 - `darwin_search(query)` - Search macOS options
 - `darwin_info(name)` - Get option details
 - `darwin_stats()` - macOS configuration statistics
@@ -98,6 +109,7 @@ MCP-NixOS is a Model Context Protocol server that gives your AI assistant accura
 **Remember: You DON'T need Nix/NixOS installed!** This tool runs anywhere Python runs.
 
 ### For Regular Humans (Windows/Mac/Linux)
+
 ```bash
 # Run directly with uvx (no installation needed)
 uvx mcp-nixos
@@ -108,6 +120,7 @@ uv pip install mcp-nixos
 ```
 
 ### For Nix Users (You Know Who You Are)
+
 ```bash
 # Run without installing
 nix run github:utensils/mcp-nixos
@@ -119,6 +132,7 @@ nix profile install github:utensils/mcp-nixos
 ## Features Worth Mentioning
 
 ### 🚀 Version 1.0.1: The Async Revolution (After The Great Simplification)
+
 - **Drastically less code** - v1.0.0 removed thousands of lines, v1.0.1 made them async
 - **100% functionality** - Everything still works, now with more `await`
 - **0% cache corruption** - Because we removed the cache entirely (still gone!)
@@ -127,6 +141,7 @@ nix profile install github:utensils/mcp-nixos
 - **Modern MCP** - FastMCP 2.x because the old MCP was too synchronous
 
 ### 📊 What You Get
+
 - **Real-time data** - Always current, never stale
 - **Plain text output** - Human and AI readable
 - **Smart suggestions** - Helps when you typo option names
@@ -134,6 +149,7 @@ nix profile install github:utensils/mcp-nixos
 - **No configuration** - It just works™
 
 ### 🎯 Key Improvements
+
 - **Dynamic channel resolution** - `stable` always points to current stable
 - **Enhanced error messages** - Actually helpful when things go wrong
 - **Deduped flake results** - No more duplicate spam
@@ -166,12 +182,14 @@ Want to test your changes in Claude Code or another MCP client? Create a `.mcp.j
 Replace `/home/hackerman/Projects/mcp-nixos` with your actual project path (yes, even you, Windows users with your `C:\Users\CoolDev\...` paths).
 
 This `.mcp.json` file:
+
 - **Automatically activates** when you launch Claude Code from the project directory
 - **Uses your local code** instead of the installed package
 - **Enables real-time testing** - just restart Claude Code after changes
 - **Already in .gitignore** so you won't accidentally commit your path
 
 ### With Nix (The Blessed Path)
+
 ```bash
 nix develop
 menu  # Shows all available commands
@@ -186,6 +204,7 @@ publish    # Upload to PyPI (requires credentials)
 ```
 
 ### Without Nix (The Path of Pain)
+
 ```bash
 # Install development dependencies
 uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
@@ -205,6 +224,7 @@ twine upload dist/*    # Upload to PyPI
 ```
 
 ### Testing Philosophy
+
 - **367 tests** that actually test things (now async because why not)
 - **Real API calls** because mocks are for cowards (await real_courage())
 - **Plain text validation** ensuring no XML leaks through
@@ -217,19 +237,21 @@ Just one. We're minimalists now:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ELASTICSEARCH_URL` | NixOS API endpoint | https://search.nixos.org/backend |
+| `ELASTICSEARCH_URL` | NixOS API endpoint | <https://search.nixos.org/backend> |
 
 ## Troubleshooting
 
 ### Nix Sandbox Error
 
 If you encounter this error when running via Nix:
-```
-error: derivation '/nix/store/...-python3.11-watchfiles-1.0.4.drv' specifies a sandbox profile, 
+
+```text
+error: derivation '/nix/store/...-python3.11-watchfiles-1.0.4.drv' specifies a sandbox profile,
 but this is only allowed when 'sandbox' is 'relaxed'
 ```
 
 **Solution**: Run with relaxed sandbox mode:
+
 ```bash
 nix run --option sandbox relaxed github:utensils/mcp-nixos --
 ```
@@ -237,13 +259,15 @@ nix run --option sandbox relaxed github:utensils/mcp-nixos --
 **Why this happens**: The `watchfiles` package (a transitive dependency via MCP) requires custom sandbox permissions for file system monitoring. This is only allowed when Nix's sandbox is in 'relaxed' mode instead of the default 'strict' mode.
 
 **Permanent fix**: Add to your `/etc/nix/nix.conf`:
-```
+
+```ini
 sandbox = relaxed
 ```
 
 ## Acknowledgments
 
 This project queries data from several amazing services:
+
 - **[NixHub.io](https://www.nixhub.io)** - Provides package version history and commit tracking
 - **[search.nixos.org](https://search.nixos.org)** - Official NixOS package and option search
 - **[Jetify](https://www.jetify.com)** - Creators of [Devbox](https://www.jetify.com/devbox) and NixHub
@@ -256,6 +280,6 @@ MIT - Because sharing is caring, even if the code hurts.
 
 ---
 
-_Created by James Brink and maintained by masochists who enjoy Nix and async/await patterns._
+*Created by James Brink and maintained by masochists who enjoy Nix and async/await patterns.*
 
-_Special thanks to the NixOS project for creating an OS that's simultaneously the best and worst thing ever._
+*Special thanks to the NixOS project for creating an OS that's simultaneously the best and worst thing ever.*

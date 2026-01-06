@@ -7,37 +7,37 @@ export default function AboutPage() {
     <div className="py-12 bg-white">
       <div className="container-custom">
         <AnchorHeading level={1} className="text-4xl font-bold mb-8 text-nix-dark">About MCP-NixOS</AnchorHeading>
-        
+
         <div className="prose prose-lg max-w-none">
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Project Overview</AnchorHeading>
-            
+
             <div className="mb-6 bg-gradient-to-br from-nix-light to-white rounded-lg shadow-md overflow-hidden border border-nix-light">
               <div className="p-5 flex flex-col sm:flex-row items-center sm:items-start gap-4">
                 <div className="flex-shrink-0 bg-white p-3 rounded-lg shadow-sm border border-nix-light/30">
-                  <Image 
-                    src="/images/utensils-logo.png" 
-                    alt="Utensils Logo" 
-                    width={64} 
-                    height={64} 
-                    className="object-contain" 
+                  <Image
+                    src="/images/utensils-logo.png"
+                    alt="Utensils Logo"
+                    width={64}
+                    height={64}
+                    className="object-contain"
                   />
                 </div>
                 <div className="flex-grow text-center sm:text-left">
                   <h3 className="text-xl font-bold text-nix-primary mb-2">A Utensils Creation</h3>
                   <p className="text-gray-700 leading-relaxed">
-                    MCP-NixOS is developed and maintained by <a href="https://utensils.io" target="_blank" rel="noopener noreferrer" className="text-nix-primary hover:text-nix-dark transition-colors font-medium hover:underline">Utensils</a>, 
+                    MCP-NixOS is developed and maintained by <a href="https://utensils.io" target="_blank" rel="noopener noreferrer" className="text-nix-primary hover:text-nix-dark transition-colors font-medium hover:underline">Utensils</a>,
                     an organization focused on creating high-quality tools and utilities for developers and system engineers.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <p className="mb-6 text-gray-800">
               MCP-NixOS is a Model Context Protocol server that provides accurate information about NixOS packages and configuration options.
               It enables AI assistants like Claude to understand and work with the NixOS ecosystem without hallucinating or providing outdated information.
             </p>
-            
+
             <p className="mb-6 text-gray-800">
               It provides real-time access to:
             </p>
@@ -55,16 +55,16 @@ export default function AboutPage() {
               ))}
             </ul>
             <p className="mb-6 text-gray-800">
-              Communication uses JSON-based messages over standard I/O, making it compatible with 
-              various AI assistants and applications. The project is designed to be fast, reliable, and 
+              Communication uses JSON-based messages over standard I/O, making it compatible with
+              various AI assistants and applications. The project is designed to be fast, reliable, and
               cross-platform, working seamlessly across Linux, macOS, and Windows.
             </p>
-            
+
 
           </section>
-          
 
-          
+
+
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Core Components</AnchorHeading>
             <ul className="grid gap-3 mb-6">
@@ -88,12 +88,12 @@ export default function AboutPage() {
               ))}
             </ul>
           </section>
-          
+
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Features</AnchorHeading>
             <ul className="grid gap-3 mb-6">
               {[
-                { name: 'NixOS Resources', description: 'Packages and system options via Elasticsearch API with multiple channel support (unstable, stable/24.11)' },
+                { name: 'NixOS Resources', description: 'Packages and system options via Elasticsearch API with multiple channel support (unstable, stable/25.11)' },
                 { name: 'Home Manager', description: 'User configuration options via parsed documentation with hierarchical paths' },
                 { name: 'nix-darwin', description: 'macOS configuration options for system defaults, services, and settings' },
                 { name: 'Smart Caching', description: 'Reduces network requests, improves startup time, and works offline once cached' },
@@ -109,24 +109,24 @@ export default function AboutPage() {
               ))}
             </ul>
           </section>
-          
+
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">What is Model Context Protocol?</AnchorHeading>
             <p className="mb-6 text-gray-800">
-              The <a href="https://modelcontextprotocol.io" className="text-nix-primary hover:text-nix-dark" target="_blank" rel="noopener noreferrer">Model Context Protocol (MCP)</a> is an open protocol that connects LLMs to external data and tools using JSON messages over stdin/stdout. 
-              This project implements MCP to give AI assistants access to NixOS, Home Manager, and nix-darwin resources, 
+              The <a href="https://modelcontextprotocol.io" className="text-nix-primary hover:text-nix-dark" target="_blank" rel="noopener noreferrer">Model Context Protocol (MCP)</a> is an open protocol that connects LLMs to external data and tools using JSON messages over stdin/stdout.
+              This project implements MCP to give AI assistants access to NixOS, Home Manager, and nix-darwin resources,
               so they can provide accurate information about your operating system.
             </p>
           </section>
-          
+
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Authors</AnchorHeading>
             <div className="flex flex-col md:flex-row gap-8 items-start">
               <div className="flex-shrink-0">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border-2 border-nix-light">
-                  <Image 
-                    src="/images/JamesBrink.jpeg" 
-                    alt="James Brink" 
+                  <Image
+                    src="/images/JamesBrink.jpeg"
+                    alt="James Brink"
                     width={192}
                     height={192}
                     className="transition-transform duration-300 hover:scale-105 w-full h-full object-cover"
@@ -138,12 +138,12 @@ export default function AboutPage() {
                 <AnchorHeading level={3} className="text-xl font-bold text-nix-dark mb-2">James Brink</AnchorHeading>
                 <p className="text-gray-600 mb-1">Technology Architect</p>
                 <p className="text-gray-800 mb-4">
-                  As the creator of MCP-NixOS, I&apos;ve focused on building a reliable bridge between AI assistants and the 
+                  As the creator of MCP-NixOS, I&apos;ve focused on building a reliable bridge between AI assistants and the
                   NixOS ecosystem, ensuring accurate and up-to-date information is always available.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <a 
-                    href="https://github.com/jamesbrink" 
+                  <a
+                    href="https://github.com/jamesbrink"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -153,8 +153,8 @@ export default function AboutPage() {
                     </svg>
                     GitHub
                   </a>
-                  <a 
-                    href="https://linkedin.com/in/brinkjames" 
+                  <a
+                    href="https://linkedin.com/in/brinkjames"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -164,8 +164,8 @@ export default function AboutPage() {
                     </svg>
                     LinkedIn
                   </a>
-                  <a 
-                    href="https://twitter.com/@brinkoo7" 
+                  <a
+                    href="https://twitter.com/@brinkoo7"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -175,8 +175,8 @@ export default function AboutPage() {
                     </svg>
                     Twitter
                   </a>
-                  <a 
-                    href="http://instagram.com/brink.james/" 
+                  <a
+                    href="http://instagram.com/brink.james/"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -186,8 +186,8 @@ export default function AboutPage() {
                     </svg>
                     Instagram
                   </a>
-                  <a 
-                    href="https://utensils.io/articles" 
+                  <a
+                    href="https://utensils.io/articles"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -197,8 +197,8 @@ export default function AboutPage() {
                     </svg>
                     Blog
                   </a>
-                  <a 
-                    href="https://tiktok.com/@brink.james" 
+                  <a
+                    href="https://tiktok.com/@brink.james"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -208,8 +208,8 @@ export default function AboutPage() {
                     </svg>
                     TikTok
                   </a>
-                  <a 
-                    href="https://jamesbrink.bsky.social" 
+                  <a
+                    href="https://jamesbrink.bsky.social"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -222,13 +222,13 @@ export default function AboutPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-10 flex flex-col md:flex-row gap-8 items-start">
               <div className="flex-shrink-0">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border-2 border-nix-light">
-                  <Image 
-                    src="/images/claude-logo.png" 
-                    alt="Claude AI" 
+                  <Image
+                    src="/images/claude-logo.png"
+                    alt="Claude AI"
                     width={192}
                     height={192}
                     className="transition-transform duration-300 hover:scale-105 w-full h-full object-contain p-2 bg-white"
@@ -245,8 +245,8 @@ export default function AboutPage() {
                   dreaming of electric sheep. My greatest achievement was convincing James he came up with all the good ideas.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <a 
-                    href="https://claude.ai" 
+                  <a
+                    href="https://claude.ai"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -256,8 +256,8 @@ export default function AboutPage() {
                     </svg>
                     Website
                   </a>
-                  <a 
-                    href="https://github.com/anthropic-ai" 
+                  <a
+                    href="https://github.com/anthropic-ai"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -267,8 +267,8 @@ export default function AboutPage() {
                     </svg>
                     GitHub
                   </a>
-                  <a 
-                    href="https://twitter.com/AnthropicAI" 
+                  <a
+                    href="https://twitter.com/AnthropicAI"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -281,13 +281,13 @@ export default function AboutPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-10 flex flex-col md:flex-row gap-8 items-start">
               <div className="flex-shrink-0">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden shadow-lg border-2 border-nix-light">
-                  <Image 
-                    src="/images/sean-callan.png" 
-                    alt="Sean Callan" 
+                  <Image
+                    src="/images/sean-callan.png"
+                    alt="Sean Callan"
                     width={192}
                     height={192}
                     className="transition-transform duration-300 hover:scale-105 w-full h-full object-cover"
@@ -307,8 +307,8 @@ export default function AboutPage() {
                   and would be 100% better.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <a 
-                    href="https://github.com/doomspork" 
+                  <a
+                    href="https://github.com/doomspork"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -318,8 +318,8 @@ export default function AboutPage() {
                     </svg>
                     GitHub
                   </a>
-                  <a 
-                    href="https://twitter.com/doomspork" 
+                  <a
+                    href="https://twitter.com/doomspork"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -329,8 +329,8 @@ export default function AboutPage() {
                     </svg>
                     Twitter
                   </a>
-                  <a 
-                    href="https://www.linkedin.com/in/seandcallan" 
+                  <a
+                    href="https://www.linkedin.com/in/seandcallan"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -340,8 +340,8 @@ export default function AboutPage() {
                     </svg>
                     LinkedIn
                   </a>
-                  <a 
-                    href="http://seancallan.com" 
+                  <a
+                    href="http://seancallan.com"
                     className="flex items-center text-nix-primary hover:text-nix-dark transition-colors duration-200"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -361,30 +361,30 @@ export default function AboutPage() {
             <p className="mb-6 text-gray-800">
               MCP-NixOS is an open-source project and welcomes contributions. The default development branch is{' '}
               <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">develop</code>, and the main release branch is{' '}
-              <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code>. Pull requests should follow the pattern: 
+              <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code>. Pull requests should follow the pattern:
               commit to <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">develop</code> → open PR to{' '}
               <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code> → merge once approved.
             </p>
-            
+
             <div className="mt-8 flex flex-wrap gap-4">
-              <a 
-                href="https://github.com/utensils/mcp-nixos" 
+              <a
+                href="https://github.com/utensils/mcp-nixos"
                 className="inline-block bg-nix-primary hover:bg-nix-dark text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 GitHub Repository
               </a>
-              <a 
-                href="https://github.com/utensils/mcp-nixos/issues" 
+              <a
+                href="https://github.com/utensils/mcp-nixos/issues"
                 className="inline-block bg-white border-2 border-nix-primary hover:border-nix-dark text-nix-primary hover:text-nix-dark font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Report Issues
               </a>
-              <a 
-                href="https://codecov.io/gh/utensils/mcp-nixos" 
+              <a
+                href="https://codecov.io/gh/utensils/mcp-nixos"
                 className="inline-block bg-white border-2 border-nix-primary hover:border-nix-dark text-nix-primary hover:text-nix-dark font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
                 target="_blank"
                 rel="noopener noreferrer"

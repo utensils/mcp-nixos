@@ -1326,7 +1326,7 @@ class TestFlakesStatsQueries:
 
         def side_effect(*args, **kwargs):
             url = args[0]
-            if "latest-43-group-manual" in url:
+            if "latest-44-group-manual" in url:
                 if "/_count" in url:
                     # Count request
                     mock_response = Mock()

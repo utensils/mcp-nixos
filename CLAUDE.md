@@ -9,12 +9,14 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 ## Key Architecture
 
 The project is a FastMCP 2.x server (async) with a single main module:
+
 - `mcp_nixos/server.py` - All MCP tools and API interactions (asyncio-based)
 
 Data sources:
+
 - NixOS packages/options: Elasticsearch API at search.nixos.org
 - Home Manager options: HTML parsing from official docs
-- nix-darwin options: HTML parsing from official docs  
+- nix-darwin options: HTML parsing from official docs
 - Package versions: NixHub.io API
 - Flakes: search.nixos.org flake index
 
@@ -34,7 +36,7 @@ run-tests     # Run all tests (with coverage in CI)
 run-tests --unit        # Unit tests only
 run-tests --integration # Integration tests only
 lint          # Check code with ruff
-format        # Format code with ruff  
+format        # Format code with ruff
 typecheck     # Run mypy type checker
 build         # Build package distributions
 publish       # Upload to PyPI
@@ -54,7 +56,7 @@ pytest tests/
 pytest tests/ --unit
 pytest tests/ --integration
 
-# Linting and formatting  
+# Linting and formatting
 ruff format mcp_nixos/ tests/
 ruff check mcp_nixos/ tests/
 mypy mcp_nixos/
@@ -128,6 +130,7 @@ Create `.mcp.json` in project root (already gitignored):
 ## Release Process
 
 Use the `/release` skill to automate version releases. This handles:
+
 - Version bump in `pyproject.toml`
 - Changelog update in `RELEASE_NOTES.md`
 - Git tag and GitHub release creation

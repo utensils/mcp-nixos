@@ -19,4 +19,4 @@ repos:
     hooks:
     -   id: mypy
         additional_dependencies: [types-requests, types-beautifulsoup4]
-        args: ["--strict", "--ignore-missing-imports"]
+        args: ["--config-file=pyproject.toml"]

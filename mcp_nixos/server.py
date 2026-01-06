@@ -34,18 +34,18 @@ NIXOS_AUTH = ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
 # Base channel patterns - these are dynamic and auto-discovered
 BASE_CHANNELS = {
     "unstable": "nixos-unstable",
-    "24.11": "nixos-24.11",
     "25.05": "nixos-25.05",
+    "25.11": "nixos-25.11",
 }
 
 # Fallback channels when API discovery fails
 # These are static mappings based on most recent known patterns
 FALLBACK_CHANNELS = {
     "unstable": "latest-44-nixos-unstable",
-    "stable": "latest-44-nixos-25.05",
-    "25.05": "latest-44-nixos-25.05",
-    "25.11": "latest-44-nixos-25.11",  # For when 25.11 is released
-    "beta": "latest-44-nixos-25.05",
+    "stable": "latest-44-nixos-25.11",
+    "25.05": "latest-44-nixos-25.05",  # Deprecated, EOL 2025-12-31
+    "25.11": "latest-44-nixos-25.11",
+    "beta": "latest-44-nixos-25.11",
 }
 
 HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
@@ -77,8 +77,8 @@ class ChannelCache:
         """Discover available NixOS channels by testing API patterns."""
         # Test multiple generation patterns (43, 44, 45) and versions
         generations = [43, 44, 45, 46]  # Future-proof
-        # Removed deprecated versions (20.09, 24.11 - EOL June 2025)
-        versions = ["unstable", "25.05", "25.11", "26.05", "30.05"]  # Current and future
+        # Removed deprecated versions (24.11 EOL June 2025, 25.05 EOL Dec 2025)
+        versions = ["unstable", "25.05", "25.11", "26.05", "26.11"]  # Current and future
 
         available = {}
         for gen in generations:
@@ -1153,7 +1153,7 @@ async def nixos_flakes_stats() -> str:
     """
     try:
         # Use the same alias as the web UI for accurate counts
-        flake_index = "latest-43-group-manual"
+        flake_index = "latest-44-group-manual"
 
         # Get total count of flake packages (not options or apps)
         try:
@@ -1272,7 +1272,7 @@ async def _nixos_flakes_search_impl(query: str, limit: int = 20, channel: str = 
 
     try:
         # Use the same alias as the web UI to get only flake packages
-        flake_index = "latest-43-group-manual"
+        flake_index = "latest-44-group-manual"
 
         # Build query for flakes
         if query.strip() == "" or query == "*":

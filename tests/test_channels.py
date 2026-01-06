@@ -638,11 +638,11 @@ class TestDynamicChannelLifecycle:
     @patch("requests.post")
     def test_version_comparison_edge_cases(self, mock_post):
         """Test version comparison with edge cases."""
-        # Note: 20.09 not in test since it's no longer in version list
+        # Test that higher version numbers are preferred as stable
         responses = {
             "latest-43-nixos-unstable": {"count": 150000},
-            "latest-43-nixos-25.05": {"count": 145000},  # Current
-            "latest-43-nixos-30.05": {"count": 140000},  # Future
+            "latest-43-nixos-25.05": {"count": 145000},  # Older stable
+            "latest-43-nixos-26.05": {"count": 140000},  # Newer stable (lower count)
         }
 
         def side_effect(url, **kwargs):
@@ -658,10 +658,10 @@ class TestDynamicChannelLifecycle:
         mock_post.side_effect = side_effect
 
         channels = channel_cache.get_resolved()
-        # Should pick highest version (30.05)
-        assert channels["stable"] == "latest-43-nixos-30.05"
+        # Should pick highest version (26.05) despite lower document count
+        assert channels["stable"] == "latest-43-nixos-26.05"
         assert "25.05" in channels
-        assert "30.05" in channels
+        assert "26.05" in channels
 
     @patch("mcp_nixos.server.channel_cache.get_available")
     def test_beta_alias_behavior(self, mock_discover):
@@ -735,9 +735,9 @@ class TestFallbackChannels:
         assert channel_cache.using_fallback is True
         assert "stable" in channels
         assert "unstable" in channels
-        assert "25.05" in channels
+        assert "25.11" in channels
         assert "beta" in channels
-        assert channels["stable"] == "latest-44-nixos-25.05"
+        assert channels["stable"] == "latest-44-nixos-25.11"
 
     @patch("requests.post")
     def test_fallback_when_api_returns_empty(self, mock_post):

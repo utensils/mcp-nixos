@@ -72,10 +72,15 @@ warn_unused_configs = true
 no_implicit_reexport = true
 namespace_packages = true
 explicit_package_bases = true
+allow_untyped_decorators = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "fastmcp.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
