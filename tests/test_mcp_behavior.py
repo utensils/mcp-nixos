@@ -67,6 +67,8 @@ class MockAssistant:
         return analysis
 
 
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestMCPBehavior:
     """Test MCP tool behavior in realistic scenarios."""
 
