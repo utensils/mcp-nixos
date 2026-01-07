@@ -13,7 +13,8 @@
       "WebFetch",
       "WebSearch",
       "mcp__nixos__nix",
-      "mcp__nixos__nix_versions"
+      "mcp__nixos__nix_versions",
+      "Skill(test-tools)"
     ]
   },
   "enabledMcpjsonServers": [
