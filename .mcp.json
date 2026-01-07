@@ -2,13 +2,8 @@
   "mcpServers": {
     "nixos": {
       "type": "stdio",
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "./",
-        "mcp-nixos"
-      ]
+      "command": "nix",
+      "args": ["run", ".#mcp-nixos"]
     }
   }
 }

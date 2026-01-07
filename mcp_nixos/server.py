@@ -1224,7 +1224,10 @@ async def nix_versions(
 
 def main() -> None:
     """Run the MCP server."""
-    mcp.run()
+    try:
+        mcp.run()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

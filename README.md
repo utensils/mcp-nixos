@@ -3,8 +3,7 @@
 [![CI](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml/badge.svg)](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/utensils/mcp-nixos/graph/badge.svg?token=kdcbgvq4Bh)](https://codecov.io/gh/utensils/mcp-nixos)
 [![PyPI](https://img.shields.io/pypi/v/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
-[![Python versions](https://img.shields.io/pypi/pyversions/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
-[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/99cc55fb-a5c5-4473-b315-45a6961b2e8c)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/utensils/mcp-nixos?utm_source=oss&utm_medium=github&utm_campaign=utensils%2Fmcp-nixos&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![Built with Claude](https://img.shields.io/badge/Built%20with-Claude-D97757?logo=claude&logoColor=white)](https://claude.ai)
 
@@ -78,7 +77,7 @@ Just two. We consolidated 17 tools into 2 because your AI's context window isn't
 
 One tool to rule them all:
 
-```
+```text
 nix(action, query, source, type, channel, limit)
 ```
 
@@ -162,56 +161,13 @@ nix profile install github:utensils/mcp-nixos
 
 ## Development
 
-### With Nix
-
 ```bash
-nix develop
-menu        # Show commands
-run         # Start server
-run-tests   # Run tests
-lint        # Format + check
-typecheck   # mypy
-```
-
-### Without Nix
-
-```bash
-uv pip install -e ".[dev]"
-uv run mcp-nixos
-pytest tests/
-ruff format mcp_nixos/
-ruff check mcp_nixos/
-mypy mcp_nixos/
-```
-
-### Local MCP Testing
-
-Create `.mcp.json` in your project:
-
-```json
-{
-  "mcpServers": {
-    "nixos": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-nixos", "mcp-nixos"]
-    }
-  }
-}
-```
-
-## Troubleshooting
-
-### Nix Sandbox Error
-
-```bash
-nix run --option sandbox relaxed github:utensils/mcp-nixos --
-```
-
-Or add to `/etc/nix/nix.conf`:
-
-```ini
-sandbox = relaxed
+nix develop          # Enter dev shell
+nix build            # Build package
+pytest tests/        # Run tests
+ruff check .         # Lint
+ruff format .        # Format
+mypy mcp_nixos/      # Type check
 ```
 
 ## Acknowledgments

@@ -63,13 +63,14 @@ result
 .vscode/
 
 # MCP local configuration
-.mcp.json
 .mcp-nix.json
 
 # Misc
 temp
 tmp
-# Explicitly don't ignore uv.lock (we need to track it)
+
+# UV (not used - flake only)
+uv.lock
 uv-*.lock
 .aider*
 .pypirc

@@ -27,68 +27,30 @@ Data sources:
 
 All responses are formatted as plain text for optimal LLM consumption.
 
-## Development Commands
+## Development (Nix Flake)
 
-### With Nix Development Shell (Recommended)
+This project uses Nix flakes exclusively for development and building.
 
 ```bash
-# Enter dev shell (auto-activates Python venv)
+# Enter development shell
 nix develop
 
-# Show all available commands
-menu
+# Build the package
+nix build
 
-# Core commands:
-run           # Start the MCP server
-run-tests     # Run all tests (with coverage in CI)
-run-tests --unit        # Unit tests only
-run-tests --integration # Integration tests only
-lint          # Check code with ruff
-format        # Format code with ruff
-typecheck     # Run mypy type checker
-build         # Build package distributions
-publish       # Upload to PyPI
-setup         # Recreate .venv from scratch and reinstall dependencies
+# Run the server directly
+nix run
 
-# Analysis commands:
-loc                     # Count lines of code
-complexity build        # Build wily cache for complexity analysis
-complexity rank         # Rank files by complexity
-complexity diff         # Compare complexity changes against previous commit
-
-# Website development (separate Node.js shell):
-web-dev       # Launch Node.js shell, then use: install, dev, build, lint
-```
-
-### Without Nix
-
-```bash
-# Install with development dependencies
-uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
-
-# Run server
-uv run mcp-nixos  # or python -m mcp_nixos.server
-
-# Testing
+# Run tests
 pytest tests/
-pytest tests/ --unit
-pytest tests/ --integration
+pytest tests/ -m unit        # Unit tests only
+pytest tests/ -m integration # Integration tests only
 
 # Linting and formatting
-ruff format mcp_nixos/ tests/
 ruff check mcp_nixos/ tests/
+ruff format mcp_nixos/ tests/
 mypy mcp_nixos/
 ```
-
-## Testing Approach
-
-- Async tests using pytest-asyncio (auto mode enabled, function-scoped event loops)
-- Real API calls (no mocks) for integration tests
-- Unit tests marked with `@pytest.mark.unit`
-- Integration tests marked with `@pytest.mark.integration`
-- Flaky integration tests use `@pytest.mark.flaky(reruns=3)` for retry handling
-- Tests ensure plain text output (no XML/JSON leakage)
-- Test markers defined in both `pytest.ini` and `tests/conftest.py`
 
 ### Running Specific Tests
 
@@ -103,26 +65,63 @@ pytest tests/test_server.py::test_nixos_search -v
 pytest tests/ -k "nixos" -v
 ```
 
-## Local Development with MCP Clients
+## Installation
 
-Create `.mcp.json` in project root (already gitignored):
+### As a Nix Package
+
+```nix
+# In your flake.nix
+{
+  inputs.mcp-nixos.url = "github:utensils/mcp-nixos";
+
+  outputs = { nixpkgs, mcp-nixos, ... }: {
+    # Use the overlay to add pkgs.mcp-nixos
+    nixpkgs.overlays = [ mcp-nixos.overlays.default ];
+
+    # Then use in your config:
+    # environment.systemPackages = [ pkgs.mcp-nixos ];  # NixOS
+    # home.packages = [ pkgs.mcp-nixos ];               # Home Manager
+  };
+}
+```
+
+## MCP Client Configuration
+
+For use with Claude Desktop or other MCP clients:
 
 ```json
 {
   "mcpServers": {
     "nixos": {
       "type": "stdio",
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/path/to/mcp-nixos",
-        "mcp-nixos"
-      ]
+      "command": "nix",
+      "args": ["run", "github:utensils/mcp-nixos"]
     }
   }
 }
 ```
+
+Or if installed via Nix:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "type": "stdio",
+      "command": "mcp-nixos"
+    }
+  }
+}
+```
+
+## Testing Approach
+
+- Async tests using pytest-asyncio (auto mode enabled, function-scoped event loops)
+- Real API calls (no mocks) for integration tests
+- Unit tests marked with `@pytest.mark.unit`
+- Integration tests marked with `@pytest.mark.integration`
+- Flaky integration tests use `@pytest.mark.flaky(reruns=3)` for retry handling
+- Tests ensure plain text output (no XML/JSON leakage)
 
 ## Important Implementation Notes
 
@@ -138,10 +137,8 @@ Create `.mcp.json` in project root (already gitignored):
 
 ## CI/CD Workflows
 
-- **CI**: Runs on all PRs - tests (unit + integration), linting, type checking
-- **Publish**: Automated PyPI releases on version tags (v*)
-- **Claude Code Review**: Reviews PRs using Claude
-- **Claude PR Assistant**: Helps with PR creation
+- **CI**: Runs on all PRs - flake check, Nix build, Python distribution build, package validation (twine), linting, type checking, tests
+- **Publish**: Automated PyPI releases on version tags (v*), multi-arch Docker images to GHCR and Docker Hub
 
 ## Environment Variables
 

@@ -30,45 +30,93 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
       with:
-        enable-cache: true
-        cache-dependency-glob: "**/pyproject.toml"
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
-    
-    - name: Install dependencies
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - name: Check flake
+      run: nix flake check
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - name: Build Nix package
+      run: nix build
+
+    - name: Test package runs
       run: |
-        uv sync --extra dev
+        timeout 5s ./result/bin/mcp-nixos --help || true
+
+    - name: Build Python distribution
+      run: |
+        nix develop --command python -m build
+        ls -la dist/
+
+    - name: Validate package metadata
+      run: nix develop --command twine check dist/*
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
 
     - name: Lint with ruff
       run: |
-        uv run ruff check mcp_nixos/ tests/
-        uv run ruff format --check mcp_nixos/ tests/
+        nix develop --command ruff check mcp_nixos/ tests/
+        nix develop --command ruff format --check mcp_nixos/ tests/
 
     - name: Type check with mypy
-      run: |
-        uv run mypy mcp_nixos/
+      run: nix develop --command mypy mcp_nixos/
 
-    - name: Test with pytest
+  test:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - name: Run tests
       timeout-minutes: 10
       run: |
-        uv run pytest -v -n auto --cov=mcp_nixos --cov-report=xml --cov-report=term
-    
+        nix develop --command pytest tests/ -v -n auto --cov=mcp_nixos --cov-report=xml --cov-report=term
+
     - name: Upload coverage to Codecov
-      if: matrix.python-version == '3.12'
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
@@ -78,39 +126,26 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
-  build:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-    
-    - name: Set up Python
-      run: uv python install 3.12
-    
-    - name: Build package
-      run: |
-        uv build
-    
-    - name: Check package
-      run: |
-        uv sync --extra dev
-        uv run twine check dist/*
-    
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-packages
-        path: dist/
+  # Docker build - after all tests pass
+  docker-build:
+    runs-on: ${{ matrix.runner }}
+    needs: [build, lint, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            system: aarch64-linux
+    permissions:
+      packages: write
 
-  test-nix:
-    runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Nix
       uses: cachix/install-nix-action@v31
       with:
@@ -118,53 +153,13 @@ jobs:
         extra_nix_config: |
           experimental-features = nix-command flakes
           accept-flake-config = true
-    
-    - name: Cache Nix store
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/nix
-        key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-nix-
-    
-    - name: Build flake
-      run: |
-        nix flake check --accept-flake-config
-        nix develop -c echo "Development environment ready"
-    
-    - name: Test nix run
-      run: |
-        timeout 5s nix run . -- --help || true
-    
-    - name: Run tests in nix develop
-      run: |
-        echo "Running tests in nix environment"
-        nix develop --command setup
-        nix develop --command bash -c 'run-tests'
-
-  # Docker build and push - after all tests pass
-  docker:
-    runs-on: ubuntu-latest
-    needs: [test, build, test-nix]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      packages: write
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
+
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -172,25 +167,44 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
+    - name: Build Docker image with Nix
+      run: nix build .#packages.${{ matrix.system }}.docker
+
+    - name: Load and push arch-specific image
+      run: |
+        docker load < result
+        # Push arch-specific tags
+        docker tag ghcr.io/utensils/mcp-nixos:latest ghcr.io/utensils/mcp-nixos:latest-${{ matrix.arch }}
+        docker tag ghcr.io/utensils/mcp-nixos:latest utensils/mcp-nixos:latest-${{ matrix.arch }}
+        docker push ghcr.io/utensils/mcp-nixos:latest-${{ matrix.arch }}
+        docker push utensils/mcp-nixos:latest-${{ matrix.arch }}
+
+  docker-manifest:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      packages: write
+
+    steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
       with:
-        images: |
-          utensils/mcp-nixos
-          ghcr.io/utensils/mcp-nixos
-        tags: |
-          type=edge,branch=main
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=sha,prefix={{branch}}-,format=short
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
       with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        platforms: linux/amd64,linux/arm64
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create and push multi-arch manifest
+      run: |
+        for registry in "utensils/mcp-nixos" "ghcr.io/utensils/mcp-nixos"; do
+          docker manifest create $registry:latest \
+            $registry:latest-amd64 \
+            $registry:latest-arm64
+          docker manifest push $registry:latest
+        done
