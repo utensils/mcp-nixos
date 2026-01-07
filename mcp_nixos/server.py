@@ -783,7 +783,7 @@ def _search_flakehub(query: str, limit: int) -> str:
     """Search FlakeHub flakes by name or description."""
     try:
         headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
-        resp = requests.get(f"{FLAKEHUB_API}/search?q={query}", headers=headers, timeout=15)
+        resp = requests.get(f"{FLAKEHUB_API}/search", params={"q": query}, headers=headers, timeout=15)
         resp.raise_for_status()
         flakes = resp.json()
 
