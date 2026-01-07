@@ -1,3 +1,8 @@
+---
+allowed-tools: mcp__nixos__nix, mcp__nixos__nix_versions
+description: Test MCP NixOS Tools (project)
+---
+
 # Test MCP NixOS Tools
 
 Test the `nix` and `nix_versions` MCP tools by running through these scenarios:

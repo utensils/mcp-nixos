@@ -62,6 +62,12 @@ class TestNixSearchIntegration:
         assert "telescope" in result.lower() or "No Nixvim" in result
         assert_plain_text(result)
 
+    @pytest.mark.asyncio
+    async def test_search_flakehub(self):
+        result = await nix_fn(action="search", query="nixpkgs", source="flakehub", limit=3)
+        assert "flakehub" in result.lower() or "nixpkgs" in result.lower() or "No flakes" in result
+        assert_plain_text(result)
+
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
@@ -101,6 +107,14 @@ class TestNixInfoIntegration:
         assert "Nixvim Option:" in result or "not found" in result or "NOT_FOUND" in result
         assert_plain_text(result)
 
+    @pytest.mark.asyncio
+    async def test_info_flakehub(self):
+        result = await nix_fn(action="info", query="NixOS/nixpkgs", source="flakehub")
+        assert "FlakeHub Flake:" in result or "NOT_FOUND" in result
+        if "NOT_FOUND" not in result:
+            assert "NixOS/nixpkgs" in result
+        assert_plain_text(result)
+
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
@@ -137,6 +151,13 @@ class TestNixStatsIntegration:
         result = await nix_fn(action="stats", source="nixvim")
         assert "Nixvim Statistics" in result
         assert "Total options:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_stats_flakehub(self):
+        result = await nix_fn(action="stats", source="flakehub")
+        assert "FlakeHub Statistics" in result
+        assert "Total flakes:" in result
         assert_plain_text(result)
 
 

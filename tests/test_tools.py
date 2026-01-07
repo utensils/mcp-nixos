@@ -131,6 +131,14 @@ class TestNixToolSearch:
         assert result == "Found flakes"
         mock_search.assert_called_once_with("neovim", 20)
 
+    @patch("mcp_nixos.server._search_flakehub")
+    @pytest.mark.asyncio
+    async def test_search_flakehub(self, mock_search):
+        mock_search.return_value = "Found FlakeHub flakes"
+        result = await nix_fn(action="search", query="nixpkgs", source="flakehub")
+        assert result == "Found FlakeHub flakes"
+        mock_search.assert_called_once_with("nixpkgs", 20)
+
 
 class TestNixToolInfo:
     """Test nix tool info action."""
@@ -172,6 +180,14 @@ class TestNixToolInfo:
         assert result == "Option: system.defaults.dock.autohide"
         mock_info.assert_called_once_with("system.defaults.dock.autohide")
 
+    @patch("mcp_nixos.server._info_flakehub")
+    @pytest.mark.asyncio
+    async def test_info_flakehub(self, mock_info):
+        mock_info.return_value = "FlakeHub Flake: NixOS/nixpkgs"
+        result = await nix_fn(action="info", query="NixOS/nixpkgs", source="flakehub")
+        assert result == "FlakeHub Flake: NixOS/nixpkgs"
+        mock_info.assert_called_once_with("NixOS/nixpkgs")
+
 
 class TestNixToolStats:
     """Test nix tool stats action."""
@@ -204,6 +220,13 @@ class TestNixToolStats:
         mock_stats.return_value = "Flakes Statistics"
         result = await nix_fn(action="stats", source="flakes")
         assert result == "Flakes Statistics"
+
+    @patch("mcp_nixos.server._stats_flakehub")
+    @pytest.mark.asyncio
+    async def test_stats_flakehub(self, mock_stats):
+        mock_stats.return_value = "FlakeHub Statistics"
+        result = await nix_fn(action="stats", source="flakehub")
+        assert result == "FlakeHub Statistics"
 
 
 class TestNixToolOptions:
@@ -567,6 +590,156 @@ class TestNixvimInternalFunctions:
         assert "plugins.telescope.enable" in result
         assert "plugins.telescope.settings" in result
         assert "plugins.lsp.enable" not in result
+
+
+@pytest.mark.unit
+class TestFlakeHubInternalFunctions:
+    """Test FlakeHub internal functions with mocked API responses."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_flakehub_success(self, mock_get):
+        from mcp_nixos.server import _search_flakehub
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = [
+            {
+                "org": "NixOS",
+                "project": "nixpkgs",
+                "description": "A collection of packages",
+                "labels": ["nixpkgs", "nix"],
+            },
+            {
+                "org": "nix-community",
+                "project": "home-manager",
+                "description": "Manage user environment",
+                "labels": ["home-manager"],
+            },
+        ]
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_flakehub("nix", 10)
+        assert "Found 2 flakes on FlakeHub" in result
+        assert "NixOS/nixpkgs" in result
+        assert "nix-community/home-manager" in result
+        assert "flakehub.com/flake/NixOS/nixpkgs" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_flakehub_no_results(self, mock_get):
+        from mcp_nixos.server import _search_flakehub
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = []
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_flakehub("nonexistent", 10)
+        assert "No flakes found on FlakeHub" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_flakehub_normalizes_whitespace(self, mock_get):
+        from mcp_nixos.server import _search_flakehub
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = [
+            {
+                "org": "test",
+                "project": "flake",
+                "description": "  Description\n\twith\n  whitespace  ",
+                "labels": [],
+            },
+        ]
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_flakehub("test", 10)
+        assert "Description with whitespace" in result
+        assert "\n\t" not in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_flakehub_timeout(self, mock_get):
+        import requests
+        from mcp_nixos.server import _search_flakehub
+
+        mock_get.side_effect = requests.Timeout()
+
+        result = _search_flakehub("test", 10)
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_flakehub_success(self, mock_get):
+        from mcp_nixos.server import _info_flakehub
+
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "description": "A collection of packages",
+            "simplified_version": "0.2511.123456",
+            "revision": "abc123def456",
+            "commit_count": 900000,
+            "visibility": "public",
+            "published_at": "2025-01-01T12:00:00Z",
+            "mirrored": True,
+            "pretty_download_url": "https://flakehub.com/f/NixOS/nixpkgs/0.2511.123456.tar.gz",
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_flakehub("NixOS/nixpkgs")
+        assert "FlakeHub Flake: NixOS/nixpkgs" in result
+        assert "A collection of packages" in result
+        assert "0.2511.123456" in result
+        assert "public" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_flakehub_not_found(self, mock_get):
+        from mcp_nixos.server import _info_flakehub
+
+        mock_resp = Mock()
+        mock_resp.status_code = 404
+        mock_get.return_value = mock_resp
+
+        result = _info_flakehub("nonexistent/flake")
+        assert "Error" in result
+        assert "NOT_FOUND" in result
+
+    def test_info_flakehub_invalid_format(self):
+        from mcp_nixos.server import _info_flakehub
+
+        result = _info_flakehub("invalid-no-slash")
+        assert "Error" in result
+        assert "org/project" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_stats_flakehub_success(self, mock_get):
+        from mcp_nixos.server import _stats_flakehub
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = [
+            {"org": "NixOS", "project": "nixpkgs", "labels": ["nix", "nixos"]},
+            {"org": "NixOS", "project": "nix", "labels": ["nix"]},
+            {"org": "nix-community", "project": "home-manager", "labels": ["nix"]},
+        ]
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _stats_flakehub()
+        assert "FlakeHub Statistics:" in result
+        assert "Total flakes: 3" in result
+        assert "Organizations: 2" in result
+        assert "NixOS" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_stats_flakehub_timeout(self, mock_get):
+        import requests
+        from mcp_nixos.server import _stats_flakehub
+
+        mock_get.side_effect = requests.Timeout()
+
+        result = _stats_flakehub()
+        assert "Error" in result
+        assert "TIMEOUT" in result
 
 
 @pytest.mark.unit

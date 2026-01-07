@@ -10,6 +10,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 """
 
 import re
+from datetime import datetime
 from typing import Annotated, Any
 
 import requests
@@ -53,6 +54,7 @@ FLAKE_INDEX = "latest-44-group-manual"
 
 # FlakeHub API (Determinate Systems)
 FLAKEHUB_API = "https://api.flakehub.com"
+FLAKEHUB_USER_AGENT = "mcp-nixos/2.0.0"
 
 # Nixvim options via NuschtOS search infrastructure (paginated, ~300 options per chunk)
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
@@ -780,7 +782,7 @@ def _stats_flakes() -> str:
 def _search_flakehub(query: str, limit: int) -> str:
     """Search FlakeHub flakes by name or description."""
     try:
-        headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/2.0.0"}
+        headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
         resp = requests.get(f"{FLAKEHUB_API}/search?q={query}", headers=headers, timeout=15)
         resp.raise_for_status()
         flakes = resp.json()
@@ -800,6 +802,7 @@ def _search_flakehub(query: str, limit: int) -> str:
 
             results.append(f"* {org}/{project}")
             if desc:
+                desc = " ".join(desc.split())  # Normalize whitespace
                 desc = desc[:200] + "..." if len(desc) > 200 else desc
                 results.append(f"  {desc}")
             if labels:
@@ -826,7 +829,7 @@ def _info_flakehub(name: str) -> str:
         parts = name.split("/", 1)
         org, project = parts[0], parts[1]
 
-        headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/2.0.0"}
+        headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
 
         # Get latest version info
         resp = requests.get(f"{FLAKEHUB_API}/version/{org}/{project}/*", headers=headers, timeout=15)
@@ -860,8 +863,6 @@ def _info_flakehub(name: str) -> str:
         published = version_info.get("published_at", "")
         if published:
             try:
-                from datetime import datetime
-
                 dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
                 results.append(f"Published: {dt.strftime('%Y-%m-%d %H:%M UTC')}")
             except Exception:
@@ -891,7 +892,7 @@ def _info_flakehub(name: str) -> str:
 def _stats_flakehub() -> str:
     """Get FlakeHub statistics."""
     try:
-        headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/2.0.0"}
+        headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
 
         # Get all flakes to count them
         resp = requests.get(f"{FLAKEHUB_API}/flakes", headers=headers, timeout=15)
@@ -1219,8 +1220,6 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
     last_updated = release.get("last_updated", "")
     if last_updated:
         try:
-            from datetime import datetime
-
             dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
             results.append(f"  Updated: {dt.strftime('%Y-%m-%d')}")
         except Exception:
