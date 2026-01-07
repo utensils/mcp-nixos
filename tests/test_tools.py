@@ -1,4 +1,17 @@
-"""Tests for the nix and nix_versions MCP tools."""
+"""Tests for the nix and nix_versions MCP tools.
+
+IMPORTANT: This test file should ONLY test the MCP tools directly.
+- Do NOT run bash commands or shell operations
+- Do NOT interact with the filesystem beyond what the tools do internally
+- Do NOT spawn subprocesses or external commands
+- ONLY call the nix_fn and nix_versions_fn functions to test tool behavior
+
+These tests verify:
+- Input validation and error handling
+- Correct response formatting (plain text, no XML/JSON leakage)
+- API interaction through the tool interfaces
+- Edge cases and boundary conditions
+"""
 
 from unittest.mock import Mock, patch
 
