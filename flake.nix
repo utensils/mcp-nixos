@@ -26,7 +26,17 @@
           pname = pyproject.project.name;
           inherit (pyproject.project) version;
           pyproject = true;
-          src = pkgs.lib.cleanSource ./.;
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./pyproject.toml
+              ./README.md
+              ./LICENSE
+              ./RELEASE_NOTES.md
+              ./mcp_nixos
+              ./tests
+            ];
+          };
 
           build-system = [ python3Packages.hatchling ];
           dependencies = with python3Packages; [
@@ -36,7 +46,16 @@
           ];
 
           pythonRelaxDeps = true;
-          doCheck = false;
+          doCheck = true;
+          nativeCheckInputs = with python3Packages; [
+            pytest
+            pytest-asyncio
+            pytest-cov
+            pytest-rerunfailures
+          ];
+          checkPhase = ''
+            pytest tests/ -m unit
+          '';
           dontCheckRuntimeDeps = true;
           pythonImportsCheck = [ "mcp_nixos" ];
 
@@ -91,7 +110,7 @@
 
             docker = pkgs.dockerTools.buildLayeredImage {
               name = "ghcr.io/utensils/mcp-nixos";
-              tag = "latest";
+              tag = mcp-nixos.version;
               # Format: YYYYMMDDHHMMSS -> YYYY-MM-DDTHH:MM:SSZ
               created =
                 let
@@ -103,7 +122,7 @@
                 pkgs.cacert
               ];
               config = {
-                Entrypoint = [ "${mcp-nixos}/bin/mcp-nixos" ];
+                Entrypoint = [ (pkgs.lib.getExe mcp-nixos) ];
                 Env = [
                   "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
                 ];
@@ -114,9 +133,7 @@
           apps = rec {
             mcp-nixos = {
               type = "app";
-              program = "${pkgs.lib.getExe (mkMcpNixos {
-                inherit pkgs;
-              })}";
+              program = pkgs.lib.getExe self.packages.${system}.mcp-nixos;
               meta.description = "MCP server for NixOS, Home Manager, and nix-darwin";
             };
             default = mcp-nixos;
@@ -125,13 +142,11 @@
           formatter = pkgs.nixfmt-rfc-style;
 
           devShells.default = pkgs.mkShell {
+            inputsFrom = [ self.packages.${system}.mcp-nixos ];
             packages = with pkgs.python3Packages; [
               pkgs.python3
               hatchling
               build
-              fastmcp
-              requests
-              beautifulsoup4
               pytest
               pytest-asyncio
               pytest-cov
