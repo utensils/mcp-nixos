@@ -17,6 +17,8 @@ import requests
 from bs4 import BeautifulSoup
 from fastmcp import FastMCP
 
+from . import __version__
+
 
 class APIError(Exception):
     """Custom exception for API-related errors."""
@@ -54,7 +56,7 @@ FLAKE_INDEX = "latest-44-group-manual"
 
 # FlakeHub API (Determinate Systems)
 FLAKEHUB_API = "https://api.flakehub.com"
-FLAKEHUB_USER_AGENT = "mcp-nixos/2.0.0"
+FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 
 # Nixvim options via NuschtOS search infrastructure (paginated, ~300 options per chunk)
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
