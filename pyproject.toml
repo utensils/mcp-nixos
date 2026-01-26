@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "build>=1.2.2",
-    "pytest>=8.4.1",
+    "pytest>=9.0.0",
     "pytest-cov>=6.2.1",
     "pytest-asyncio>=1.1.0",
     "pytest-xdist>=3.6.0",
@@ -84,7 +84,7 @@ ignore_errors = true
 module = "fastmcp.*"
 ignore_missing_imports = true
 
-[tool.pytest.ini_options]
+[tool.pytest]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
