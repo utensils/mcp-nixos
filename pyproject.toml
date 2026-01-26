@@ -88,7 +88,21 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "--cov=mcp_nixos --cov-report=term-missing"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "--verbose",
+    "--cov=mcp_nixos",
+    "--cov-report=term-missing",
+]
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with `-m 'not slow'`)",
+    "integration: marks tests that require external services or interact with external resources",
+    "unit: marks tests as unit tests that don't require external services",
+    "not_integration: explicitly marks tests that should be excluded from integration test runs",
+    "asyncio: mark a test as an async test",
+]
 
 [tool.coverage.run]
 source = ["mcp_nixos"]
