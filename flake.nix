@@ -17,7 +17,7 @@
       mkMcpNixos =
         {
           pkgs,
-          python3Packages ? pkgs.python314Packages,
+          python3Packages ? pkgs.python3Packages,
         }:
         let
           pyproject = pkgs.lib.importTOML ./pyproject.toml;
@@ -72,14 +72,14 @@
             overlays = [
               (final: prev: {
                 # fastmcp in nixpkgs has overly strict mcp version bounds
-                python314Packages = prev.python314Packages.override {
-                  overrides = _: pyPrev: {
+                pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                  (pyFinal: pyPrev: {
                     fastmcp = pyPrev.fastmcp.overridePythonAttrs (_: {
                       dontCheckRuntimeDeps = true;
                       doCheck = false;
                     });
-                  };
-                };
+                  })
+                ];
               })
             ];
           };
@@ -125,8 +125,8 @@
           formatter = pkgs.nixfmt-rfc-style;
 
           devShells.default = pkgs.mkShell {
-            packages = with pkgs.python314Packages; [
-              pkgs.python314
+            packages = with pkgs.python3Packages; [
+              pkgs.python3
               hatchling
               build
               fastmcp

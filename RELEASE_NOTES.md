@@ -1,3 +1,21 @@
+# MCP-NixOS: v2.1.1 Release Notes - Stable Python Compatibility
+
+## Overview
+
+MCP-NixOS v2.1.1 fixes the Nix flake by using the stable python in nixpkgs.
+
+## Changes in v2.1.1
+
+### 🔧 Improvements & Bug Fixes
+
+- **Stable Python Compatibility**: MCP-NixOS v2.1.1 fixes the Nix flake by using the stable python in nixpkgs.
+
+## Contributors
+
+- Malix - Alix Brunet (@Malix-Labs) 
+
+---
+
 # MCP-NixOS: v2.1.0 Release Notes - Pure Nix Flake
 
 ## Overview

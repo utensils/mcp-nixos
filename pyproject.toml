@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-nixos"
-version = "2.1.0"
+version = "2.1.1"
 description = "Model Context Protocol server for NixOS, Home Manager, and nix-darwin resources"
 readme = "README.md"
 authors = [
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
+    # "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "fastmcp>=2.11.0",
