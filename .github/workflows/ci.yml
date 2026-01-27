@@ -172,10 +172,11 @@ jobs:
 
     - name: Load and push arch-specific image
       run: |
+        VERSION=$(nix eval --raw .#packages.${{ matrix.system }}.mcp-nixos.version)
         docker load < result
         # Push arch-specific tags
-        docker tag ghcr.io/utensils/mcp-nixos:latest ghcr.io/utensils/mcp-nixos:latest-${{ matrix.arch }}
-        docker tag ghcr.io/utensils/mcp-nixos:latest utensils/mcp-nixos:latest-${{ matrix.arch }}
+        docker tag ghcr.io/utensils/mcp-nixos:$VERSION ghcr.io/utensils/mcp-nixos:latest-${{ matrix.arch }}
+        docker tag ghcr.io/utensils/mcp-nixos:$VERSION utensils/mcp-nixos:latest-${{ matrix.arch }}
         docker push ghcr.io/utensils/mcp-nixos:latest-${{ matrix.arch }}
         docker push utensils/mcp-nixos:latest-${{ matrix.arch }}
 
