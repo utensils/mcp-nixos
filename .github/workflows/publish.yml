@@ -25,7 +25,7 @@ jobs:
     # Skip when manually triggered with docker_only
     if: ${{ github.event_name == 'release' || !inputs.docker_only }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ inputs.tag || github.ref }}
 
@@ -102,7 +102,7 @@ jobs:
       packages: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ inputs.tag || github.ref }}
 
