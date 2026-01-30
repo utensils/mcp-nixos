@@ -17,6 +17,8 @@ Test the `nix` and `nix_versions` MCP tools by running through these scenarios:
 - `action=search, source=flakes, query=atuin`
 - `action=search, source=flakehub, query=nixpkgs`
 - `action=search, source=nixvim, query=telescope`
+- `action=search, source=wiki, query=nvidia` (NixOS Wiki)
+- `action=search, source=nix-dev, query=flakes` (nix.dev documentation)
 
 **Info** (package and option):
 - `action=info, source=nixos, type=package, query=firefox`
@@ -25,6 +27,7 @@ Test the `nix` and `nix_versions` MCP tools by running through these scenarios:
 - `action=info, source=darwin, query=system.defaults.dock.autohide`
 - `action=info, source=flakehub, query=NixOS/nixpkgs`
 - `action=info, source=nixvim, query=plugins.telescope.enable`
+- `action=info, source=wiki, query=Flakes` (NixOS Wiki page)
 
 **Stats** (all sources):
 - `action=stats, source=nixos`
@@ -55,6 +58,44 @@ Test the `nix` and `nix_versions` MCP tools by running through these scenarios:
 - `package=nodejs, version=20.0.0`
 - `package=nonexistent-xyz-123` (should return NOT_FOUND)
 
+## Wiki source (wiki.nixos.org)
+
+**Search tests**:
+- `action=search, source=wiki, query=installation, limit=5` - common topic
+- `action=search, source=wiki, query=nvidia, limit=5` - hardware topic
+- `action=search, source=wiki, query=flakes, limit=10` - Nix concept
+- `action=search, source=wiki, query=home-manager, limit=5` - related tool
+- `action=search, source=wiki, query=gaming, limit=5` - use case topic
+- `action=search, source=wiki, query=xyznonexistent12345, limit=5` (should return "No wiki articles found")
+
+**Info tests** (get page content):
+- `action=info, source=wiki, query=Flakes` - popular page
+- `action=info, source=wiki, query=Nvidia` - hardware page
+- `action=info, source=wiki, query=NixOS` - main topic
+- `action=info, source=wiki, query=Home Manager` - related tool (space in title)
+- `action=info, source=wiki, query=NonExistentPageXYZ123` (should return NOT_FOUND)
+
+**Edge cases**:
+- `action=search, source=wiki, query=NixOS, limit=1` - minimum limit
+- `action=search, source=wiki, query=configuration, limit=100` - maximum limit
+- `action=info, source=wiki, query=Python` - page with special characters in content
+
+## nix-dev source (nix.dev documentation)
+
+**Search tests**:
+- `action=search, source=nix-dev, query=flakes, limit=5` - core concept
+- `action=search, source=nix-dev, query=tutorial, limit=10` - documentation type
+- `action=search, source=nix-dev, query=packaging, limit=5` - common task
+- `action=search, source=nix-dev, query=derivation, limit=5` - Nix concept
+- `action=search, source=nix-dev, query=language, limit=5` - Nix language docs
+- `action=search, source=nix-dev, query=best practices, limit=5` - guide topic
+- `action=search, source=nix-dev, query=xyznonexistent12345, limit=5` (should return "No nix.dev documentation found")
+
+**Edge cases**:
+- `action=search, source=nix-dev, query=nix, limit=1` - minimum limit
+- `action=search, source=nix-dev, query=getting started, limit=20` - multi-word query
+- `action=search, source=nix-dev, query=FAQ, limit=5` - short query
+
 ## Edge cases
 
 **Channel parameter**:
@@ -79,11 +120,23 @@ Test these produce clear errors:
 - `action=invalid`
 - `action=search, source=invalid, query=test`
 - `action=info, source=flakes, query=test` (flakes don't support info)
+- `action=info, source=nix-dev, query=test` (nix-dev doesn't support info - should suggest using search)
+- `action=stats, source=wiki` (wiki doesn't support stats)
+- `action=stats, source=nix-dev` (nix-dev doesn't support stats)
 - `action=options, source=nixos, query=test` (nixos doesn't support options browsing)
+- `action=options, source=wiki, query=test` (wiki doesn't support options browsing)
+- `action=options, source=nix-dev, query=test` (nix-dev doesn't support options browsing)
 - `action=flake-inputs, type=ls` (missing query - should error)
 - `action=flake-inputs, type=read, query=nixpkgs` (missing file path - should error)
 - `action=flake-inputs, type=ls, query=nonexistent-input` (should return NOT_FOUND with available inputs)
 - `action=flake-inputs, type=read, query=nixpkgs:nonexistent/file.nix` (should return NOT_FOUND)
 - `action=flake-inputs, source=/tmp/not-a-flake` (should return FLAKE_ERROR)
+
+## Output format verification
+
+All responses should be plain text (no XML/JSON):
+- Search results should show article/doc titles with URLs
+- Wiki info should show page title, URL, and extract
+- Error messages should be clear and actionable
 
 Summarize results in a table showing pass/fail status for each test.

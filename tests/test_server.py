@@ -214,6 +214,292 @@ class TestGetChannels:
 
 
 @pytest.mark.unit
+class TestWikiFunctions:
+    """Test wiki.nixos.org internal functions."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_success(self, mock_get):
+        """Test successful wiki search."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "query": {
+                "search": [
+                    {"title": "Flakes", "snippet": "Flakes are...", "wordcount": 1500},
+                    {"title": "Nvidia", "snippet": "GPU drivers...", "wordcount": 800},
+                ]
+            }
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_wiki("flakes", 10)
+        assert "Found 2 wiki articles" in result
+        assert "Flakes" in result
+        assert "wiki.nixos.org" in result
+        assert "Error" not in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_no_results(self, mock_get):
+        """Test wiki search with no results."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"query": {"search": []}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_wiki("xyznonexistent", 10)
+        assert "No wiki articles found" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_timeout(self, mock_get):
+        """Test wiki search timeout handling."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_get.side_effect = requests.Timeout()
+        result = _search_wiki("test", 10)
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_api_error(self, mock_get):
+        """Test wiki search API error handling."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_get.side_effect = requests.RequestException("Connection failed")
+        result = _search_wiki("test", 10)
+        assert "Error" in result
+        assert "API_ERROR" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_strips_html(self, mock_get):
+        """Test wiki search strips HTML from snippets."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "query": {
+                "search": [
+                    {
+                        "title": "Test",
+                        "snippet": '<span class="searchmatch">highlighted</span> text',
+                        "wordcount": 100,
+                    }
+                ]
+            }
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_wiki("test", 10)
+        assert "<span" not in result
+        assert "highlighted" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_wiki_success(self, mock_get):
+        """Test successful wiki page info."""
+        from mcp_nixos.server import _info_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "query": {
+                "pages": {"123": {"title": "Flakes", "extract": "Flakes are a new way to manage Nix projects..."}}
+            }
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("Flakes")
+        assert "Wiki: Flakes" in result
+        assert "wiki.nixos.org" in result
+        assert "Flakes are a new way" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_wiki_not_found(self, mock_get):
+        """Test wiki page not found."""
+        from mcp_nixos.server import _info_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"query": {"pages": {"-1": {"missing": True, "title": "NonexistentPage"}}}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("NonexistentPage")
+        assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_wiki_timeout(self, mock_get):
+        """Test wiki info timeout handling."""
+        from mcp_nixos.server import _info_wiki
+
+        mock_get.side_effect = requests.Timeout()
+        result = _info_wiki("test")
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_wiki_truncates_long_extract(self, mock_get):
+        """Test wiki info truncates very long extracts."""
+        from mcp_nixos.server import _info_wiki
+
+        long_extract = "A" * 2000
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"query": {"pages": {"123": {"title": "Test", "extract": long_extract}}}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("Test")
+        assert len(result) < len(long_extract) + 200  # Account for header
+        assert "..." in result
+
+
+@pytest.mark.unit
+class TestNixDevFunctions:
+    """Test nix.dev internal functions."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixdev_success(self, mock_get):
+        """Test successful nix.dev search."""
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/first-steps", "concepts/flakes"],
+            "titles": ["First Steps", "Flakes"],
+            "terms": {"flake": [1], "nix": [0, 1], "tutorial": [0]},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        # Reset cache to trigger fetch
+        nixdev_cache.index = None
+
+        result = _search_nixdev("flakes", 10)
+        assert "Flakes" in result
+        assert "nix.dev" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixdev_no_results(self, mock_get):
+        """Test nix.dev search with no matches."""
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {"docnames": ["tutorials/first-steps"], "titles": ["First Steps"], "terms": {"tutorial": [0]}}
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        nixdev_cache.index = None
+
+        result = _search_nixdev("xyznonexistent", 10)
+        assert "No nix.dev documentation found" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_nixdev_cache_reuse(self, mock_get):
+        """Test that nix.dev cache is reused."""
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/first-steps"],
+            "titles": ["First Steps"],
+            "terms": {"nix": [0], "tutorial": [0]},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        nixdev_cache.index = None
+
+        _search_nixdev("nix", 10)
+        _search_nixdev("tutorial", 10)
+
+        # Should only fetch once due to caching
+        assert mock_get.call_count == 1
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_nixdev_cache_timeout(self, mock_get):
+        """Test nix.dev cache handles timeout."""
+        from mcp_nixos.server import APIError, nixdev_cache
+
+        mock_get.side_effect = requests.Timeout()
+        nixdev_cache.index = None
+
+        with pytest.raises(APIError) as exc_info:
+            nixdev_cache.get_index()
+        assert "Timeout" in str(exc_info.value)
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixdev_title_match_bonus(self, mock_get):
+        """Test nix.dev search gives bonus to title matches."""
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/packaging", "concepts/flakes", "tutorials/flakes"],
+            "titles": ["Packaging Python Apps", "Flakes Intro", "Flakes Tutorial"],
+            "terms": {"flakes": [1, 2], "packaging": [0]},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        nixdev_cache.index = None
+
+        result = _search_nixdev("flakes", 10)
+        # Title matches should appear
+        assert "Flakes" in result
+
+
+@pytest.mark.unit
+class TestPlainTextOutputDocs:
+    """Verify wiki/nix-dev outputs are plain text."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_wiki_search_no_xml(self, mock_get):
+        """Test wiki search returns plain text."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "query": {"search": [{"title": "Test", "snippet": "<code>example</code>", "wordcount": 100}]}
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_wiki("test", 10)
+        assert "<error>" not in result
+        assert "</error>" not in result
+        assert not result.strip().startswith("{")
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_wiki_info_no_xml(self, mock_get):
+        """Test wiki info returns plain text."""
+        from mcp_nixos.server import _info_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"query": {"pages": {"123": {"title": "Test", "extract": "Some content"}}}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("Test")
+        assert "<error>" not in result
+        assert "</error>" not in result
+        assert not result.strip().startswith("{")
+
+
+@pytest.mark.unit
 class TestPlainTextOutput:
     """Verify all outputs are plain text without XML/JSON."""
 

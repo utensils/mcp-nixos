@@ -48,7 +48,7 @@ class TestNixToolValidation:
     async def test_invalid_source(self):
         result = await nix_fn(action="search", query="test", source="invalid")
         assert "Error" in result
-        assert "nixos|home-manager|darwin|flakes|flakehub|nixvim" in result
+        assert "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev" in result
 
     @pytest.mark.asyncio
     async def test_options_only_for_hm_darwin_nixvim(self):
@@ -740,6 +740,80 @@ class TestFlakeHubInternalFunctions:
         result = _stats_flakehub()
         assert "Error" in result
         assert "TIMEOUT" in result
+
+
+class TestNixToolWikiSource:
+    """Test nix tool search/info for wiki source."""
+
+    @patch("mcp_nixos.server._search_wiki")
+    @pytest.mark.asyncio
+    async def test_search_wiki(self, mock_search):
+        """Test wiki search delegates correctly."""
+        mock_search.return_value = "Found 5 wiki articles matching 'nvidia':\n\n* Nvidia\n..."
+        result = await nix_fn(action="search", query="nvidia", source="wiki", limit=5)
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("nvidia", 5)
+
+    @patch("mcp_nixos.server._search_wiki")
+    @pytest.mark.asyncio
+    async def test_search_wiki_default_limit(self, mock_search):
+        """Test wiki search uses default limit."""
+        mock_search.return_value = "Found results"
+        result = await nix_fn(action="search", query="flakes", source="wiki")
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("flakes", 20)
+
+    @patch("mcp_nixos.server._info_wiki")
+    @pytest.mark.asyncio
+    async def test_info_wiki(self, mock_info):
+        """Test wiki info delegates correctly."""
+        mock_info.return_value = "Wiki: Flakes\nURL: https://wiki.nixos.org/wiki/Flakes\n..."
+        result = await nix_fn(action="info", query="Flakes", source="wiki")
+        assert result == mock_info.return_value
+        mock_info.assert_called_once_with("Flakes")
+
+
+class TestNixToolNixDevSource:
+    """Test nix tool search for nix-dev source."""
+
+    @patch("mcp_nixos.server._search_nixdev")
+    @pytest.mark.asyncio
+    async def test_search_nixdev(self, mock_search):
+        """Test nix-dev search delegates correctly."""
+        mock_search.return_value = "Found 3 nix.dev docs matching 'flakes':\n..."
+        result = await nix_fn(action="search", query="flakes", source="nix-dev", limit=10)
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("flakes", 10)
+
+    @patch("mcp_nixos.server._search_nixdev")
+    @pytest.mark.asyncio
+    async def test_search_nixdev_default_limit(self, mock_search):
+        """Test nix-dev search uses default limit."""
+        mock_search.return_value = "Found docs"
+        result = await nix_fn(action="search", query="packaging", source="nix-dev")
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("packaging", 20)
+
+    @pytest.mark.asyncio
+    async def test_info_nixdev_not_supported(self):
+        """Test nix-dev info returns helpful message."""
+        result = await nix_fn(action="info", query="flakes", source="nix-dev")
+        assert "Error" in result
+        assert "not available" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_stats_wiki_not_supported(self):
+        """Test wiki stats returns helpful message."""
+        result = await nix_fn(action="stats", source="wiki")
+        assert "Error" in result
+        assert "not available" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_stats_nixdev_not_supported(self):
+        """Test nix-dev stats returns helpful message."""
+        result = await nix_fn(action="stats", source="nix-dev")
+        assert "Error" in result
+        assert "not available" in result.lower()
 
 
 @pytest.mark.unit

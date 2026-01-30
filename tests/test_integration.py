@@ -253,6 +253,83 @@ class TestPlainTextOutput:
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestWikiIntegration:
+    """Integration tests for wiki.nixos.org (hits real API)."""
+
+    @pytest.mark.asyncio
+    async def test_search_wiki(self):
+        """Test real wiki search."""
+        result = await nix_fn(action="search", query="installation", source="wiki", limit=5)
+        # Should return results or graceful error (timeout is OK)
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "wiki" in result.lower() or "Found" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_wiki_flakes(self):
+        """Test wiki search for flakes."""
+        result = await nix_fn(action="search", query="flakes", source="wiki", limit=5)
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_wiki(self):
+        """Test real wiki page info."""
+        result = await nix_fn(action="info", query="Flakes", source="wiki")
+        assert isinstance(result, str)
+        if "NOT_FOUND" not in result and "Error" not in result:
+            assert "Wiki:" in result
+            assert "wiki.nixos.org" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_wiki_nvidia(self):
+        """Test wiki page info for Nvidia."""
+        result = await nix_fn(action="info", query="Nvidia", source="wiki")
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestNixDevIntegration:
+    """Integration tests for nix.dev (hits real API)."""
+
+    @pytest.mark.asyncio
+    async def test_search_nixdev(self):
+        """Test real nix.dev search."""
+        from mcp_nixos.server import nixdev_cache
+
+        nixdev_cache.index = None  # Reset cache for fresh fetch
+
+        result = await nix_fn(action="search", query="flakes", source="nix-dev", limit=5)
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "nix.dev" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_nixdev_tutorials(self):
+        """Test nix.dev search for tutorials."""
+        from mcp_nixos.server import nixdev_cache
+
+        nixdev_cache.index = None
+
+        result = await nix_fn(action="search", query="tutorial", source="nix-dev", limit=10)
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_nixdev_packaging(self):
+        """Test nix.dev search for packaging."""
+        result = await nix_fn(action="search", query="packaging", source="nix-dev", limit=5)
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestFlakeInputsIntegration:
     """Test flake-inputs action against real local flake.
 

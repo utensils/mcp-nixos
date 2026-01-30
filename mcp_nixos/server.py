@@ -67,6 +67,13 @@ FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
 NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/meta"
 
+# NixOS Wiki (MediaWiki API)
+WIKI_API = "https://wiki.nixos.org/w/api.php"
+
+# nix.dev documentation (Sphinx search index)
+NIXDEV_SEARCH_INDEX = "https://nix.dev/searchindex.js"
+NIXDEV_BASE_URL = "https://nix.dev"
+
 
 class ChannelCache:
     """Cache for discovered channels and resolved mappings."""
@@ -204,6 +211,41 @@ class NixvimCache:
 
 
 nixvim_cache = NixvimCache()
+
+
+class NixDevCache:
+    """Cache for nix.dev Sphinx search index."""
+
+    def __init__(self) -> None:
+        self.index: dict[str, Any] | None = None
+
+    def get_index(self) -> dict[str, Any]:
+        """Fetch and cache nix.dev search index."""
+        if self.index is not None:
+            return self.index
+
+        try:
+            resp = requests.get(NIXDEV_SEARCH_INDEX, timeout=30)
+            resp.raise_for_status()
+
+            # Parse JavaScript: Search.setIndex({...})
+            content = resp.text.strip()
+            if content.startswith("Search.setIndex("):
+                json_str = content[16:-1]  # Remove wrapper
+                self.index = json.loads(json_str)
+            else:
+                raise ValueError("Unexpected search index format")
+
+            return self.index
+        except requests.Timeout as exc:
+            raise APIError("Timeout fetching nix.dev search index") from exc
+        except requests.RequestException as exc:
+            raise APIError(f"Failed to fetch nix.dev index: {exc}") from exc
+        except Exception as exc:
+            raise APIError(f"Failed to parse nix.dev index: {exc}") from exc
+
+
+nixdev_cache = NixDevCache()
 
 
 def strip_html(html: str | None) -> str:
@@ -944,6 +986,166 @@ def _stats_flakehub() -> str:
         return error(str(e))
 
 
+# =============================================================================
+# NixOS Wiki functions (wiki.nixos.org)
+# =============================================================================
+
+
+def _search_wiki(query: str, limit: int) -> str:
+    """Search NixOS Wiki via MediaWiki API."""
+    try:
+        params: dict[str, str | int] = {
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "format": "json",
+            "utf8": "1",
+            "srlimit": limit,
+        }
+        resp = requests.get(WIKI_API, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+
+        results_list = data.get("query", {}).get("search", [])
+        if not results_list:
+            return f"No wiki articles found matching '{query}'"
+
+        results = [f"Found {len(results_list)} wiki articles matching '{query}':\n"]
+        for item in results_list:
+            title = item.get("title", "")
+            snippet = strip_html(item.get("snippet", ""))
+            wordcount = item.get("wordcount", 0)
+
+            results.append(f"* {title}")
+            results.append(f"  https://wiki.nixos.org/wiki/{title.replace(' ', '_')}")
+            if snippet:
+                # Truncate long snippets
+                snippet = snippet[:200] + "..." if len(snippet) > 200 else snippet
+                results.append(f"  {snippet}")
+            if wordcount:
+                results.append(f"  ({wordcount:,} words)")
+            results.append("")
+
+        return "\n".join(results).strip()
+    except requests.Timeout:
+        return error("Wiki API timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"Wiki API error: {e}", "API_ERROR")
+    except Exception as e:
+        return error(str(e))
+
+
+def _info_wiki(title: str) -> str:
+    """Get wiki page content/extract via MediaWiki API."""
+    try:
+        params = {
+            "action": "query",
+            "titles": title,
+            "prop": "extracts|info",
+            "exintro": "1",  # Just the intro
+            "explaintext": "1",  # Plain text, no HTML
+            "format": "json",
+        }
+        resp = requests.get(WIKI_API, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+
+        pages = data.get("query", {}).get("pages", {})
+        if not pages:
+            return error(f"Wiki page '{title}' not found", "NOT_FOUND")
+
+        # Get first page (there's only one)
+        page = next(iter(pages.values()))
+        if page.get("missing"):
+            return error(f"Wiki page '{title}' not found", "NOT_FOUND")
+
+        page_title = page.get("title", title)
+        extract = page.get("extract", "")
+
+        results = [
+            f"Wiki: {page_title}",
+            f"URL: https://wiki.nixos.org/wiki/{page_title.replace(' ', '_')}",
+            "",
+        ]
+
+        if extract:
+            # Limit extract length
+            if len(extract) > 1500:
+                extract = extract[:1500] + "..."
+            results.append(extract)
+
+        return "\n".join(results)
+    except requests.Timeout:
+        return error("Wiki API timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"Wiki API error: {e}", "API_ERROR")
+    except Exception as e:
+        return error(str(e))
+
+
+# =============================================================================
+# nix.dev functions (documentation site)
+# =============================================================================
+
+
+def _search_nixdev(query: str, limit: int) -> str:
+    """Search nix.dev documentation via cached Sphinx index."""
+    try:
+        index = nixdev_cache.get_index()
+
+        docnames = index.get("docnames", [])
+        titles = index.get("titles", [])
+        terms = index.get("terms", {})
+
+        query_lower = query.lower()
+        query_terms = query_lower.split()
+
+        # Score documents by term matches
+        scores: dict[int, int] = {}
+        for term in query_terms:
+            # Exact term match
+            if term in terms:
+                doc_ids = terms[term]
+                if isinstance(doc_ids, list):
+                    for doc_id in doc_ids:
+                        scores[doc_id] = scores.get(doc_id, 0) + 2
+
+            # Partial term matches
+            for index_term, doc_ids in terms.items():
+                if term in index_term and term != index_term:
+                    if isinstance(doc_ids, list):
+                        for doc_id in doc_ids:
+                            scores[doc_id] = scores.get(doc_id, 0) + 1
+
+        # Also search titles
+        for i, doc_title in enumerate(titles):
+            if query_lower in doc_title.lower():
+                scores[i] = scores.get(i, 0) + 5  # Title match bonus
+
+        if not scores:
+            return f"No nix.dev documentation found matching '{query}'"
+
+        # Sort by score, limit results
+        sorted_docs = sorted(scores.items(), key=lambda x: -x[1])[:limit]
+
+        results = [f"Found {len(sorted_docs)} nix.dev docs matching '{query}':\n"]
+        for doc_id, _score in sorted_docs:
+            if doc_id < len(titles) and doc_id < len(docnames):
+                doc_title = titles[doc_id]
+                docname = docnames[doc_id]
+                url = f"{NIXDEV_BASE_URL}/{docname}"
+
+                results.append(f"* {doc_title}")
+                results.append(f"  {url}")
+                results.append("")
+
+        return "\n".join(results).strip()
+    except APIError:
+        raise
+    except Exception as e:
+        return error(str(e))
+
+
 def _search_nixvim(query: str, limit: int) -> str:
     """Search Nixvim options from NuschtOS meta JSON."""
     try:
@@ -1252,7 +1454,7 @@ MAX_FILE_SIZE = 1024 * 1024
 DEFAULT_LINE_LIMIT = 500
 MAX_LINE_LIMIT = 2000
 # Known sources (to distinguish from flake paths)
-KNOWN_SOURCES = {"nixos", "home-manager", "darwin", "flakes", "flakehub", "nixvim"}
+KNOWN_SOURCES = {"nixos", "home-manager", "darwin", "flakes", "flakehub", "nixvim", "wiki", "nix-dev"}
 
 
 def _check_nix_available() -> bool:
@@ -1579,12 +1781,12 @@ async def _flake_inputs_read(flake_dir: str, query: str, limit: int) -> str:
 async def nix(
     action: Annotated[str, "search|info|stats|options|channels|flake-inputs"],
     query: Annotated[str, "Search term, name, or prefix. For flake-inputs: input_name or input:path"] = "",
-    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim or flake directory path"] = "nixos",
+    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev"] = "nixos",
     type: Annotated[str, "packages|options|programs|list|ls|read"] = "packages",
     channel: Annotated[str, "unstable|stable|25.05"] = "unstable",
     limit: Annotated[int, "1-100 (or 1-2000 for flake-inputs read)"] = 20,
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, or local flake inputs."""
+    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, NixOS Wiki, nix.dev, or local flake inputs."""
     # Limit validation: flake-inputs read allows up to 2000, others limited to 100
     if action == "flake-inputs" and type == "read":
         if not 1 <= limit <= MAX_LINE_LIMIT:
@@ -1609,8 +1811,12 @@ async def nix(
             return _search_flakehub(query, limit)
         elif source == "nixvim":
             return _search_nixvim(query, limit)
+        elif source == "wiki":
+            return _search_wiki(query, limit)
+        elif source == "nix-dev":
+            return _search_nixdev(query, limit)
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim")
+            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev")
 
     elif action == "info":
         if not query:
@@ -1628,8 +1834,12 @@ async def nix(
             return _info_flakehub(query)
         elif source == "nixvim":
             return _info_nixvim(query)
+        elif source == "wiki":
+            return _info_wiki(query)
+        elif source == "nix-dev":
+            return error("Info not available for nix-dev. Use search to find docs, then visit the URL.")
         else:
-            return error("Source must be nixos|home-manager|darwin|flakehub|nixvim")
+            return error("Source must be nixos|home-manager|darwin|flakehub|nixvim|wiki|nix-dev")
 
     elif action == "stats":
         if source == "nixos":
@@ -1644,8 +1854,10 @@ async def nix(
             return _stats_flakehub()
         elif source == "nixvim":
             return _stats_nixvim()
+        elif source in ["wiki", "nix-dev"]:
+            return error(f"Stats not available for {source}")
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim")
+            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev")
 
     elif action == "options":
         if source not in ["home-manager", "darwin", "nixvim"]:
