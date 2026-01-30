@@ -51,7 +51,7 @@ export default function Home() {
                 Home Manager
               </a>
               <a
-                href="https://daiderd.com/nix-darwin/"
+                href="https://github.com/nix-darwin/nix-darwin#readme"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 shadow-lg font-semibold text-nix-secondary flex items-center hover:bg-white/20 transition-colors duration-200"
