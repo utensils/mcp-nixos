@@ -190,13 +190,31 @@ Or use the flake directly with the provided overlay:
 ```nix
 # flake.nix
 {
-  inputs.mcp-nixos.url = "github:utensils/mcp-nixos";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    mcp-nixos.url = "github:utensils/mcp-nixos";
+  };
 
-  outputs = { nixpkgs, mcp-nixos, ... }: {
-    # Add the overlay to your nixpkgs
-    nixpkgs.overlays = [ mcp-nixos.overlays.default ];
+  outputs = { self, nixpkgs, mcp-nixos, ... }: {
+    # Example: NixOS configuration
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [{
+        nixpkgs.overlays = [ mcp-nixos.overlays.default ];
+        environment.systemPackages = [ pkgs.mcp-nixos ];
+      }];
+    };
 
-    # Then use pkgs.mcp-nixos in your configuration
+    # Example: Home Manager standalone
+    homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      pkgs = import nixpkgs {
+        system = "x86_64-linux";
+        overlays = [ mcp-nixos.overlays.default ];
+      };
+      modules = [{
+        home.packages = [ pkgs.mcp-nixos ];
+      }];
+    };
   };
 }
 ```

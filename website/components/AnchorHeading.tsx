@@ -31,9 +31,11 @@ const AnchorHeading: React.FC<AnchorHeadingProps> = ({
   // Generate an ID from the children if none is provided
   const textContent = extractTextContent(children);
   const fallbackId = useId();
-  const headingId = id || (textContent
-    ? textContent.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-    : `heading-${fallbackId.replace(/:/g, '')}`);
+  const sanitizedId = textContent
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]/g, '');
+  const headingId = id || sanitizedId || `heading-${fallbackId.replace(/:/g, '')}`;
 
   const handleAnchorClick = (e: React.MouseEvent) => {
     e.preventDefault();
