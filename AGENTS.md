@@ -9,7 +9,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 ## Project Structure & Module Organization
 
 - `mcp_nixos/` - Contains the MCP server implementation.
-  - `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions (~1300 lines).
+  - `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions.
 - `tests/` - Holds pytest unit and integration tests; markers live in `pytest.ini` and `tests/conftest.py`.
 - `website/` - The Next.js site; static assets live in `website/public/`.
 - `flake.nix` - Defines the Nix dev shell and build instructions.

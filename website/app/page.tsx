@@ -126,7 +126,7 @@ export default function Home() {
             />
             <FeatureCard
               title="Local Flake Inputs"
-              description="Explore your pinned flake dependencies directly from the nix store. See exactly what versions you're using."
+              description="Explore your pinned flake dependencies directly from the Nix store. See exactly what versions you're using."
               iconName="folder"
             />
             <FeatureCard

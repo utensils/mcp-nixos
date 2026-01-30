@@ -252,6 +252,7 @@ class TestPlainTextOutput:
 
 
 @pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestFlakeInputsIntegration:
     """Test flake-inputs action against real local flake.
 

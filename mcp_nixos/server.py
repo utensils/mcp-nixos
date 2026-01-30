@@ -1546,16 +1546,15 @@ async def _flake_inputs_read(flake_dir: str, query: str, limit: int) -> str:
     if _is_binary_file(target_path):
         return error(f"Binary file detected: {file_path} ({_format_size(file_size)})", "BINARY_FILE")
 
-    # Read file with line limit
+    # Read file with line limit (single pass for efficiency)
     try:
         with open(target_path, encoding="utf-8", errors="replace") as f:
             lines = []
+            total_lines = 0
             for i, line in enumerate(f):
-                if i >= limit:
-                    break
-                lines.append(line.rstrip("\n\r"))
-
-        total_lines = sum(1 for _ in open(target_path, encoding="utf-8", errors="replace"))
+                total_lines += 1
+                if i < limit:
+                    lines.append(line.rstrip("\n\r"))
 
         header = [f"File: {input_name}:{file_path}", f"Size: {_format_size(file_size)}", ""]
 
@@ -1663,6 +1662,7 @@ async def nix(
         flake_dir = source if source not in KNOWN_SOURCES else "."
 
         # Validate type parameter for flake-inputs
+        # Note: "packages" is accepted as alias for "list" (default type parameter)
         if type not in ["list", "ls", "read", "packages"]:
             return error("Type must be list|ls|read for flake-inputs")
 

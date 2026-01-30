@@ -3,7 +3,7 @@
 import json
 import os
 import tempfile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from mcp_nixos.server import (
@@ -24,6 +24,7 @@ from mcp_nixos.server import (
 nix_fn = nix.fn
 
 
+@pytest.mark.unit
 class TestCheckNixAvailable:
     """Test _check_nix_available helper."""
 
@@ -39,6 +40,7 @@ class TestCheckNixAvailable:
         assert _check_nix_available() is False
 
 
+@pytest.mark.unit
 class TestFormatSize:
     """Test _format_size helper."""
 
@@ -61,6 +63,7 @@ class TestFormatSize:
         assert _format_size(int(2.5 * 1024 * 1024 * 1024)) == "2.5 GB"
 
 
+@pytest.mark.unit
 class TestFlattenInputs:
     """Test _flatten_inputs helper."""
 
@@ -125,6 +128,7 @@ class TestFlattenInputs:
         }
 
 
+@pytest.mark.unit
 class TestValidateStorePath:
     """Test _validate_store_path helper."""
 
@@ -148,6 +152,7 @@ class TestValidateStorePath:
         assert _validate_store_path("/nix/store/../etc/passwd") is False
 
 
+@pytest.mark.unit
 class TestIsBinaryFile:
     """Test _is_binary_file helper."""
 
@@ -170,6 +175,7 @@ class TestIsBinaryFile:
         assert _is_binary_file("/nonexistent/file/path") is True
 
 
+@pytest.mark.unit
 class TestRunNixCommand:
     """Test _run_nix_command helper."""
 
@@ -203,6 +209,8 @@ class TestRunNixCommand:
         with patch("mcp_nixos.server.asyncio.create_subprocess_exec") as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate.side_effect = TimeoutError()
+            mock_process.kill = MagicMock()  # kill() is sync, not async
+            mock_process.wait = AsyncMock()
             mock_exec.return_value = mock_process
 
             success, stdout, stderr = await _run_nix_command(["flake", "archive"], timeout=1)
@@ -219,6 +227,7 @@ class TestRunNixCommand:
             assert "not found" in stderr.lower()
 
 
+@pytest.mark.unit
 class TestGetFlakeInputs:
     """Test _get_flake_inputs helper."""
 
@@ -408,6 +417,7 @@ class TestPlainTextOutput:
             assert "</error>" not in result
 
 
+@pytest.mark.unit
 class TestBugFixes:
     """Tests for bug fixes identified in peer review."""
 
@@ -475,7 +485,7 @@ class TestBugFixes:
         with patch("mcp_nixos.server.asyncio.create_subprocess_exec") as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate = AsyncMock(side_effect=TimeoutError())
-            mock_process.kill = AsyncMock()
+            mock_process.kill = MagicMock()  # kill() is sync, not async
             mock_process.wait = AsyncMock()
             mock_exec.return_value = mock_process
 

@@ -70,7 +70,7 @@ An MCP server providing accurate, real-time information about:
 - **Nixvim** - 5K+ options for Neovim configuration via [NuschtOS search](https://github.com/NuschtOS/search)
 - **FlakeHub** - 600+ flakes from [FlakeHub.com](https://flakehub.com) registry
 - **Package versions** - Historical versions with commit hashes via [NixHub.io](https://www.nixhub.io)
-- **Local flake inputs** - Explore your pinned flake dependencies directly from the nix store
+- **Local flake inputs** - Explore your pinned flake dependencies directly from the Nix store (requires Nix)
 
 ## The Tools
 
@@ -93,7 +93,7 @@ nix(action, query, source, type, channel, limit)
 | `stats` | Get counts and categories |
 | `options` | Browse Home Manager/Darwin options by prefix |
 | `channels` | List available NixOS channels |
-| `flake-inputs` | Explore local flake inputs from nix store |
+| `flake-inputs` | Explore local flake inputs from Nix store |
 
 | Source | What it queries |
 |--------|----------------|
@@ -134,7 +134,7 @@ nix(action="info", query="NixOS/nixpkgs", source="flakehub")
 # Get stats
 nix(action="stats", source="nixos", channel="stable")
 
-# List local flake inputs (requires nix)
+# List local flake inputs (requires Nix)
 nix(action="flake-inputs", type="list")
 
 # Browse files in a flake input

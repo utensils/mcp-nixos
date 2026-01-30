@@ -84,7 +84,7 @@ ignore_errors = true
 module = "fastmcp.*"
 ignore_missing_imports = true
 
-[tool.pytest]
+[tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
