@@ -234,7 +234,12 @@ class NixDevCache:
             # Parse JavaScript: Search.setIndex({...})
             content = resp.text.strip()
             if content.startswith("Search.setIndex("):
-                json_str = content[16:-1]  # Remove wrapper
+                match = re.search(r'Search\.setIndex\((.*)\)\s*$', content, re.DOTALL)
+                if match:
+                    json_str = match.group(1)
+                    self.index = json.loads(json_str)
+                else:
+                    raise ValueError("Unexpected search index format")
                 self.index = json.loads(json_str)
             else:
                 raise ValueError("Unexpected search index format")
