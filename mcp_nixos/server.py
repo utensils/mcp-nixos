@@ -1453,7 +1453,7 @@ def _search_noogle(query: str, limit: int) -> str:
 def _info_noogle(name: str) -> str:
     """Get detailed info for a specific Noogle function."""
     try:
-        data, builtin_types = noogle_cache.get_data()
+        data, _ = noogle_cache.get_data()
         name_lower = name.lower()
 
         # Find exact match first, then partial match
