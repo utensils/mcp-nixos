@@ -512,3 +512,332 @@ class TestPlainTextOutput:
         result = error("Test message")
         assert not result.startswith("{")
         assert not result.startswith("[")
+
+
+@pytest.mark.unit
+class TestNoogleFunctions:
+    """Test Noogle (noogle.dev) internal functions."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_noogle_success(self, mock_get):
+        """Test successful Noogle search."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {"title": "mapAttrs", "path": ["lib", "attrsets", "mapAttrs"], "aliases": []},
+                    "content": {
+                        "signature": "(String -> Any -> Any) -> AttrSet -> AttrSet",
+                        "content": "Apply a function to each element in an attribute set.",
+                    },
+                },
+                {
+                    "meta": {"title": "mapAttrs'", "path": ["lib", "attrsets", "mapAttrs'"], "aliases": []},
+                    "content": {
+                        "signature": "(String -> Any -> { name :: String; value :: Any; }) -> AttrSet -> AttrSet",
+                        "content": "Like mapAttrs but allows changing names.",
+                    },
+                },
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        # Reset cache to trigger fetch
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _search_noogle("mapAttrs", 10)
+        assert "Found" in result
+        assert "mapAttrs" in result
+        assert "lib.attrsets.mapAttrs" in result
+        assert "Error" not in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_noogle_no_results(self, mock_get):
+        """Test Noogle search with no matches."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {"meta": {"title": "test", "path": ["lib", "test"], "aliases": []}, "content": {"content": "test"}}
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _search_noogle("xyznonexistent", 10)
+        assert "No Noogle functions found" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_noogle_timeout(self, mock_get):
+        """Test Noogle search timeout handling."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_get.side_effect = requests.Timeout()
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _search_noogle("test", 10)
+        assert "Error" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_noogle_success(self, mock_get):
+        """Test successful Noogle function info."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {
+                        "title": "mapAttrs",
+                        "path": ["lib", "attrsets", "mapAttrs"],
+                        "aliases": [["builtins", "mapAttrs"], ["lib", "mapAttrs"]],
+                        "position": {"file": "lib/attrsets.nix", "line": 1016},
+                    },
+                    "content": {
+                        "signature": "(String -> Any -> Any) -> AttrSet -> AttrSet",
+                        "content": "Apply a function to each element in an attribute set.",
+                        "example": 'mapAttrs (name: value: name + "-" + value) { x = "foo"; }',
+                    },
+                }
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _info_noogle("lib.attrsets.mapAttrs")
+        assert "Noogle Function: lib.attrsets.mapAttrs" in result
+        assert "Type:" in result
+        assert "Path:" in result
+        assert "Aliases:" in result
+        assert "Description:" in result
+        assert "Example:" in result
+        assert "Source:" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_noogle_not_found(self, mock_get):
+        """Test Noogle function not found."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {"meta": {"title": "test", "path": ["lib", "test"], "aliases": []}, "content": {"content": "test"}}
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _info_noogle("nonexistent.function")
+        assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_stats_noogle_success(self, mock_get):
+        """Test Noogle statistics."""
+        from mcp_nixos.server import _stats_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {"path": ["lib", "strings", "concatStrings"]},
+                    "content": {"signature": "[String] -> String", "content": "Concatenate strings"},
+                },
+                {
+                    "meta": {"path": ["lib", "strings", "hasPrefix"]},
+                    "content": {"signature": "String -> String -> Bool", "content": "Check prefix"},
+                },
+                {"meta": {"path": ["lib", "attrsets", "mapAttrs"]}, "content": {"content": "Map over attrs"}},
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _stats_noogle()
+        assert "Noogle Statistics:" in result
+        assert "Total functions:" in result
+        assert "With type signatures:" in result
+        assert "Categories:" in result
+        assert "noogle.dev" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_browse_noogle_no_prefix(self, mock_get):
+        """Test browsing Noogle categories with no prefix."""
+        from mcp_nixos.server import _browse_noogle_options, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {"meta": {"path": ["lib", "strings", "concatStrings"]}, "content": {}},
+                {"meta": {"path": ["lib", "strings", "hasPrefix"]}, "content": {}},
+                {"meta": {"path": ["lib", "attrsets", "mapAttrs"]}, "content": {}},
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _browse_noogle_options("")
+        assert "Noogle function categories" in result
+        assert "lib.strings" in result
+        assert "lib.attrsets" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_browse_noogle_with_prefix(self, mock_get):
+        """Test browsing Noogle functions with a prefix."""
+        from mcp_nixos.server import _browse_noogle_options, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {"path": ["lib", "strings", "concatStrings"]},
+                    "content": {"signature": "[String] -> String", "content": "Concatenate strings"},
+                },
+                {
+                    "meta": {"path": ["lib", "strings", "hasPrefix"]},
+                    "content": {"signature": "String -> String -> Bool", "content": "Check prefix"},
+                },
+                {"meta": {"path": ["lib", "attrsets", "mapAttrs"]}, "content": {}},
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _browse_noogle_options("lib.strings")
+        assert "lib.strings" in result
+        assert "concatStrings" in result
+        assert "hasPrefix" in result
+        assert "mapAttrs" not in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_noogle_cache_reuse(self, mock_get):
+        """Test that Noogle cache is reused."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [{"meta": {"path": ["lib", "test"]}, "content": {"content": "test"}}],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        _search_noogle("test", 10)
+        _search_noogle("other", 10)
+
+        # Should only fetch once due to caching
+        assert mock_get.call_count == 1
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_noogle_alias_matching(self, mock_get):
+        """Test Noogle search matches aliases."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {
+                        "title": "mapAttrs",
+                        "path": ["lib", "attrsets", "mapAttrs"],
+                        "aliases": [["builtins", "mapAttrs"]],
+                    },
+                    "content": {"content": "Map over attrs"},
+                }
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _search_noogle("builtins.mapAttrs", 10)
+        assert "lib.attrsets.mapAttrs" in result
+        assert "builtins.mapAttrs" in result
+
+
+@pytest.mark.unit
+class TestNooglePlainTextOutput:
+    """Verify Noogle outputs are plain text."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_noogle_search_no_xml(self, mock_get):
+        """Test Noogle search returns plain text."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [{"meta": {"path": ["lib", "test"]}, "content": {"content": "test"}}],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _search_noogle("test", 10)
+        assert "<error>" not in result
+        assert "</error>" not in result
+        assert not result.strip().startswith("{")
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_noogle_info_no_xml(self, mock_get):
+        """Test Noogle info returns plain text."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {"path": ["lib", "test"], "aliases": []},
+                    "content": {"content": "test", "signature": "a -> b"},
+                }
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _info_noogle("lib.test")
+        assert "<error>" not in result
+        assert "</error>" not in result
+        assert not result.strip().startswith("{")

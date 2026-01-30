@@ -46,7 +46,8 @@ export default function AboutPage() {
                 'NixOS packages with accurate metadata',
                 'System configuration options',
                 'Home Manager settings for user-level configuration',
-                'nix-darwin macOS configuration options'
+                'nix-darwin macOS configuration options',
+                'Nix function signatures and documentation via Noogle'
               ].map((item, index) => (
                 <li key={index} className="flex items-start">
                   <span className="inline-block w-2 h-2 rounded-full bg-nix-primary mt-2 mr-3 flex-shrink-0"></span>
@@ -97,6 +98,7 @@ export default function AboutPage() {
                 { name: 'Home Manager', description: 'User configuration options via parsed documentation with hierarchical paths' },
                 { name: 'nix-darwin', description: 'macOS configuration options for system defaults, services, and settings' },
                 { name: 'FlakeHub Integration', description: 'Search and discover flakes from the FlakeHub registry' },
+                { name: 'Noogle Integration', description: 'Search 2K+ Nix functions with type signatures via noogle.dev' },
                 { name: 'Version History', description: 'Package version tracking with nixpkgs commit hashes via NixHub.io' },
                 { name: 'Stateless Design', description: 'Direct API calls with no caching complexity - simple, reliable, and maintainable' }
               ].map((feature, index) => (

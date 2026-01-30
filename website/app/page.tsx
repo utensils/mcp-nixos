@@ -105,6 +105,11 @@ export default function Home() {
               iconName="flake"
             />
             <FeatureCard
+              title="Noogle Integration"
+              description="Search 2,000+ Nix functions with type signatures and documentation via noogle.dev."
+              iconName="code"
+            />
+            <FeatureCard
               title="Fast & Stateless"
               description="Direct API calls with no caching complexity. Simple, reliable, and maintainable."
               iconName="bolt"

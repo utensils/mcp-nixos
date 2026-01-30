@@ -422,3 +422,74 @@ class TestFlakeInputsIntegration:
             assert "FLAKE_ERROR" in result
             assert "no flake.nix" in result.lower()
             assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestNoogleIntegration:
+    """Integration tests for Noogle (hits real noogle.dev API)."""
+
+    @pytest.mark.asyncio
+    async def test_search_noogle(self):
+        """Test real Noogle search."""
+        from mcp_nixos.server import noogle_cache
+
+        noogle_cache._data = None  # Reset cache for fresh fetch
+        noogle_cache._builtin_types = None
+
+        result = await nix_fn(action="search", query="mapAttrs", source="noogle", limit=5)
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "mapAttrs" in result or "Found" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_noogle_strings(self):
+        """Test Noogle search for string functions."""
+        result = await nix_fn(action="search", query="concatStrings", source="noogle", limit=5)
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_noogle(self):
+        """Test real Noogle function info."""
+        result = await nix_fn(action="info", query="lib.attrsets.mapAttrs", source="noogle")
+        assert isinstance(result, str)
+        if "NOT_FOUND" not in result and "Error" not in result:
+            assert "Noogle Function:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_noogle_builtins(self):
+        """Test Noogle info for builtins."""
+        result = await nix_fn(action="info", query="builtins.map", source="noogle")
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_stats_noogle(self):
+        """Test Noogle statistics."""
+        result = await nix_fn(action="stats", source="noogle")
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "Noogle Statistics:" in result
+            assert "Total functions:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_browse_noogle_categories(self):
+        """Test browsing Noogle categories."""
+        result = await nix_fn(action="options", source="noogle")
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "categories" in result.lower() or "lib" in result.lower()
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_browse_noogle_with_prefix(self):
+        """Test browsing Noogle with a prefix."""
+        result = await nix_fn(action="options", source="noogle", query="lib.strings")
+        assert isinstance(result, str)
+        if "Error" not in result and "No Noogle functions found" not in result:
+            assert "lib.strings" in result.lower()
+        assert_plain_text(result)
