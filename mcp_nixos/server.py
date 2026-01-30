@@ -2459,6 +2459,21 @@ def _is_binary_file(file_path: str, sample_size: int = 8192) -> bool:
         return True  # Assume binary if we can't read it
 
 
+def _read_file_with_limit(file_path: str, limit: int) -> tuple[list[str], int]:
+    """Read a file with line limit (runs in thread pool).
+
+    Returns (lines, total_lines) tuple.
+    """
+    with open(file_path, encoding="utf-8", errors="replace") as f:
+        lines = []
+        total_lines = 0
+        for i, line in enumerate(f):
+            total_lines += 1
+            if i < limit:
+                lines.append(line.rstrip("\n\r"))
+    return lines, total_lines
+
+
 # =============================================================================
 # Flake inputs main implementation functions
 # =============================================================================
@@ -2628,19 +2643,14 @@ async def _flake_inputs_read(flake_dir: str, query: str, limit: int) -> str:
     if file_size > MAX_FILE_SIZE:
         return error(f"File too large: {_format_size(file_size)} (max {_format_size(MAX_FILE_SIZE)})", "FILE_TOO_LARGE")
 
-    # Check for binary content
-    if _is_binary_file(target_path):
+    # Check for binary content (in thread pool to avoid blocking)
+    is_binary = await asyncio.to_thread(_is_binary_file, target_path)
+    if is_binary:
         return error(f"Binary file detected: {file_path} ({_format_size(file_size)})", "BINARY_FILE")
 
-    # Read file with line limit (single pass for efficiency)
+    # Read file with line limit (in thread pool to avoid blocking)
     try:
-        with open(target_path, encoding="utf-8", errors="replace") as f:
-            lines = []
-            total_lines = 0
-            for i, line in enumerate(f):
-                total_lines += 1
-                if i < limit:
-                    lines.append(line.rstrip("\n\r"))
+        lines, total_lines = await asyncio.to_thread(_read_file_with_limit, target_path, limit)
 
         header = [f"File: {input_name}:{file_path}", f"Size: {_format_size(file_size)}", ""]
 
@@ -2686,23 +2696,23 @@ async def nix(
         if source == "nixos":
             if type not in ["packages", "options", "programs", "flakes"]:
                 return error("Type must be packages|options|programs|flakes")
-            return _search_nixos(query, type, limit, channel)
+            return await asyncio.to_thread(_search_nixos, query, type, limit, channel)
         elif source == "home-manager":
-            return _search_home_manager(query, limit)
+            return await asyncio.to_thread(_search_home_manager, query, limit)
         elif source == "darwin":
-            return _search_darwin(query, limit)
+            return await asyncio.to_thread(_search_darwin, query, limit)
         elif source == "flakes":
-            return _search_flakes(query, limit)
+            return await asyncio.to_thread(_search_flakes, query, limit)
         elif source == "flakehub":
-            return _search_flakehub(query, limit)
+            return await asyncio.to_thread(_search_flakehub, query, limit)
         elif source == "nixvim":
-            return _search_nixvim(query, limit)
+            return await asyncio.to_thread(_search_nixvim, query, limit)
         elif source == "wiki":
-            return _search_wiki(query, limit)
+            return await asyncio.to_thread(_search_wiki, query, limit)
         elif source == "nix-dev":
-            return _search_nixdev(query, limit)
+            return await asyncio.to_thread(_search_nixdev, query, limit)
         elif source == "noogle":
-            return _search_noogle(query, limit)
+            return await asyncio.to_thread(_search_noogle, query, limit)
         elif source == "nixhub":
             return await _search_nixhub(query, limit)
         else:
@@ -2715,21 +2725,21 @@ async def nix(
             if type not in ["package", "packages", "option", "options"]:
                 return error("Type must be package|option")
             info_type = "package" if type in ["package", "packages"] else "option"
-            return _info_nixos(query, info_type, channel)
+            return await asyncio.to_thread(_info_nixos, query, info_type, channel)
         elif source == "home-manager":
-            return _info_home_manager(query)
+            return await asyncio.to_thread(_info_home_manager, query)
         elif source == "darwin":
-            return _info_darwin(query)
+            return await asyncio.to_thread(_info_darwin, query)
         elif source == "flakehub":
-            return _info_flakehub(query)
+            return await asyncio.to_thread(_info_flakehub, query)
         elif source == "nixvim":
-            return _info_nixvim(query)
+            return await asyncio.to_thread(_info_nixvim, query)
         elif source == "wiki":
-            return _info_wiki(query)
+            return await asyncio.to_thread(_info_wiki, query)
         elif source == "nix-dev":
             return error("Info not available for nix-dev. Use search to find docs, then visit the URL.")
         elif source == "noogle":
-            return _info_noogle(query)
+            return await asyncio.to_thread(_info_noogle, query)
         elif source == "nixhub":
             return await _info_nixhub(query)
         else:
@@ -2737,19 +2747,19 @@ async def nix(
 
     elif action == "stats":
         if source == "nixos":
-            return _stats_nixos(channel)
+            return await asyncio.to_thread(_stats_nixos, channel)
         elif source == "home-manager":
-            return _stats_home_manager()
+            return await asyncio.to_thread(_stats_home_manager)
         elif source == "darwin":
-            return _stats_darwin()
+            return await asyncio.to_thread(_stats_darwin)
         elif source == "flakes":
-            return _stats_flakes()
+            return await asyncio.to_thread(_stats_flakes)
         elif source == "flakehub":
-            return _stats_flakehub()
+            return await asyncio.to_thread(_stats_flakehub)
         elif source == "nixvim":
-            return _stats_nixvim()
+            return await asyncio.to_thread(_stats_nixvim)
         elif source == "noogle":
-            return _stats_noogle()
+            return await asyncio.to_thread(_stats_noogle)
         elif source in ["wiki", "nix-dev", "nixhub"]:
             return error(f"Stats not available for {source}")
         else:
@@ -2759,13 +2769,13 @@ async def nix(
         if source not in ["home-manager", "darwin", "nixvim", "noogle"]:
             return error("Options browsing only for home-manager|darwin|nixvim|noogle")
         if source == "nixvim":
-            return _browse_nixvim_options(query)
+            return await asyncio.to_thread(_browse_nixvim_options, query)
         if source == "noogle":
-            return _browse_noogle_options(query)
-        return _browse_options(source, query)
+            return await asyncio.to_thread(_browse_noogle_options, query)
+        return await asyncio.to_thread(_browse_options, source, query)
 
     elif action == "channels":
-        return _list_channels()
+        return await asyncio.to_thread(_list_channels)
 
     elif action == "flake-inputs":
         # Determine flake directory: use source if it's not a known source name
