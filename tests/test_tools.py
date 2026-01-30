@@ -901,3 +901,347 @@ class TestPlainTextOutput:
         result = await nix_versions_fn(package="")
         assert "<error>" not in result
         assert "</error>" not in result
+
+
+@pytest.mark.unit
+class TestNixToolCacheAction:
+    """Test nix tool cache action for checking binary cache status."""
+
+    @pytest.mark.asyncio
+    async def test_cache_requires_query(self):
+        """Test cache action requires package name."""
+        result = await nix_fn(action="cache", query="")
+        assert "Error" in result
+        assert "Package name required" in result
+
+    @patch("mcp_nixos.server._check_binary_cache")
+    @pytest.mark.asyncio
+    async def test_cache_delegates_correctly(self, mock_cache):
+        """Test cache action delegates to _check_binary_cache."""
+        mock_cache.return_value = "Binary Cache Status: firefox@147.0.1\n..."
+        result = await nix_fn(action="cache", query="firefox")
+        assert result == mock_cache.return_value
+        mock_cache.assert_called_once_with("firefox", "latest", "")
+
+    @patch("mcp_nixos.server._check_binary_cache")
+    @pytest.mark.asyncio
+    async def test_cache_with_version(self, mock_cache):
+        """Test cache action with specific version."""
+        mock_cache.return_value = "Binary Cache Status: hello@2.12\n..."
+        result = await nix_fn(action="cache", query="hello", version="2.12")
+        assert result == mock_cache.return_value
+        mock_cache.assert_called_once_with("hello", "2.12", "")
+
+    @patch("mcp_nixos.server._check_binary_cache")
+    @pytest.mark.asyncio
+    async def test_cache_with_system(self, mock_cache):
+        """Test cache action with specific system."""
+        mock_cache.return_value = "Binary Cache Status: ripgrep@15.1.0\n..."
+        result = await nix_fn(action="cache", query="ripgrep", system="x86_64-linux")
+        assert result == mock_cache.return_value
+        mock_cache.assert_called_once_with("ripgrep", "latest", "x86_64-linux")
+
+
+@pytest.mark.unit
+class TestBinaryCacheInternalFunctions:
+    """Test binary cache internal functions with mocked API responses."""
+
+    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.server.requests.head")
+    @pytest.mark.asyncio
+    async def test_check_binary_cache_cached(self, mock_head, mock_get):
+        """Test _check_binary_cache when package is cached."""
+        from mcp_nixos.server import _check_binary_cache
+
+        # Mock NixHub resolve API
+        resolve_resp = Mock()
+        resolve_resp.status_code = 200
+        resolve_resp.json.return_value = {
+            "name": "hello",
+            "version": "2.12",
+            "systems": [
+                {
+                    "system": "x86_64-linux",
+                    "store_path": "/nix/store/abcdefghijklmnopqrstuvwxyz012345-hello-2.12",
+                },
+            ],
+        }
+        resolve_resp.raise_for_status = Mock()
+
+        # Mock cache.nixos.org narinfo
+        narinfo_head = Mock()
+        narinfo_head.status_code = 200
+
+        narinfo_resp = Mock()
+        narinfo_resp.status_code = 200
+        narinfo_resp.text = "StorePath: /nix/store/abc...\nFileSize: 100000\nNarSize: 500000\nCompression: xz"
+
+        mock_get.side_effect = [resolve_resp, narinfo_resp]
+        mock_head.return_value = narinfo_head
+
+        result = await _check_binary_cache("hello", "2.12")
+        assert "Binary Cache Status" in result
+        assert "hello@2.12" in result
+        assert "CACHED" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    @pytest.mark.asyncio
+    async def test_check_binary_cache_not_found(self, mock_get):
+        """Test _check_binary_cache when package not found on NixHub."""
+        from mcp_nixos.server import _check_binary_cache
+
+        mock_resp = Mock()
+        mock_resp.status_code = 404
+        mock_get.return_value = mock_resp
+
+        result = await _check_binary_cache("nonexistent-package")
+        assert "Error" in result
+        assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    @pytest.mark.asyncio
+    async def test_check_binary_cache_timeout(self, mock_get):
+        """Test _check_binary_cache when NixHub times out."""
+        import requests
+        from mcp_nixos.server import _check_binary_cache
+
+        mock_get.side_effect = requests.Timeout()
+
+        result = await _check_binary_cache("hello")
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+
+@pytest.mark.unit
+class TestNixToolNixHubSource:
+    """Test nix tool search/info for nixhub source."""
+
+    @patch("mcp_nixos.server._search_nixhub")
+    @pytest.mark.asyncio
+    async def test_search_nixhub(self, mock_search):
+        """Test nixhub search delegates correctly."""
+        mock_search.return_value = "Found 5 packages on NixHub matching 'python':\n..."
+        result = await nix_fn(action="search", query="python", source="nixhub", limit=5)
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("python", 5)
+
+    @patch("mcp_nixos.server._search_nixhub")
+    @pytest.mark.asyncio
+    async def test_search_nixhub_default_limit(self, mock_search):
+        """Test nixhub search uses default limit."""
+        mock_search.return_value = "Found packages"
+        result = await nix_fn(action="search", query="nodejs", source="nixhub")
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("nodejs", 20)
+
+    @patch("mcp_nixos.server._info_nixhub")
+    @pytest.mark.asyncio
+    async def test_info_nixhub(self, mock_info):
+        """Test nixhub info delegates correctly."""
+        mock_info.return_value = "Package: ripgrep\nVersion: 15.1.0\n..."
+        result = await nix_fn(action="info", query="ripgrep", source="nixhub")
+        assert result == mock_info.return_value
+        mock_info.assert_called_once_with("ripgrep")
+
+    @pytest.mark.asyncio
+    async def test_stats_nixhub_not_supported(self):
+        """Test nixhub stats returns helpful message."""
+        result = await nix_fn(action="stats", source="nixhub")
+        assert "Error" in result
+        assert "not available" in result.lower()
+
+
+@pytest.mark.unit
+class TestNixHubInternalFunctions:
+    """Test NixHub internal functions with mocked API responses."""
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixhub_success(self, mock_get):
+        from mcp_nixos.server import _search_nixhub
+
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {
+                "name": "python",
+                "version": "3.12.0",
+                "summary": "A programming language",
+                "last_updated": "2025-01-15T12:00:00Z",
+            },
+            {
+                "name": "python311",
+                "version": "3.11.7",
+                "summary": "Python 3.11",
+            },
+        ]
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_nixhub("python", 10)
+        assert "Found 2 packages on NixHub" in result
+        assert "python" in result
+        assert "3.12.0" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixhub_no_results(self, mock_get):
+        from mcp_nixos.server import _search_nixhub
+
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = []
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_nixhub("nonexistent", 10)
+        assert "No packages found on NixHub" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_search_nixhub_timeout(self, mock_get):
+        import requests
+        from mcp_nixos.server import _search_nixhub
+
+        mock_get.side_effect = requests.Timeout()
+
+        result = _search_nixhub("python", 10)
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_nixhub_success(self, mock_get):
+        from mcp_nixos.server import _info_nixhub
+
+        # First call: v1/pkg
+        pkg_resp = Mock()
+        pkg_resp.status_code = 200
+        pkg_resp.json.return_value = {
+            "name": "ripgrep",
+            "version": "15.1.0",
+            "summary": "Fast search tool",
+            "description": "ripgrep recursively searches directories...",
+            "license": "Unlicense",
+            "homepage": "https://github.com/BurntSushi/ripgrep",
+            "programs": ["rg"],
+            "releases": [
+                {
+                    "version": "15.1.0",
+                    "platforms": [
+                        {"system": "x86_64-linux"},
+                        {"system": "aarch64-darwin"},
+                    ],
+                }
+            ],
+        }
+        pkg_resp.raise_for_status = Mock()
+
+        # Second call: v2/resolve
+        resolve_resp = Mock()
+        resolve_resp.status_code = 200
+        resolve_resp.json.return_value = {
+            "flake_installable": "github:NixOS/nixpkgs/a1b2c3#ripgrep",
+            "systems": [
+                {"system": "x86_64-linux", "store_path": "/nix/store/abc-ripgrep-15.1.0"},
+            ],
+        }
+
+        mock_get.side_effect = [pkg_resp, resolve_resp]
+
+        result = _info_nixhub("ripgrep")
+        assert "Package: ripgrep" in result
+        assert "Version: 15.1.0" in result
+        assert "License: Unlicense" in result
+        assert "Homepage: https://github.com/BurntSushi/ripgrep" in result
+        assert "Programs: rg" in result
+        assert "Flake Reference:" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_nixhub_not_found(self, mock_get):
+        from mcp_nixos.server import _info_nixhub
+
+        mock_resp = Mock()
+        mock_resp.status_code = 404
+        mock_get.return_value = mock_resp
+
+        result = _info_nixhub("nonexistent-package")
+        assert "Error" in result
+        assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    def test_info_nixhub_timeout(self, mock_get):
+        import requests
+        from mcp_nixos.server import _info_nixhub
+
+        mock_get.side_effect = requests.Timeout()
+
+        result = _info_nixhub("python")
+        assert "Error" in result
+        assert "TIMEOUT" in result
+
+
+@pytest.mark.unit
+class TestNixVersionsEnhanced:
+    """Test enhanced nix_versions with rich metadata."""
+
+    @patch("mcp_nixos.server.requests.get")
+    @pytest.mark.asyncio
+    async def test_versions_includes_metadata(self, mock_get):
+        """Test nix_versions includes license, homepage, programs."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "name": "ripgrep",
+            "license": "Unlicense",
+            "homepage": "https://github.com/BurntSushi/ripgrep",
+            "programs": ["rg"],
+            "releases": [
+                {
+                    "version": "15.1.0",
+                    "last_updated": "2025-01-15T12:00:00Z",
+                    "platforms": [
+                        {
+                            "system": "x86_64-linux",
+                            "commit_hash": "a" * 40,
+                            "attribute_path": "ripgrep",
+                        },
+                        {
+                            "system": "aarch64-darwin",
+                            "commit_hash": "a" * 40,
+                            "attribute_path": "ripgrep",
+                        },
+                    ],
+                },
+            ],
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_versions_fn(package="ripgrep")
+        assert "Package: ripgrep" in result
+        assert "License: Unlicense" in result
+        assert "Homepage: https://github.com/BurntSushi/ripgrep" in result
+        assert "Programs: rg" in result
+        assert "15.1.0" in result
+        assert "Platforms:" in result
+
+    @patch("mcp_nixos.server.requests.get")
+    @pytest.mark.asyncio
+    async def test_versions_platform_summary(self, mock_get):
+        """Test nix_versions shows platform summary."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "releases": [
+                {
+                    "version": "1.0.0",
+                    "platforms": [
+                        {"system": "x86_64-linux", "commit_hash": "a" * 40},
+                        {"system": "aarch64-linux", "commit_hash": "a" * 40},
+                        {"system": "x86_64-darwin", "commit_hash": "a" * 40},
+                    ],
+                },
+            ],
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_versions_fn(package="hello")
+        assert "Linux and macOS" in result

@@ -16,7 +16,7 @@ import re
 import shutil
 import stat
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict
 from urllib.parse import quote
 
 import requests
@@ -1807,11 +1807,12 @@ def _version_key(version_str: str) -> tuple[int, int, int]:
 
 
 def _format_release(release: dict[str, Any], package_name: str | None = None) -> list[str]:
-    results = []
+    """Format a single release entry with version, date, platforms, and commit info."""
+    results: list[str] = []
     version = release.get("version", "unknown")
-    platforms = release.get("platforms", [])
+    platforms: list[dict[str, Any]] = release.get("platforms", [])
 
-    results.append(f"* Version {version}")
+    results.append(f"* {version}")
     last_updated = release.get("last_updated", "")
     if last_updated:
         try:
@@ -1821,13 +1822,349 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
             pass
 
     if platforms:
-        seen = set()
+        # Show platform summary
+        platform_systems: set[str] = set()
         for p in platforms:
-            commit = p.get("commit_hash", "")
-            if commit and commit not in seen and re.match(r"^[a-fA-F0-9]{40}$", commit):
-                seen.add(commit)
-                results.append(f"  Commit: {commit}")
+            sys = p.get("system", "")
+            if sys:
+                platform_systems.add(sys)
+        if platform_systems:
+            # Simplify platform display
+            has_linux = any("linux" in s for s in platform_systems)
+            has_darwin = any("darwin" in s for s in platform_systems)
+            if has_linux and has_darwin:
+                results.append("  Platforms: Linux and macOS")
+            elif has_linux:
+                results.append("  Platforms: Linux")
+            elif has_darwin:
+                results.append("  Platforms: macOS")
+            else:
+                results.append(f"  Platforms: {', '.join(sorted(platform_systems))}")
+
+        # Show commit info (just one representative)
+        seen_commits: set[str] = set()
+        for p in platforms:
+            commit: str = p.get("commit_hash", "")
+            if commit and commit not in seen_commits and re.match(r"^[a-fA-F0-9]{40}$", commit):
+                seen_commits.add(commit)
+                results.append(f"  Nixpkgs commit: {commit}")
+                attr: str = p.get("attribute_path", "")
+                if attr:
+                    results.append(f"  Attribute: {attr}")
+                break  # Just show one commit per version
     return results
+
+
+# =============================================================================
+# NixHub API helpers (binary cache, package metadata)
+# =============================================================================
+
+NIXHUB_API = "https://search.devbox.sh"
+CACHE_NIXOS_ORG = "https://cache.nixos.org"
+
+
+class NarInfo(TypedDict, total=False):
+    """Typed dictionary for parsed narinfo data."""
+
+    file_size: int
+    nar_size: int
+    compression: str
+    store_path: str
+    url: str
+
+
+async def _check_binary_cache(name: str, version: str = "latest", system: str = "") -> str:
+    """Check binary cache status for a package.
+
+    Uses NixHub resolve API to get store paths, then checks cache.nixos.org.
+    """
+    # Resolve package to get store paths via NixHub
+    try:
+        url = f"{NIXHUB_API}/v2/resolve"
+        params: dict[str, str] = {"name": name}
+        if version and version != "latest":
+            params["version"] = version
+
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+
+        if resp.status_code in (400, 404):
+            return error(f"Package '{name}' not found", "NOT_FOUND")
+        if resp.status_code >= 500:
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
+        resp.raise_for_status()
+
+        data = resp.json()
+    except requests.Timeout:
+        return error("NixHub API timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"NixHub API error: {e}", "API_ERROR")
+    except Exception as e:
+        return error(str(e))
+
+    # Extract package info
+    pkg_name = data.get("name", name)
+    pkg_version = data.get("version", version)
+    systems = data.get("systems", [])
+
+    if not systems:
+        return error(f"No systems found for {name}@{pkg_version}", "NOT_FOUND")
+
+    # Filter by system if specified
+    if system:
+        systems = [s for s in systems if s.get("system") == system]
+        if not systems:
+            available = ", ".join(s.get("system", "") for s in data.get("systems", []))
+            return error(f"System '{system}' not available. Available: {available}", "NOT_FOUND")
+
+    results = [f"Binary Cache Status: {pkg_name}@{pkg_version}", ""]
+
+    for sys_info in systems:
+        sys_name = sys_info.get("system", "unknown")
+        store_path = sys_info.get("store_path", "")
+
+        results.append(f"System: {sys_name}")
+
+        if not store_path:
+            results.append("  Store path: Not available")
+            results.append("  Status: UNKNOWN")
+            results.append("")
+            continue
+
+        results.append(f"  Store path: {store_path}")
+
+        # Extract hash from store path: /nix/store/{hash}-{name}
+        # The hash is the 32-character base32 string after /nix/store/
+        try:
+            path_parts = store_path.split("/")
+            if len(path_parts) >= 4:
+                store_hash = path_parts[3].split("-")[0]
+            else:
+                store_hash = ""
+        except (IndexError, AttributeError):
+            store_hash = ""
+
+        if not store_hash or len(store_hash) != 32:
+            results.append("  Status: UNKNOWN (invalid store path)")
+            results.append("")
+            continue
+
+        # Check binary cache
+        try:
+            narinfo_url = f"{CACHE_NIXOS_ORG}/{store_hash}.narinfo"
+            cache_resp = requests.head(narinfo_url, timeout=5)
+
+            if cache_resp.status_code == 200:
+                # Get full narinfo for size info
+                cache_resp = requests.get(narinfo_url, timeout=5)
+                if cache_resp.status_code == 200:
+                    narinfo = _parse_narinfo(cache_resp.text)
+                    results.append("  Status: CACHED")
+                    file_size = narinfo.get("file_size")
+                    if file_size is not None:
+                        results.append(f"  Download size: {_format_size(file_size)}")
+                    nar_size = narinfo.get("nar_size")
+                    if nar_size is not None:
+                        results.append(f"  Unpacked size: {_format_size(nar_size)}")
+                    compression = narinfo.get("compression")
+                    if compression:
+                        results.append(f"  Compression: {compression}")
+                else:
+                    results.append("  Status: CACHED")
+            elif cache_resp.status_code == 404:
+                results.append("  Status: NOT CACHED")
+            else:
+                results.append(f"  Status: UNKNOWN (HTTP {cache_resp.status_code})")
+        except requests.RequestException:
+            results.append("  Status: UNKNOWN (cache check failed)")
+
+        results.append("")
+
+    return "\n".join(results).strip()
+
+
+def _parse_narinfo(text: str) -> NarInfo:
+    """Parse a narinfo file and return key fields."""
+    result: NarInfo = {}
+    for line in text.split("\n"):
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip().lower()
+        value = value.strip()
+
+        if key == "filesize":
+            try:
+                result["file_size"] = int(value)
+            except ValueError:
+                pass
+        elif key == "narsize":
+            try:
+                result["nar_size"] = int(value)
+            except ValueError:
+                pass
+        elif key == "compression":
+            result["compression"] = value
+        elif key == "storepath":
+            result["store_path"] = value
+        elif key == "url":
+            result["url"] = value
+
+    return result
+
+
+def _search_nixhub(query: str, limit: int) -> str:
+    """Search packages via NixHub API."""
+    try:
+        url = f"{NIXHUB_API}/v2/search"
+        params = {"q": query}
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+
+        if resp.status_code >= 500:
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
+        resp.raise_for_status()
+
+        packages = resp.json()
+        if not packages:
+            return f"No packages found on NixHub matching '{query}'"
+
+        # Limit results
+        packages = packages[:limit]
+
+        results = [f"Found {len(packages)} packages on NixHub matching '{query}':\n"]
+        for pkg in packages:
+            name = pkg.get("name", "")
+            version = pkg.get("version", "")
+            summary = pkg.get("summary", "") or pkg.get("description", "")
+            last_updated = pkg.get("last_updated", "")
+
+            results.append(f"* {name}")
+            if version:
+                results.append(f"  Version: {version}")
+            if summary:
+                summary = summary[:200] + "..." if len(summary) > 200 else summary
+                results.append(f"  {summary}")
+            if last_updated:
+                try:
+                    dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+                    results.append(f"  Updated: {dt.strftime('%Y-%m-%d')}")
+                except Exception:
+                    pass
+            results.append("")
+
+        return "\n".join(results).strip()
+    except requests.Timeout:
+        return error("NixHub API timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"NixHub API error: {e}", "API_ERROR")
+    except Exception as e:
+        return error(str(e))
+
+
+def _info_nixhub(name: str) -> str:
+    """Get detailed package info from NixHub.
+
+    Combines data from v1/pkg (rich metadata) and v2/resolve (flake ref, store paths).
+    """
+    try:
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+
+        # Get detailed package info from v1/pkg
+        pkg_url = f"{NIXHUB_API}/v1/pkg"
+        pkg_resp = requests.get(pkg_url, params={"name": name}, headers=headers, timeout=15)
+
+        if pkg_resp.status_code == 404:
+            return error(f"Package '{name}' not found", "NOT_FOUND")
+        if pkg_resp.status_code >= 500:
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
+        pkg_resp.raise_for_status()
+
+        pkg_data = pkg_resp.json()
+
+        # Get flake reference from v2/resolve
+        resolve_url = f"{NIXHUB_API}/v2/resolve"
+        flake_ref = ""
+        store_paths: dict[str, str] = {}
+        try:
+            resolve_resp = requests.get(resolve_url, params={"name": name}, headers=headers, timeout=10)
+            if resolve_resp.status_code == 200:
+                resolve_data = resolve_resp.json()
+                flake_ref = resolve_data.get("flake_installable", "")
+                for sys in resolve_data.get("systems", []):
+                    sys_name = sys.get("system", "")
+                    sys_path = sys.get("store_path", "")
+                    if sys_name and sys_path:
+                        store_paths[sys_name] = sys_path
+        except Exception:
+            pass  # Continue without flake ref
+
+        # Format output
+        results = [f"Package: {pkg_data.get('name', name)}"]
+
+        version = pkg_data.get("version", "")
+        if version:
+            results.append(f"Version: {version}")
+
+        summary = pkg_data.get("summary", "")
+        if summary:
+            results.append(f"Summary: {summary}")
+
+        description = pkg_data.get("description", "")
+        if description and description != summary:
+            if len(description) > 500:
+                description = description[:500] + "..."
+            results.append(f"Description: {description}")
+
+        results.append("")
+
+        # Additional metadata
+        license_info = pkg_data.get("license", "")
+        if license_info:
+            results.append(f"License: {license_info}")
+
+        homepage = pkg_data.get("homepage", "")
+        if homepage:
+            results.append(f"Homepage: {homepage}")
+
+        programs = pkg_data.get("programs", [])
+        if programs:
+            progs = programs[:10]  # Limit display
+            prog_str = ", ".join(progs)
+            if len(programs) > 10:
+                prog_str += f" ... ({len(programs)} total)"
+            results.append(f"Programs: {prog_str}")
+
+        # Platforms from releases
+        releases = pkg_data.get("releases", [])
+        if releases:
+            platforms = set()
+            for release in releases[:3]:  # Check recent releases
+                for p in release.get("platforms", []):
+                    sys = p.get("system", "")
+                    if sys:
+                        platforms.add(sys)
+            if platforms:
+                results.append(f"Platforms: {', '.join(sorted(platforms))}")
+
+        if flake_ref:
+            results.append("")
+            results.append("Flake Reference:")
+            results.append(f"  {flake_ref}")
+
+        if store_paths:
+            results.append("")
+            results.append("Store Paths:")
+            for sys_name, sys_path in sorted(store_paths.items()):
+                results.append(f"  {sys_name}: {sys_path}")
+
+        return "\n".join(results)
+    except requests.Timeout:
+        return error("NixHub API timed out", "TIMEOUT")
+    except requests.RequestException as e:
+        return error(f"NixHub API error: {e}", "API_ERROR")
+    except Exception as e:
+        return error(str(e))
 
 
 # =============================================================================
@@ -1840,7 +2177,18 @@ MAX_FILE_SIZE = 1024 * 1024
 DEFAULT_LINE_LIMIT = 500
 MAX_LINE_LIMIT = 2000
 # Known sources (to distinguish from flake paths)
-KNOWN_SOURCES = {"nixos", "home-manager", "darwin", "flakes", "flakehub", "nixvim", "wiki", "nix-dev", "noogle"}
+KNOWN_SOURCES = {
+    "nixos",
+    "home-manager",
+    "darwin",
+    "flakes",
+    "flakehub",
+    "nixvim",
+    "wiki",
+    "nix-dev",
+    "noogle",
+    "nixhub",
+}
 
 
 def _check_nix_available() -> bool:
@@ -2165,14 +2513,16 @@ async def _flake_inputs_read(flake_dir: str, query: str, limit: int) -> str:
 
 @mcp.tool()
 async def nix(
-    action: Annotated[str, "search|info|stats|options|channels|flake-inputs"],
+    action: Annotated[str, "search|info|stats|options|channels|flake-inputs|cache"],
     query: Annotated[str, "Search term, name, or prefix. For flake-inputs: input_name or input:path"] = "",
-    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle"] = "nixos",
+    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub"] = "nixos",
     type: Annotated[str, "packages|options|programs|list|ls|read"] = "packages",
     channel: Annotated[str, "unstable|stable|25.05"] = "unstable",
     limit: Annotated[int, "1-100 (or 1-2000 for flake-inputs read)"] = 20,
+    version: Annotated[str, "Version for cache action (default: latest)"] = "latest",
+    system: Annotated[str, "System for cache action (e.g., x86_64-linux). Empty for all."] = "",
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, Wiki, nix.dev, Noogle, or flake inputs."""
+    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, Wiki, nix.dev, Noogle, NixHub, or flake inputs."""
     # Limit validation: flake-inputs read allows up to 2000, others limited to 100
     if action == "flake-inputs" and type == "read":
         if not 1 <= limit <= MAX_LINE_LIMIT:
@@ -2203,8 +2553,10 @@ async def nix(
             return _search_nixdev(query, limit)
         elif source == "noogle":
             return _search_noogle(query, limit)
+        elif source == "nixhub":
+            return _search_nixhub(query, limit)
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle")
+            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
 
     elif action == "info":
         if not query:
@@ -2228,8 +2580,10 @@ async def nix(
             return error("Info not available for nix-dev. Use search to find docs, then visit the URL.")
         elif source == "noogle":
             return _info_noogle(query)
+        elif source == "nixhub":
+            return _info_nixhub(query)
         else:
-            return error("Source must be nixos|home-manager|darwin|flakehub|nixvim|wiki|nix-dev|noogle")
+            return error("Source must be nixos|home-manager|darwin|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
 
     elif action == "stats":
         if source == "nixos":
@@ -2246,10 +2600,10 @@ async def nix(
             return _stats_nixvim()
         elif source == "noogle":
             return _stats_noogle()
-        elif source in ["wiki", "nix-dev"]:
+        elif source in ["wiki", "nix-dev", "nixhub"]:
             return error(f"Stats not available for {source}")
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle")
+            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
 
     elif action == "options":
         if source not in ["home-manager", "darwin", "nixvim", "noogle"]:
@@ -2294,8 +2648,13 @@ async def nix(
         else:
             return error("Type must be list|ls|read for flake-inputs")
 
+    elif action == "cache":
+        if not query:
+            return error("Package name required for cache action")
+        return await _check_binary_cache(query, version, system)
+
     else:
-        return error("Action must be search|info|stats|options|channels|flake-inputs")
+        return error("Action must be search|info|stats|options|channels|flake-inputs|cache")
 
 
 @mcp.tool()
@@ -2313,9 +2672,10 @@ async def nix_versions(
         return error("Limit must be 1-50")
 
     try:
-        url = f"https://search.devbox.sh/v2/pkg?name={package}"
-        headers = {"Accept": "application/json", "User-Agent": "mcp-nixos/1.1.0"}
-        resp = requests.get(url, headers=headers, timeout=15)
+        # Use v1/pkg for richer metadata (license, homepage, programs)
+        url = f"{NIXHUB_API}/v1/pkg"
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        resp = requests.get(url, params={"name": package}, headers=headers, timeout=15)
 
         if resp.status_code == 404:
             return error(f"Package '{package}' not found", "NOT_FOUND")
@@ -2323,11 +2683,11 @@ async def nix_versions(
             return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
         resp.raise_for_status()
 
-        data = resp.json()
+        data: dict[str, Any] = resp.json()
         if not isinstance(data, dict):
             return error("Invalid response from NixHub")
 
-        releases = data.get("releases", [])
+        releases: list[dict[str, Any]] = data.get("releases", [])
         if not releases:
             return f"Package: {package}\nNo version history available"
 
@@ -2335,27 +2695,49 @@ async def nix_versions(
         if version:
             for release in releases:
                 if release.get("version") == version:
-                    results = [f"Found {package} version {version}\n"]
-                    platforms = release.get("platforms", [])
+                    version_lines = [f"Found {package} version {version}\n"]
+                    platforms: list[dict[str, Any]] = release.get("platforms", [])
                     if platforms:
-                        seen = set()
+                        seen: set[str] = set()
                         for p in platforms:
-                            commit = p.get("commit_hash", "")
+                            commit: str = p.get("commit_hash", "")
                             if commit and commit not in seen and re.match(r"^[a-fA-F0-9]{40}$", commit):
                                 seen.add(commit)
-                                results.append(f"Nixpkgs commit: {commit}")
-                                attr = p.get("attribute_path", "")
+                                version_lines.append(f"Nixpkgs commit: {commit}")
+                                attr: str = p.get("attribute_path", "")
                                 if attr:
-                                    results.append(f"  Attribute: {attr}")
-                    return "\n".join(results)
+                                    version_lines.append(f"  Attribute: {attr}")
+                    return "\n".join(version_lines)
 
             # Version not found
-            versions_list = [r.get("version", "") for r in releases[:limit]]
+            versions_list: list[str] = [str(r.get("version", "")) for r in releases[:limit]]
             return f"Version {version} not found for {package}\nAvailable: {', '.join(versions_list)}"
 
+        # Build package header with rich metadata
+        results: list[str] = [f"Package: {package}"]
+
+        # Add package-level metadata from v1/pkg
+        license_info: str = data.get("license", "")
+        if license_info:
+            results.append(f"License: {license_info}")
+
+        homepage: str = data.get("homepage", "")
+        if homepage:
+            results.append(f"Homepage: {homepage}")
+
+        programs: list[str] = data.get("programs", [])
+        if programs:
+            progs = programs[:10]
+            prog_str = ", ".join(progs)
+            if len(programs) > 10:
+                prog_str += f" ... ({len(programs)} total)"
+            results.append(f"Programs: {prog_str}")
+
+        results.append(f"Total versions: {len(releases)}")
+        results.append("")
+
         # Return version history
-        results = [f"Package: {package}", f"Total versions: {len(releases)}\n"]
-        shown = releases[:limit]
+        shown: list[dict[str, Any]] = releases[:limit]
         results.append(f"Recent versions ({len(shown)} of {len(releases)}):\n")
         for release in shown:
             results.extend(_format_release(release, package))

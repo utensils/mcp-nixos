@@ -493,3 +493,113 @@ class TestNoogleIntegration:
         if "Error" not in result and "No Noogle functions found" not in result:
             assert "lib.strings" in result.lower()
         assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestNixHubIntegration:
+    """Integration tests for NixHub (hits real search.devbox.sh API)."""
+
+    @pytest.mark.asyncio
+    async def test_search_nixhub(self):
+        """Test real NixHub search."""
+        result = await nix_fn(action="search", query="python", source="nixhub", limit=5)
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "Found" in result or "python" in result.lower()
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_nixhub_nodejs(self):
+        """Test NixHub search for nodejs."""
+        result = await nix_fn(action="search", query="nodejs", source="nixhub", limit=5)
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_nixhub(self):
+        """Test real NixHub package info."""
+        result = await nix_fn(action="info", query="ripgrep", source="nixhub")
+        assert isinstance(result, str)
+        if "NOT_FOUND" not in result and "Error" not in result:
+            assert "Package:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_nixhub_with_metadata(self):
+        """Test NixHub package info shows metadata."""
+        result = await nix_fn(action="info", query="python", source="nixhub")
+        assert isinstance(result, str)
+        # Should include rich metadata if available
+        if "NOT_FOUND" not in result and "Error" not in result:
+            # At least package name should be present
+            assert "Package:" in result or "python" in result.lower()
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestBinaryCacheIntegration:
+    """Integration tests for binary cache status (hits real APIs)."""
+
+    @pytest.mark.asyncio
+    async def test_cache_status_hello(self):
+        """Test binary cache status for hello package."""
+        result = await nix_fn(action="cache", query="hello")
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "Binary Cache Status" in result
+            # Should show system info
+            assert "System:" in result or "NOT_FOUND" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_cache_status_with_version(self):
+        """Test binary cache status with specific version."""
+        result = await nix_fn(action="cache", query="ripgrep", version="latest")
+        assert isinstance(result, str)
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_cache_status_with_system(self):
+        """Test binary cache status with specific system."""
+        result = await nix_fn(action="cache", query="hello", system="x86_64-linux")
+        assert isinstance(result, str)
+        if "Error" not in result and "NOT_FOUND" not in result:
+            assert "x86_64-linux" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_cache_status_nonexistent(self):
+        """Test binary cache status for non-existent package."""
+        result = await nix_fn(action="cache", query="nonexistent-package-xyz-123")
+        assert "Error" in result
+        assert "NOT_FOUND" in result
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestNixVersionsEnhancedIntegration:
+    """Integration tests for enhanced nix_versions output."""
+
+    @pytest.mark.asyncio
+    async def test_versions_with_metadata(self):
+        """Test nix_versions shows metadata when available."""
+        result = await nix_versions_fn(package="ripgrep", limit=3)
+        assert isinstance(result, str)
+        if "Error" not in result:
+            assert "Package: ripgrep" in result
+            # May have rich metadata
+            assert "version" in result.lower() or "Total versions:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_versions_platform_info(self):
+        """Test nix_versions shows platform info."""
+        result = await nix_versions_fn(package="hello", limit=3)
+        assert isinstance(result, str)
+        if "Error" not in result and "No version history" not in result:
+            # Should have some version info
+            assert "Package: hello" in result
+        assert_plain_text(result)
