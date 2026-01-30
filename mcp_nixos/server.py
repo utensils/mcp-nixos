@@ -1873,39 +1873,131 @@ class NarInfo(TypedDict, total=False):
     url: str
 
 
-async def _check_binary_cache(name: str, version: str = "latest", system: str = "") -> str:
-    """Check binary cache status for a package.
+def _check_system_cache(sys_info: dict[str, str]) -> list[str]:
+    """Check binary cache status for a single system (runs in thread pool).
 
-    Uses NixHub resolve API to get store paths, then checks cache.nixos.org.
+    Returns a list of formatted result lines for this system.
     """
-    # Resolve package to get store paths via NixHub
+    results: list[str] = []
+    sys_name = sys_info.get("system", "unknown")
+    store_path = sys_info.get("store_path", "")
+
+    results.append(f"System: {sys_name}")
+
+    if not store_path:
+        results.append("  Store path: Not available")
+        results.append("  Status: UNKNOWN")
+        results.append("")
+        return results
+
+    results.append(f"  Store path: {store_path}")
+
+    # Extract hash from store path: /nix/store/{hash}-{name}
+    # The hash is the 32-character base32 string after /nix/store/
+    try:
+        path_parts = store_path.split("/")
+        if len(path_parts) >= 4:
+            store_hash = path_parts[3].split("-")[0]
+        else:
+            store_hash = ""
+    except (IndexError, AttributeError):
+        store_hash = ""
+
+    if not store_hash or len(store_hash) != 32:
+        results.append("  Status: UNKNOWN (invalid store path)")
+        results.append("")
+        return results
+
+    # Check binary cache
+    try:
+        narinfo_url = f"{CACHE_NIXOS_ORG}/{store_hash}.narinfo"
+        cache_resp = requests.head(narinfo_url, timeout=5)
+
+        if cache_resp.status_code == 200:
+            # Get full narinfo for size info
+            cache_resp = requests.get(narinfo_url, timeout=5)
+            if cache_resp.status_code == 200:
+                narinfo = _parse_narinfo(cache_resp.text)
+                results.append("  Status: CACHED")
+                file_size = narinfo.get("file_size")
+                if file_size is not None:
+                    results.append(f"  Download size: {_format_size(file_size)}")
+                nar_size = narinfo.get("nar_size")
+                if nar_size is not None:
+                    results.append(f"  Unpacked size: {_format_size(nar_size)}")
+                compression = narinfo.get("compression")
+                if compression:
+                    results.append(f"  Compression: {compression}")
+            else:
+                results.append("  Status: CACHED")
+        elif cache_resp.status_code == 404:
+            results.append("  Status: NOT CACHED")
+        else:
+            results.append(f"  Status: UNKNOWN (HTTP {cache_resp.status_code})")
+    except requests.RequestException:
+        results.append("  Status: UNKNOWN (cache check failed)")
+
+    results.append("")
+    return results
+
+
+def _fetch_nixhub_resolve(
+    name: str, version: str, headers: dict[str, str]
+) -> tuple[str | None, dict[str, str | list[dict[str, str]]] | None]:
+    """Fetch package resolution from NixHub API (runs in thread pool).
+
+    Returns (error_message, data) tuple. If error_message is set, data is None.
+    """
     try:
         url = f"{NIXHUB_API}/v2/resolve"
         params: dict[str, str] = {"name": name}
         if version and version != "latest":
             params["version"] = version
 
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
         resp = requests.get(url, params=params, headers=headers, timeout=15)
 
         if resp.status_code in (400, 404):
-            return error(f"Package '{name}' not found", "NOT_FOUND")
+            return error(f"Package '{name}' not found", "NOT_FOUND"), None
         if resp.status_code >= 500:
-            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR"), None
         resp.raise_for_status()
 
-        data = resp.json()
+        return None, resp.json()
     except requests.Timeout:
-        return error("NixHub API timed out", "TIMEOUT")
+        return error("NixHub API timed out", "TIMEOUT"), None
     except requests.RequestException as e:
-        return error(f"NixHub API error: {e}", "API_ERROR")
+        return error(f"NixHub API error: {e}", "API_ERROR"), None
     except Exception as e:
-        return error(str(e))
+        return error(str(e)), None
+
+
+async def _check_binary_cache(name: str, version: str = "latest", system: str = "") -> str:
+    """Check binary cache status for a package.
+
+    Uses NixHub resolve API to get store paths, then checks cache.nixos.org.
+    All blocking HTTP requests are executed in a thread pool to avoid blocking the event loop.
+    Per-system cache checks run concurrently for better performance.
+    """
+    headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+
+    # Resolve package to get store paths via NixHub (in thread pool)
+    err_msg, data = await asyncio.to_thread(_fetch_nixhub_resolve, name, version, headers)
+    if err_msg is not None:
+        return err_msg
+
+    if data is None:
+        return error("Invalid response from NixHub", "API_ERROR")
 
     # Extract package info
     pkg_name = data.get("name", name)
     pkg_version = data.get("version", version)
-    systems = data.get("systems", [])
+    systems_data = data.get("systems", [])
+
+    # Ensure systems_data is a list
+    if not isinstance(systems_data, list):
+        return error("Invalid systems data from NixHub", "API_ERROR")
+
+    systems: list[dict[str, str]] = systems_data
 
     if not systems:
         return error(f"No systems found for {name}@{pkg_version}", "NOT_FOUND")
@@ -1914,71 +2006,22 @@ async def _check_binary_cache(name: str, version: str = "latest", system: str = 
     if system:
         systems = [s for s in systems if s.get("system") == system]
         if not systems:
-            available = ", ".join(s.get("system", "") for s in data.get("systems", []))
+            all_systems = data.get("systems", [])
+            if isinstance(all_systems, list):
+                available = ", ".join(s.get("system", "") for s in all_systems)
+            else:
+                available = ""
             return error(f"System '{system}' not available. Available: {available}", "NOT_FOUND")
 
     results = [f"Binary Cache Status: {pkg_name}@{pkg_version}", ""]
 
-    for sys_info in systems:
-        sys_name = sys_info.get("system", "unknown")
-        store_path = sys_info.get("store_path", "")
+    # Check cache status for all systems concurrently
+    cache_check_tasks = [asyncio.to_thread(_check_system_cache, sys_info) for sys_info in systems]
+    system_results = await asyncio.gather(*cache_check_tasks)
 
-        results.append(f"System: {sys_name}")
-
-        if not store_path:
-            results.append("  Store path: Not available")
-            results.append("  Status: UNKNOWN")
-            results.append("")
-            continue
-
-        results.append(f"  Store path: {store_path}")
-
-        # Extract hash from store path: /nix/store/{hash}-{name}
-        # The hash is the 32-character base32 string after /nix/store/
-        try:
-            path_parts = store_path.split("/")
-            if len(path_parts) >= 4:
-                store_hash = path_parts[3].split("-")[0]
-            else:
-                store_hash = ""
-        except (IndexError, AttributeError):
-            store_hash = ""
-
-        if not store_hash or len(store_hash) != 32:
-            results.append("  Status: UNKNOWN (invalid store path)")
-            results.append("")
-            continue
-
-        # Check binary cache
-        try:
-            narinfo_url = f"{CACHE_NIXOS_ORG}/{store_hash}.narinfo"
-            cache_resp = requests.head(narinfo_url, timeout=5)
-
-            if cache_resp.status_code == 200:
-                # Get full narinfo for size info
-                cache_resp = requests.get(narinfo_url, timeout=5)
-                if cache_resp.status_code == 200:
-                    narinfo = _parse_narinfo(cache_resp.text)
-                    results.append("  Status: CACHED")
-                    file_size = narinfo.get("file_size")
-                    if file_size is not None:
-                        results.append(f"  Download size: {_format_size(file_size)}")
-                    nar_size = narinfo.get("nar_size")
-                    if nar_size is not None:
-                        results.append(f"  Unpacked size: {_format_size(nar_size)}")
-                    compression = narinfo.get("compression")
-                    if compression:
-                        results.append(f"  Compression: {compression}")
-                else:
-                    results.append("  Status: CACHED")
-            elif cache_resp.status_code == 404:
-                results.append("  Status: NOT CACHED")
-            else:
-                results.append(f"  Status: UNKNOWN (HTTP {cache_resp.status_code})")
-        except requests.RequestException:
-            results.append("  Status: UNKNOWN (cache check failed)")
-
-        results.append("")
+    # Combine results in order
+    for sys_result in system_results:
+        results.extend(sys_result)
 
     return "\n".join(results).strip()
 

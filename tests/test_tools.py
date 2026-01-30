@@ -946,10 +946,10 @@ class TestNixToolCacheAction:
 class TestBinaryCacheInternalFunctions:
     """Test binary cache internal functions with mocked API responses."""
 
-    @patch("mcp_nixos.server.requests.get")
     @patch("mcp_nixos.server.requests.head")
+    @patch("mcp_nixos.server.requests.get")
     @pytest.mark.asyncio
-    async def test_check_binary_cache_cached(self, mock_head, mock_get):
+    async def test_check_binary_cache_cached(self, mock_get, mock_head):
         """Test _check_binary_cache when package is cached."""
         from mcp_nixos.server import _check_binary_cache
 
