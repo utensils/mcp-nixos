@@ -17,6 +17,7 @@ import shutil
 import stat
 from datetime import datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -234,13 +235,12 @@ class NixDevCache:
             # Parse JavaScript: Search.setIndex({...})
             content = resp.text.strip()
             if content.startswith("Search.setIndex("):
-                match = re.search(r'Search\.setIndex\((.*)\)\s*$', content, re.DOTALL)
+                match = re.search(r"Search\.setIndex\((.*)\)\s*$", content, re.DOTALL)
                 if match:
                     json_str = match.group(1)
                     self.index = json.loads(json_str)
                 else:
                     raise ValueError("Unexpected search index format")
-                self.index = json.loads(json_str)
             else:
                 raise ValueError("Unexpected search index format")
 
@@ -1060,7 +1060,7 @@ def _search_wiki(query: str, limit: int) -> str:
             wordcount = item.get("wordcount", 0)
 
             results.append(f"* {title}")
-            results.append(f"  https://wiki.nixos.org/wiki/{title.replace(' ', '_')}")
+            results.append(f"  https://wiki.nixos.org/wiki/{quote(title.replace(' ', '_'), safe='')}")
             if snippet:
                 # Truncate long snippets
                 snippet = snippet[:200] + "..." if len(snippet) > 200 else snippet
@@ -1107,7 +1107,7 @@ def _info_wiki(title: str) -> str:
 
         results = [
             f"Wiki: {page_title}",
-            f"URL: https://wiki.nixos.org/wiki/{page_title.replace(' ', '_')}",
+            f"URL: https://wiki.nixos.org/wiki/{quote(page_title.replace(' ', '_'), safe='')}",
             "",
         ]
 
@@ -1552,7 +1552,7 @@ def _info_noogle(name: str) -> str:
 def _stats_noogle() -> str:
     """Get Noogle statistics."""
     try:
-        data, builtin_types = noogle_cache.get_data()
+        data, _ = noogle_cache.get_data()
 
         # Count functions by category
         categories: dict[str, int] = {}

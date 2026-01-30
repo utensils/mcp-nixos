@@ -54,7 +54,7 @@ class TestNixToolValidation:
     async def test_options_only_for_hm_darwin_nixvim(self):
         result = await nix_fn(action="options", source="nixos")
         assert "Error" in result
-        assert "home-manager|darwin|nixvim" in result
+        assert "home-manager|darwin|nixvim|noogle" in result
 
     @pytest.mark.asyncio
     async def test_limit_too_low(self):
@@ -742,6 +742,7 @@ class TestFlakeHubInternalFunctions:
         assert "TIMEOUT" in result
 
 
+@pytest.mark.unit
 class TestNixToolWikiSource:
     """Test nix tool search/info for wiki source."""
 
@@ -773,6 +774,7 @@ class TestNixToolWikiSource:
         mock_info.assert_called_once_with("Flakes")
 
 
+@pytest.mark.unit
 class TestNixToolNixDevSource:
     """Test nix tool search for nix-dev source."""
 
@@ -814,6 +816,47 @@ class TestNixToolNixDevSource:
         result = await nix_fn(action="stats", source="nix-dev")
         assert "Error" in result
         assert "not available" in result.lower()
+
+
+@pytest.mark.unit
+class TestNixToolNoogleSource:
+    """Test nix tool search/info/stats/options for noogle source."""
+
+    @patch("mcp_nixos.server._search_noogle")
+    @pytest.mark.asyncio
+    async def test_search_noogle(self, mock_search):
+        """Test noogle search delegates correctly."""
+        mock_search.return_value = "Found 5 Noogle functions matching 'mapAttrs':\n..."
+        result = await nix_fn(action="search", query="mapAttrs", source="noogle", limit=5)
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("mapAttrs", 5)
+
+    @patch("mcp_nixos.server._info_noogle")
+    @pytest.mark.asyncio
+    async def test_info_noogle(self, mock_info):
+        """Test noogle info delegates correctly."""
+        mock_info.return_value = "Noogle Function: lib.attrsets.mapAttrs\nType: ..."
+        result = await nix_fn(action="info", query="lib.attrsets.mapAttrs", source="noogle")
+        assert result == mock_info.return_value
+        mock_info.assert_called_once_with("lib.attrsets.mapAttrs")
+
+    @patch("mcp_nixos.server._stats_noogle")
+    @pytest.mark.asyncio
+    async def test_stats_noogle(self, mock_stats):
+        """Test noogle stats delegates correctly."""
+        mock_stats.return_value = "Noogle Statistics:\n- Total functions: 2000\n..."
+        result = await nix_fn(action="stats", source="noogle")
+        assert result == mock_stats.return_value
+        mock_stats.assert_called_once()
+
+    @patch("mcp_nixos.server._browse_noogle_options")
+    @pytest.mark.asyncio
+    async def test_options_noogle(self, mock_browse):
+        """Test noogle options delegates correctly."""
+        mock_browse.return_value = "Noogle functions with prefix 'lib.strings':\n..."
+        result = await nix_fn(action="options", source="noogle", query="lib.strings")
+        assert result == mock_browse.return_value
+        mock_browse.assert_called_once_with("lib.strings")
 
 
 @pytest.mark.unit
