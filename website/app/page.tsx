@@ -20,7 +20,7 @@ export default function Home() {
           <h1 className="text-4xl md:text-6xl font-bold mb-6">MCP-NixOS</h1>
           <div className="mb-4">
             <span className="inline-block bg-nix-secondary text-white px-4 py-2 rounded-full text-sm font-semibold">
-              🎉 v2.1.1 - Pure Nix Flake
+              🎉 v2.2.0 - Binary Cache & NixHub
             </span>
           </div>
           <div className="mb-8 max-w-3xl mx-auto">
@@ -128,6 +128,16 @@ export default function Home() {
               title="Version History"
               description="Package version tracking with nixpkgs commit hashes via NixHub.io integration."
               iconName="history"
+            />
+            <FeatureCard
+              title="Binary Cache Status"
+              description="Check if packages are cached on cache.nixos.org. See download sizes, compression, and availability per platform."
+              iconName="cloud-download"
+            />
+            <FeatureCard
+              title="NixHub Metadata"
+              description="Rich package metadata including license, homepage, programs, and Nix store paths from NixHub.io."
+              iconName="database"
             />
             <FeatureCard
               title="Local Flake Inputs"

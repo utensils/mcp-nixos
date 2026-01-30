@@ -73,6 +73,7 @@ An MCP server providing accurate, real-time information about:
 - **NixOS Wiki** - Community documentation and guides from [wiki.nixos.org](https://wiki.nixos.org)
 - **nix.dev** - Official Nix tutorials and guides from [nix.dev](https://nix.dev)
 - **Package versions** - Historical versions with commit hashes via [NixHub.io](https://www.nixhub.io)
+- **Binary cache status** - Check if packages are cached on cache.nixos.org with download sizes
 - **Local flake inputs** - Explore your pinned flake dependencies directly from the Nix store (requires Nix)
 
 ## The Tools
@@ -97,6 +98,7 @@ nix(action, query, source, type, channel, limit)
 | `options` | Browse Home Manager/Darwin options by prefix |
 | `channels` | List available NixOS channels |
 | `flake-inputs` | Explore local flake inputs from Nix store |
+| `cache` | Check binary cache status for packages |
 
 | Source | What it queries |
 |--------|----------------|
@@ -109,6 +111,7 @@ nix(action, query, source, type, channel, limit)
 | `noogle` | Nix function signatures and docs (noogle.dev) |
 | `wiki` | NixOS Wiki articles (wiki.nixos.org) |
 | `nix-dev` | Official Nix documentation (nix.dev) |
+| `nixhub` | Package metadata and store paths (nixhub.io) |
 
 **Examples:**
 
@@ -155,6 +158,21 @@ nix(action="info", query="Flakes", source="wiki")
 # Search nix.dev documentation
 nix(action="search", query="packaging tutorial", source="nix-dev")
 
+# Search NixHub for package metadata
+nix(action="search", query="nodejs", source="nixhub")
+
+# Get detailed package info from NixHub (license, homepage, store paths)
+nix(action="info", query="python", source="nixhub")
+
+# Check binary cache status
+nix(action="cache", query="hello")
+
+# Check cache for specific version
+nix(action="cache", query="python", version="3.12.0")
+
+# Check cache for specific system
+nix(action="cache", query="firefox", system="x86_64-linux")
+
 # Get stats
 nix(action="stats", source="nixos", channel="stable")
 
@@ -170,16 +188,20 @@ nix(action="flake-inputs", type="read", query="nixpkgs:flake.nix")
 
 ### `nix_versions` - Package Version History
 
-Find historical versions with nixpkgs commit hashes:
+Find historical versions with nixpkgs commit hashes. Output includes:
+- Package metadata (license, homepage, programs) when available
+- Platform availability per version (Linux/macOS)
+- Nixpkgs commit hash for reproducible builds
+- Attribute path for Nix expressions
 
-```
+```python
 nix_versions(package, version, limit)
 ```
 
 **Examples:**
 
 ```python
-# List recent versions
+# List recent versions with metadata
 nix_versions(package="python", limit=5)
 
 # Find specific version

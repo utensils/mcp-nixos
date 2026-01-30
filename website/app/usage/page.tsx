@@ -135,6 +135,51 @@ environment.systemPackages = [ pkgs.mcp-nixos ];`}
             </div>
           </div>
 
+          {/* New in v2.2.0 */}
+            <div className="bg-white rounded-lg shadow-md border-l-4 border-green-500 p-6 mt-8">
+              <h2 className="text-2xl font-bold text-nix-dark mb-4">
+                New in v2.2.0: Binary Cache & NixHub
+              </h2>
+              <p className="text-gray-700 mb-4">
+                Two powerful new features to help you understand what&apos;s actually happening with your packages.
+              </p>
+
+              <h3 className="text-lg font-semibold text-nix-dark mt-4 mb-2">Binary Cache Status</h3>
+              <p className="text-gray-700 mb-2">
+                Check if a package is cached on cache.nixos.org before building:
+              </p>
+              <CodeBlock
+                code={`# Check if hello is cached
+nix(action="cache", query="hello")
+
+# Check specific version
+nix(action="cache", query="python", version="3.12.0")
+
+# Check for specific system
+nix(action="cache", query="firefox", system="x86_64-linux")`}
+                language="python"
+              />
+              <p className="text-sm text-gray-600 mt-2">
+                Shows download size, unpacked size, compression method, and availability per platform.
+              </p>
+
+              <h3 className="text-lg font-semibold text-nix-dark mt-6 mb-2">NixHub Package Metadata</h3>
+              <p className="text-gray-700 mb-2">
+                Get rich package information from NixHub.io:
+              </p>
+              <CodeBlock
+                code={`# Search packages with metadata
+nix(action="search", source="nixhub", query="nodejs")
+
+# Get detailed info (license, homepage, store paths)
+nix(action="info", source="nixhub", query="python")`}
+                language="python"
+              />
+              <p className="text-sm text-gray-600 mt-2">
+                Includes license, homepage, programs provided, flake reference, and Nix store paths.
+              </p>
+            </div>
+
           <div className="bg-nix-light bg-opacity-30 p-6 rounded-lg mt-12">
             <h2 className="text-2xl font-bold text-nix-dark mb-4">What Happens Next?</h2>
             <p className="text-gray-700 mb-4">
@@ -145,6 +190,7 @@ environment.systemPackages = [ pkgs.mcp-nixos ];`}
               <li>You get actual, real-time information about 130K+ packages</li>
               <li>Configuration options that actually exist (shocking, we know)</li>
               <li>Version history that helps you find that one specific Ruby version from 2019</li>
+              <li>Binary cache status so you know if you&apos;ll be waiting 3 hours to build Firefox</li>
             </ul>
             <p className="text-gray-700 mt-4 italic">
               That&apos;s it. No complex setup. No 47-step installation guide. No sacrificing a USB stick to the Nix gods.

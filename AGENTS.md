@@ -25,10 +25,13 @@ Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
 - `nix_versions` - Package version history from NixHub.io.
 
 ### Data Sources
+
 - NixOS packages/options: Elasticsearch API at search.nixos.org
 - Home Manager options: HTML parsing from official docs
 - nix-darwin options: HTML parsing from official docs
 - Package versions: NixHub.io API (search.devbox.sh)
+- Package metadata: NixHub.io API for license, homepage, store paths
+- Binary cache status: cache.nixos.org narinfo queries
 - Flakes: search.nixos.org flake index
 - Local flake inputs: Direct access to /nix/store via `nix flake archive`
 
@@ -130,10 +133,12 @@ pytest tests/ -k "nixos" -v
 1. **Channel Resolution**: The server dynamically discovers available NixOS channels on startup. "stable" always maps to the current stable release.
 2. **Error Handling**: All tools return helpful plain text error messages. API failures gracefully degrade.
 3. **No Caching**: Version 1.0+ removed all caching for simplicity. All queries hit live APIs.
-4. **Async Everything**: Version 1.0.1 migrated to FastMCP 2.x. All tools are async functions.
+4. **Async Everything**: Version 1.0.1 migrated to FastMCP 2.x. All tools are async functions. All blocking HTTP calls and file I/O are wrapped in `asyncio.to_thread()` to prevent blocking the event loop.
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
 6. **Environment Variables**: `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
 7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
+8. **Binary Cache Status**: The `cache` action queries cache.nixos.org to check if packages have pre-built binaries. It uses NixHub to resolve package versions to store paths, then checks narinfo availability.
+9. **NixHub Source**: The `nixhub` source provides rich package metadata including license, homepage, programs, and store paths via the search.devbox.sh API.
 
 ## Commit, PR, & Release Guidelines
 
