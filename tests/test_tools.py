@@ -311,15 +311,25 @@ class TestNixVersionsAPI:
     async def test_success(self, mock_get):
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "releases": [
-                {
-                    "version": "3.12.0",
-                    "platforms": [{"commit_hash": "abc123def456", "attribute_path": "python312"}],
-                },
-                {"version": "3.11.0", "platforms": []},
-            ]
-        }
+        # v1/pkg returns array of version records
+        mock_resp.json.return_value = [
+            {
+                "name": "python",
+                "version": "3.12.0",
+                "commit_hash": "abc123def456abc123def456abc123def456abcd",
+                "platforms": ["x86_64-linux"],
+                "last_updated": 1705320000,
+                "systems": {"x86_64-linux": {"attr_paths": ["python312"]}},
+            },
+            {
+                "name": "python",
+                "version": "3.11.0",
+                "commit_hash": "def456abc123def456abc123def456abc123defg",
+                "platforms": ["x86_64-linux"],
+                "last_updated": 1705200000,
+                "systems": {},
+            },
+        ]
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -332,14 +342,17 @@ class TestNixVersionsAPI:
     async def test_find_specific_version(self, mock_get):
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "releases": [
-                {
-                    "version": "3.12.0",
-                    "platforms": [{"commit_hash": "a" * 40, "attribute_path": "python312"}],
-                },
-            ]
-        }
+        # v1/pkg returns array
+        mock_resp.json.return_value = [
+            {
+                "name": "python",
+                "version": "3.12.0",
+                "commit_hash": "a" * 40,
+                "platforms": ["x86_64-linux"],
+                "last_updated": 1705320000,
+                "systems": {"x86_64-linux": {"attr_paths": ["python312"]}},
+            },
+        ]
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -352,7 +365,16 @@ class TestNixVersionsAPI:
     async def test_version_not_found(self, mock_get):
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"releases": [{"version": "3.12.0", "platforms": []}]}
+        # v1/pkg returns array
+        mock_resp.json.return_value = [
+            {
+                "name": "python",
+                "version": "3.12.0",
+                "platforms": ["x86_64-linux"],
+                "last_updated": 1705320000,
+                "systems": {},
+            }
+        ]
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -409,12 +431,14 @@ class TestNixVersionsAPI:
     async def test_no_releases(self, mock_get):
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"releases": []}
+        # v1/pkg returns empty array for no versions
+        mock_resp.json.return_value = []
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = await nix_versions_fn(package="python")
-        assert "No version history" in result
+        # Empty array means package not found in new format
+        assert "Error" in result or "not found" in result.lower()
 
 
 class TestNixvimSearch:
@@ -953,18 +977,23 @@ class TestBinaryCacheInternalFunctions:
         """Test _check_binary_cache when package is cached."""
         from mcp_nixos.server import _check_binary_cache
 
-        # Mock NixHub resolve API
+        # Mock NixHub v2/resolve API - systems is a dict with outputs array
         resolve_resp = Mock()
         resolve_resp.status_code = 200
         resolve_resp.json.return_value = {
             "name": "hello",
             "version": "2.12",
-            "systems": [
-                {
-                    "system": "x86_64-linux",
-                    "store_path": "/nix/store/abcdefghijklmnopqrstuvwxyz012345-hello-2.12",
+            "systems": {
+                "x86_64-linux": {
+                    "outputs": [
+                        {
+                            "name": "out",
+                            "path": "/nix/store/abcdefghijklmnopqrstuvwxyz012345-hello-2.12",
+                            "default": True,
+                        }
+                    ]
                 },
-            ],
+            },
         }
         resolve_resp.raise_for_status = Mock()
 
@@ -1061,26 +1090,28 @@ class TestNixHubInternalFunctions:
 
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = [
-            {
-                "name": "python",
-                "version": "3.12.0",
-                "summary": "A programming language",
-                "last_updated": "2025-01-15T12:00:00Z",
-            },
-            {
-                "name": "python311",
-                "version": "3.11.7",
-                "summary": "Python 3.11",
-            },
-        ]
+        # v2/search returns {"query": ..., "total_results": N, "results": [...]}
+        mock_resp.json.return_value = {
+            "query": "python",
+            "total_results": 2,
+            "results": [
+                {
+                    "name": "python",
+                    "summary": "A programming language",
+                    "last_updated": "2025-01-15T12:00:00Z",
+                },
+                {
+                    "name": "python311",
+                    "summary": "Python 3.11",
+                },
+            ],
+        }
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _search_nixhub("python", 10)
-        assert "Found 2 packages on NixHub" in result
+        assert "Found 2 of 2 packages on NixHub" in result
         assert "python" in result
-        assert "3.12.0" in result
 
     @patch("mcp_nixos.server.requests.get")
     def test_search_nixhub_no_results(self, mock_get):
@@ -1088,7 +1119,8 @@ class TestNixHubInternalFunctions:
 
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = []
+        # v2/search returns empty results array
+        mock_resp.json.return_value = {"query": "nonexistent", "total_results": 0, "results": []}
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -1110,37 +1142,43 @@ class TestNixHubInternalFunctions:
     def test_info_nixhub_success(self, mock_get):
         from mcp_nixos.server import _info_nixhub
 
-        # First call: v1/pkg
+        # First call: v1/pkg - returns array of version records
         pkg_resp = Mock()
         pkg_resp.status_code = 200
-        pkg_resp.json.return_value = {
-            "name": "ripgrep",
-            "version": "15.1.0",
-            "summary": "Fast search tool",
-            "description": "ripgrep recursively searches directories...",
-            "license": "Unlicense",
-            "homepage": "https://github.com/BurntSushi/ripgrep",
-            "programs": ["rg"],
-            "releases": [
-                {
-                    "version": "15.1.0",
-                    "platforms": [
-                        {"system": "x86_64-linux"},
-                        {"system": "aarch64-darwin"},
-                    ],
-                }
-            ],
-        }
+        pkg_resp.json.return_value = [
+            {
+                "name": "ripgrep",
+                "version": "15.1.0",
+                "summary": "Fast search tool",
+                "description": "ripgrep recursively searches directories...",
+                "license": "Unlicense",
+                "homepage": "https://github.com/BurntSushi/ripgrep",
+                "platforms": ["x86_64-linux", "aarch64-darwin"],
+                "systems": {
+                    "x86_64-linux": {
+                        "programs": ["rg"],
+                        "attr_paths": ["ripgrep"],
+                    },
+                },
+            }
+        ]
         pkg_resp.raise_for_status = Mock()
 
-        # Second call: v2/resolve
+        # Second call: v2/resolve - systems is a dict with outputs array
         resolve_resp = Mock()
         resolve_resp.status_code = 200
         resolve_resp.json.return_value = {
-            "flake_installable": "github:NixOS/nixpkgs/a1b2c3#ripgrep",
-            "systems": [
-                {"system": "x86_64-linux", "store_path": "/nix/store/abc-ripgrep-15.1.0"},
-            ],
+            "name": "ripgrep",
+            "version": "15.1.0",
+            "systems": {
+                "x86_64-linux": {
+                    "flake_installable": {
+                        "ref": {"type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "a1b2c3d4"},
+                        "attr_path": "ripgrep",
+                    },
+                    "outputs": [{"name": "out", "path": "/nix/store/abc-ripgrep-15.1.0", "default": True}],
+                },
+            },
         }
 
         mock_get.side_effect = [pkg_resp, resolve_resp]
@@ -1187,30 +1225,24 @@ class TestNixVersionsEnhanced:
         """Test nix_versions includes license, homepage, programs."""
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "name": "ripgrep",
-            "license": "Unlicense",
-            "homepage": "https://github.com/BurntSushi/ripgrep",
-            "programs": ["rg"],
-            "releases": [
-                {
-                    "version": "15.1.0",
-                    "last_updated": "2025-01-15T12:00:00Z",
-                    "platforms": [
-                        {
-                            "system": "x86_64-linux",
-                            "commit_hash": "a" * 40,
-                            "attribute_path": "ripgrep",
-                        },
-                        {
-                            "system": "aarch64-darwin",
-                            "commit_hash": "a" * 40,
-                            "attribute_path": "ripgrep",
-                        },
-                    ],
+        # v1/pkg returns array of version records
+        mock_resp.json.return_value = [
+            {
+                "name": "ripgrep",
+                "version": "15.1.0",
+                "license": "Unlicense",
+                "homepage": "https://github.com/BurntSushi/ripgrep",
+                "platforms": ["x86_64-linux", "aarch64-darwin"],
+                "commit_hash": "a" * 40,
+                "last_updated": 1705320000,  # epoch timestamp
+                "systems": {
+                    "x86_64-linux": {
+                        "programs": ["rg"],
+                        "attr_paths": ["ripgrep"],
+                    },
                 },
-            ],
-        }
+            },
+        ]
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
@@ -1228,18 +1260,17 @@ class TestNixVersionsEnhanced:
         """Test nix_versions shows platform summary."""
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "releases": [
-                {
-                    "version": "1.0.0",
-                    "platforms": [
-                        {"system": "x86_64-linux", "commit_hash": "a" * 40},
-                        {"system": "aarch64-linux", "commit_hash": "a" * 40},
-                        {"system": "x86_64-darwin", "commit_hash": "a" * 40},
-                    ],
-                },
-            ],
-        }
+        # v1/pkg returns array - platforms is array of system names
+        mock_resp.json.return_value = [
+            {
+                "name": "hello",
+                "version": "1.0.0",
+                "platforms": ["x86_64-linux", "aarch64-linux", "x86_64-darwin"],
+                "commit_hash": "a" * 40,
+                "last_updated": 1705320000,
+                "systems": {},
+            },
+        ]
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 

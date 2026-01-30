@@ -1807,27 +1807,49 @@ def _version_key(version_str: str) -> tuple[int, int, int]:
 
 
 def _format_release(release: dict[str, Any], package_name: str | None = None) -> list[str]:
-    """Format a single release entry with version, date, platforms, and commit info."""
+    """Format a single release entry with version, date, platforms, and commit info.
+
+    Handles v1/pkg format where:
+    - platforms is an array of system names ["x86_64-linux", ...]
+    - commit_hash is at the release level
+    - systems is a dict with system info including attr_paths
+    - last_updated is an epoch timestamp (int)
+    """
     results: list[str] = []
     version = release.get("version", "unknown")
-    platforms: list[dict[str, Any]] = release.get("platforms", [])
 
     results.append(f"* {version}")
-    last_updated = release.get("last_updated", "")
+
+    # Handle last_updated as either ISO string or epoch timestamp
+    last_updated = release.get("last_updated")
     if last_updated:
         try:
-            dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+            if isinstance(last_updated, int | float):
+                # Epoch timestamp
+                dt = datetime.fromtimestamp(last_updated)
+            else:
+                # ISO string
+                dt = datetime.fromisoformat(str(last_updated).replace("Z", "+00:00"))
             results.append(f"  Updated: {dt.strftime('%Y-%m-%d')}")
         except Exception:
             pass
 
+    # Platforms can be either:
+    # 1. Array of system names: ["x86_64-linux", "aarch64-darwin", ...]
+    # 2. Array of dicts with "system" key (old format)
+    platforms = release.get("platforms", [])
     if platforms:
-        # Show platform summary
         platform_systems: set[str] = set()
         for p in platforms:
-            sys = p.get("system", "")
-            if sys:
-                platform_systems.add(sys)
+            if isinstance(p, str):
+                # Direct system name
+                platform_systems.add(p)
+            elif isinstance(p, dict):
+                # Dict with "system" key
+                sys = p.get("system", "")
+                if sys:
+                    platform_systems.add(sys)
+
         if platform_systems:
             # Simplify platform display
             has_linux = any("linux" in s for s in platform_systems)
@@ -1841,17 +1863,20 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
             else:
                 results.append(f"  Platforms: {', '.join(sorted(platform_systems))}")
 
-        # Show commit info (just one representative)
-        seen_commits: set[str] = set()
-        for p in platforms:
-            commit: str = p.get("commit_hash", "")
-            if commit and commit not in seen_commits and re.match(r"^[a-fA-F0-9]{40}$", commit):
-                seen_commits.add(commit)
-                results.append(f"  Nixpkgs commit: {commit}")
-                attr: str = p.get("attribute_path", "")
-                if attr:
-                    results.append(f"  Attribute: {attr}")
-                break  # Just show one commit per version
+    # Show commit info - in v1/pkg format, commit_hash is at release level
+    commit = release.get("commit_hash", "")
+    if commit and re.match(r"^[a-fA-F0-9]{40}$", commit):
+        results.append(f"  Nixpkgs commit: {commit}")
+
+        # Get attribute path from systems dict
+        systems_dict = release.get("systems", {})
+        if isinstance(systems_dict, dict):
+            for sys_info in systems_dict.values():
+                if isinstance(sys_info, dict):
+                    attr_paths = sys_info.get("attr_paths", [])
+                    if attr_paths:
+                        results.append(f"  Attribute: {attr_paths[0]}")
+                        break
     return results
 
 
@@ -1941,18 +1966,16 @@ def _check_system_cache(sys_info: dict[str, str]) -> list[str]:
     return results
 
 
-def _fetch_nixhub_resolve(
-    name: str, version: str, headers: dict[str, str]
-) -> tuple[str | None, dict[str, str | list[dict[str, str]]] | None]:
+def _fetch_nixhub_resolve(name: str, version: str, headers: dict[str, str]) -> tuple[str | None, dict[str, Any] | None]:
     """Fetch package resolution from NixHub API (runs in thread pool).
 
     Returns (error_message, data) tuple. If error_message is set, data is None.
+    The v2/resolve API requires a version parameter (use "latest" as default).
     """
     try:
         url = f"{NIXHUB_API}/v2/resolve"
-        params: dict[str, str] = {"name": name}
-        if version and version != "latest":
-            params["version"] = version
+        # v2/resolve requires version parameter
+        params: dict[str, str] = {"name": name, "version": version if version else "latest"}
 
         resp = requests.get(url, params=params, headers=headers, timeout=15)
 
@@ -1981,7 +2004,7 @@ async def _check_binary_cache(name: str, version: str = "latest", system: str = 
     headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
 
     # Resolve package to get store paths via NixHub (in thread pool)
-    err_msg, data = await asyncio.to_thread(_fetch_nixhub_resolve, name, version, headers)
+    err_msg, data = await asyncio.to_thread(_fetch_nixhub_resolve, name, version or "latest", headers)
     if err_msg is not None:
         return err_msg
 
@@ -1991,13 +2014,27 @@ async def _check_binary_cache(name: str, version: str = "latest", system: str = 
     # Extract package info
     pkg_name = data.get("name", name)
     pkg_version = data.get("version", version)
-    systems_data = data.get("systems", [])
+    systems_data = data.get("systems", {})
 
-    # Ensure systems_data is a list
-    if not isinstance(systems_data, list):
+    # v2/resolve returns systems as a dict: {"x86_64-linux": {...}, ...}
+    # Each system has "outputs" array with store paths
+    if not isinstance(systems_data, dict):
         return error("Invalid systems data from NixHub", "API_ERROR")
 
-    systems: list[dict[str, str]] = systems_data
+    # Convert to list of dicts with system name and store_path for _check_system_cache
+    systems: list[dict[str, str]] = []
+    for sys_name, sys_info in systems_data.items():
+        if not isinstance(sys_info, dict):
+            continue
+        # Get store path from outputs
+        outputs = sys_info.get("outputs", [])
+        store_path = ""
+        if outputs and isinstance(outputs, list):
+            # Find default output or use first
+            default_output = next((o for o in outputs if o.get("default")), outputs[0] if outputs else None)
+            if default_output and isinstance(default_output, dict):
+                store_path = default_output.get("path", "")
+        systems.append({"system": sys_name, "store_path": store_path})
 
     if not systems:
         return error(f"No systems found for {name}@{pkg_version}", "NOT_FOUND")
@@ -2006,11 +2043,7 @@ async def _check_binary_cache(name: str, version: str = "latest", system: str = 
     if system:
         systems = [s for s in systems if s.get("system") == system]
         if not systems:
-            all_systems = data.get("systems", [])
-            if isinstance(all_systems, list):
-                available = ", ".join(s.get("system", "") for s in all_systems)
-            else:
-                available = ""
+            available = ", ".join(sorted(systems_data.keys()))
             return error(f"System '{system}' not available. Available: {available}", "NOT_FOUND")
 
     results = [f"Binary Cache Status: {pkg_name}@{pkg_version}", ""]
@@ -2068,14 +2101,17 @@ def _search_nixhub(query: str, limit: int) -> str:
             return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
         resp.raise_for_status()
 
-        packages = resp.json()
+        data = resp.json()
+        # v2/search returns {"query": "...", "total_results": N, "results": [...]}
+        packages = data.get("results", []) if isinstance(data, dict) else data
         if not packages:
             return f"No packages found on NixHub matching '{query}'"
 
         # Limit results
         packages = packages[:limit]
+        total_results = data.get("total_results", len(packages)) if isinstance(data, dict) else len(packages)
 
-        results = [f"Found {len(packages)} packages on NixHub matching '{query}':\n"]
+        results = [f"Found {len(packages)} of {total_results} packages on NixHub matching '{query}':\n"]
         for pkg in packages:
             name = pkg.get("name", "")
             version = pkg.get("version", "")
@@ -2114,38 +2150,67 @@ def _info_nixhub(name: str) -> str:
         headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
 
         # Get detailed package info from v1/pkg
+        # v1/pkg returns an array of version records, first is latest
         pkg_url = f"{NIXHUB_API}/v1/pkg"
         pkg_resp = requests.get(pkg_url, params={"name": name}, headers=headers, timeout=15)
 
-        if pkg_resp.status_code == 404:
+        if pkg_resp.status_code in (400, 404):
             return error(f"Package '{name}' not found", "NOT_FOUND")
         if pkg_resp.status_code >= 500:
             return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
         pkg_resp.raise_for_status()
 
-        pkg_data = pkg_resp.json()
+        pkg_array = pkg_resp.json()
+        if not pkg_array or not isinstance(pkg_array, list):
+            return error(f"Package '{name}' not found", "NOT_FOUND")
 
-        # Get flake reference from v2/resolve
+        # First element is the latest version
+        pkg_data = pkg_array[0]
+
+        # Get flake reference and store paths from v2/resolve
+        # v2/resolve requires version parameter and returns systems as a dict
         resolve_url = f"{NIXHUB_API}/v2/resolve"
         flake_ref = ""
         store_paths: dict[str, str] = {}
+        version = pkg_data.get("version", "latest")
         try:
-            resolve_resp = requests.get(resolve_url, params={"name": name}, headers=headers, timeout=10)
+            resolve_resp = requests.get(
+                resolve_url, params={"name": name, "version": version}, headers=headers, timeout=10
+            )
             if resolve_resp.status_code == 200:
                 resolve_data = resolve_resp.json()
-                flake_ref = resolve_data.get("flake_installable", "")
-                for sys in resolve_data.get("systems", []):
-                    sys_name = sys.get("system", "")
-                    sys_path = sys.get("store_path", "")
-                    if sys_name and sys_path:
-                        store_paths[sys_name] = sys_path
+                # systems is a dict keyed by system name
+                systems_data = resolve_data.get("systems", {})
+                if isinstance(systems_data, dict):
+                    for sys_name, sys_info in systems_data.items():
+                        # Get flake_installable from first system
+                        if not flake_ref:
+                            fi = sys_info.get("flake_installable", {})
+                            if fi:
+                                ref = fi.get("ref", {})
+                                attr_path = fi.get("attr_path", "")
+                                if ref.get("type") == "github":
+                                    owner = ref.get("owner", "")
+                                    repo = ref.get("repo", "")
+                                    rev = ref.get("rev", "")[:8] if ref.get("rev") else ""
+                                    if owner and repo:
+                                        flake_ref = f"github:{owner}/{repo}/{rev}#{attr_path}"
+                        # Get store path from outputs
+                        outputs = sys_info.get("outputs", [])
+                        if outputs and isinstance(outputs, list):
+                            default_output = next(
+                                (o for o in outputs if o.get("default")), outputs[0] if outputs else None
+                            )
+                            if default_output:
+                                path = default_output.get("path", "")
+                                if path:
+                                    store_paths[sys_name] = path
         except Exception:
             pass  # Continue without flake ref
 
         # Format output
         results = [f"Package: {pkg_data.get('name', name)}"]
 
-        version = pkg_data.get("version", "")
         if version:
             results.append(f"Version: {version}")
 
@@ -2170,7 +2235,16 @@ def _info_nixhub(name: str) -> str:
         if homepage:
             results.append(f"Homepage: {homepage}")
 
-        programs = pkg_data.get("programs", [])
+        # Programs from systems data (v1/pkg has systems dict with programs per system)
+        programs: list[str] = []
+        systems_dict = pkg_data.get("systems", {})
+        if isinstance(systems_dict, dict):
+            for sys_info in systems_dict.values():
+                if isinstance(sys_info, dict):
+                    sys_programs = sys_info.get("programs", [])
+                    if sys_programs:
+                        programs = sys_programs
+                        break  # Programs are same across systems
         if programs:
             progs = programs[:10]  # Limit display
             prog_str = ", ".join(progs)
@@ -2178,17 +2252,10 @@ def _info_nixhub(name: str) -> str:
                 prog_str += f" ... ({len(programs)} total)"
             results.append(f"Programs: {prog_str}")
 
-        # Platforms from releases
-        releases = pkg_data.get("releases", [])
-        if releases:
-            platforms = set()
-            for release in releases[:3]:  # Check recent releases
-                for p in release.get("platforms", []):
-                    sys = p.get("system", "")
-                    if sys:
-                        platforms.add(sys)
-            if platforms:
-                results.append(f"Platforms: {', '.join(sorted(platforms))}")
+        # Platforms from pkg_data
+        platforms = pkg_data.get("platforms", [])
+        if platforms:
+            results.append(f"Platforms: {', '.join(sorted(platforms))}")
 
         if flake_ref:
             results.append("")
@@ -2716,59 +2783,71 @@ async def nix_versions(
 
     try:
         # Use v1/pkg for richer metadata (license, homepage, programs)
+        # v1/pkg returns an array of version records, first is latest
         url = f"{NIXHUB_API}/v1/pkg"
         headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
         resp = requests.get(url, params={"name": package}, headers=headers, timeout=15)
 
-        if resp.status_code == 404:
+        if resp.status_code in (400, 404):
             return error(f"Package '{package}' not found", "NOT_FOUND")
         if resp.status_code >= 500:
             return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
         resp.raise_for_status()
 
-        data: dict[str, Any] = resp.json()
-        if not isinstance(data, dict):
-            return error("Invalid response from NixHub")
+        data = resp.json()
+        # v1/pkg returns an array of version records
+        if not isinstance(data, list) or not data:
+            return error(f"Package '{package}' not found", "NOT_FOUND")
 
-        releases: list[dict[str, Any]] = data.get("releases", [])
-        if not releases:
-            return f"Package: {package}\nNo version history available"
+        releases: list[dict[str, Any]] = data
 
         # If specific version requested, find it
         if version:
             for release in releases:
                 if release.get("version") == version:
                     version_lines = [f"Found {package} version {version}\n"]
-                    platforms: list[dict[str, Any]] = release.get("platforms", [])
-                    if platforms:
-                        seen: set[str] = set()
-                        for p in platforms:
-                            commit: str = p.get("commit_hash", "")
-                            if commit and commit not in seen and re.match(r"^[a-fA-F0-9]{40}$", commit):
-                                seen.add(commit)
-                                version_lines.append(f"Nixpkgs commit: {commit}")
-                                attr: str = p.get("attribute_path", "")
-                                if attr:
-                                    version_lines.append(f"  Attribute: {attr}")
+                    # Get commit hash from the release
+                    commit = release.get("commit_hash", "")
+                    if commit and re.match(r"^[a-fA-F0-9]{40}$", commit):
+                        version_lines.append(f"Nixpkgs commit: {commit}")
+                        # Get attribute path from systems data
+                        systems_dict = release.get("systems", {})
+                        if isinstance(systems_dict, dict):
+                            for sys_info in systems_dict.values():
+                                if isinstance(sys_info, dict):
+                                    attr_paths = sys_info.get("attr_paths", [])
+                                    if attr_paths:
+                                        version_lines.append(f"  Attribute: {attr_paths[0]}")
+                                        break
                     return "\n".join(version_lines)
 
             # Version not found
             versions_list: list[str] = [str(r.get("version", "")) for r in releases[:limit]]
             return f"Version {version} not found for {package}\nAvailable: {', '.join(versions_list)}"
 
-        # Build package header with rich metadata
+        # Build package header with rich metadata from first (latest) release
         results: list[str] = [f"Package: {package}"]
+        latest = releases[0]
 
-        # Add package-level metadata from v1/pkg
-        license_info: str = data.get("license", "")
+        # Add package-level metadata from latest release
+        license_info: str = latest.get("license", "")
         if license_info:
             results.append(f"License: {license_info}")
 
-        homepage: str = data.get("homepage", "")
+        homepage: str = latest.get("homepage", "")
         if homepage:
             results.append(f"Homepage: {homepage}")
 
-        programs: list[str] = data.get("programs", [])
+        # Get programs from systems data
+        programs: list[str] = []
+        systems_dict = latest.get("systems", {})
+        if isinstance(systems_dict, dict):
+            for sys_info in systems_dict.values():
+                if isinstance(sys_info, dict):
+                    sys_programs = sys_info.get("programs", [])
+                    if sys_programs:
+                        programs = sys_programs
+                        break
         if programs:
             progs = programs[:10]
             prog_str = ", ".join(progs)
