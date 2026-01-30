@@ -4,7 +4,14 @@
 
 MCP-NixOS is a Model Context Protocol (MCP) server providing real-time information about NixOS packages, options, Home Manager, nix-darwin, and flakes. The server prevents AI hallucination by querying official APIs and documentation sources.
 
-**Architecture:** Single-file FastMCP 2.x async server ([mcp_nixos/server.py](../mcp_nixos/server.py)) exposing only 2 MCP tools (consolidated from 17 in v1.0 to reduce context window usage).
+**Architecture:** Modular FastMCP 2.x async server exposing only 2 MCP tools (consolidated from 17 in v1.0 to reduce context window usage).
+
+**Key Modules:**
+- `mcp_nixos/server.py` - MCP tools, routing, and entry point
+- `mcp_nixos/sources/` - Per-source modules (nixos, home_manager, darwin, flakehub, wiki, etc.)
+- `mcp_nixos/config.py` - Configuration constants
+- `mcp_nixos/caches.py` - Cache implementations
+- `mcp_nixos/utils.py` - Shared utilities
 
 ## Core Development Workflows
 
@@ -88,7 +95,11 @@ async def nix(...) -> str:
 
 ## Key Files
 
-- [mcp_nixos/server.py](../mcp_nixos/server.py) - **Single source of truth** for all MCP tools, API interactions, and helpers
+- [mcp_nixos/server.py](../mcp_nixos/server.py) - MCP tool definitions and routing
+- [mcp_nixos/sources/](../mcp_nixos/sources/) - Data source implementations (one module per source)
+- [mcp_nixos/config.py](../mcp_nixos/config.py) - API URLs, auth credentials, constants
+- [mcp_nixos/caches.py](../mcp_nixos/caches.py) - Channel, Nixvim, Noogle, nix.dev caches
+- [mcp_nixos/utils.py](../mcp_nixos/utils.py) - HTML parsing, formatting, file utilities
 - [flake.nix](../flake.nix) - Nix dev shell and build configuration
 - [pyproject.toml](../pyproject.toml) - Python packaging (Hatchling), dependencies, version source
 - [tests/conftest.py](../tests/conftest.py) - Pytest configuration, markers, and test filtering

@@ -9,7 +9,23 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 ## Project Structure & Module Organization
 
 - `mcp_nixos/` - Contains the MCP server implementation.
-  - `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions.
+  - `mcp_nixos/server.py` - MCP tools, tool routing, and main entry point.
+  - `mcp_nixos/config.py` - Configuration constants (API URLs, auth, limits).
+  - `mcp_nixos/caches.py` - Cache implementations (channels, nixvim, noogle, nix.dev).
+  - `mcp_nixos/utils.py` - Shared utility functions (HTML parsing, formatting, file I/O).
+  - `mcp_nixos/sources/` - Data source implementations (one module per source):
+    - `base.py` - Channel helpers, Elasticsearch queries, browsing utilities.
+    - `nixos.py` - NixOS packages/options search, info, stats.
+    - `home_manager.py` - Home Manager options.
+    - `darwin.py` - nix-darwin options.
+    - `flakes.py` - Flake search from search.nixos.org.
+    - `flakehub.py` - FlakeHub API (Determinate Systems).
+    - `wiki.py` - NixOS Wiki search.
+    - `nixdev.py` - nix.dev documentation.
+    - `nixvim.py` - Nixvim options.
+    - `noogle.py` - Noogle function search.
+    - `nixhub.py` - NixHub API + binary cache status.
+    - `flake_inputs.py` - Local flake inputs via nix store.
 - `tests/` - Holds pytest unit and integration tests; markers live in `pytest.ini` and `tests/conftest.py`.
 - `website/` - The Next.js site; static assets live in `website/public/`.
 - `flake.nix` - Defines the Nix dev shell and build instructions.
@@ -18,7 +34,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 
 ## Key Architecture
 
-The project is a FastMCP 2.x server (async) with a single main module (Python 3.11+).
+The project is a FastMCP 2.x server (async) with a modular structure (Python 3.11+). The server is organized into focused modules: `server.py` handles MCP tools and routing, `sources/` contains per-source implementations, `config.py` defines constants, `caches.py` manages cached data, and `utils.py` provides shared utilities.
 
 Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
 - `nix` - Unified query tool for search/info/stats/options/channels/flake-inputs across all sources.

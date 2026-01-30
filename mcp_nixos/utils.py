@@ -2,7 +2,6 @@
 
 import os
 import re
-import shutil
 from datetime import UTC, datetime
 from typing import Any, TypedDict
 
@@ -290,8 +289,3 @@ def _read_file_with_limit(file_path: str, limit: int) -> tuple[list[str], int]:
             if i < limit:
                 lines.append(line.rstrip("\n\r"))
     return lines, total_lines
-
-
-def _check_nix_available() -> bool:
-    """Check if nix command is available on the system."""
-    return shutil.which("nix") is not None
