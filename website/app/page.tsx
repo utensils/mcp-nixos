@@ -125,6 +125,11 @@ export default function Home() {
               iconName="history"
             />
             <FeatureCard
+              title="Local Flake Inputs"
+              description="Explore your pinned flake dependencies directly from the nix store. See exactly what versions you're using."
+              iconName="folder"
+            />
+            <FeatureCard
               title="Plain Text Output"
               description="Human-readable responses with no XML parsing needed. Just clear, formatted text."
               iconName="document"

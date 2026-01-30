@@ -9,7 +9,12 @@ Provides search and query capabilities for:
 All responses are formatted as human-readable plain text for optimal LLM interaction.
 """
 
+import asyncio
+import json
+import os
 import re
+import shutil
+import stat
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -1238,20 +1243,344 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
 
 
 # =============================================================================
+# Flake inputs helpers (local nix store access)
+# =============================================================================
+
+# Maximum file size for reading (1MB)
+MAX_FILE_SIZE = 1024 * 1024
+# Default and maximum line limits
+DEFAULT_LINE_LIMIT = 500
+MAX_LINE_LIMIT = 2000
+# Known sources (to distinguish from flake paths)
+KNOWN_SOURCES = {"nixos", "home-manager", "darwin", "flakes", "flakehub", "nixvim"}
+
+
+def _check_nix_available() -> bool:
+    """Check if nix command is available on the system."""
+    return shutil.which("nix") is not None
+
+
+async def _run_nix_command(args: list[str], cwd: str | None = None, timeout: int = 60) -> tuple[bool, str, str]:
+    """Run a nix command asynchronously with timeout.
+
+    Returns (success, stdout, stderr).
+    """
+    try:
+        # nix flake commands require experimental features
+        full_args = ["nix", "--extra-experimental-features", "nix-command flakes"] + args
+        process = await asyncio.create_subprocess_exec(
+            *full_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        stdout_str = stdout.decode("utf-8", errors="replace")
+        stderr_str = stderr.decode("utf-8", errors="replace")
+        return process.returncode == 0, stdout_str, stderr_str
+    except TimeoutError:
+        return False, "", "Command timed out"
+    except FileNotFoundError:
+        return False, "", "nix command not found"
+    except Exception as e:
+        return False, "", str(e)
+
+
+async def _get_flake_inputs(flake_dir: str) -> tuple[bool, dict[str, Any] | None, str]:
+    """Get flake inputs by running nix flake archive --json.
+
+    Returns (success, inputs_dict, error_message).
+    """
+    # Verify flake.nix exists
+    flake_path = os.path.join(flake_dir, "flake.nix")
+    if not os.path.isfile(flake_path):
+        return False, None, f"Not a flake directory: {flake_dir} (no flake.nix found)"
+
+    success, stdout, stderr = await _run_nix_command(["flake", "archive", "--json"], cwd=flake_dir)
+    if not success:
+        # Check for common error patterns
+        if "experimental feature" in stderr.lower():
+            msg = "Flakes not enabled. Enable with: nix-command flakes experimental features"
+            return False, None, msg
+        if "does not provide attribute" in stderr:
+            return False, None, f"Invalid flake: {stderr.strip()}"
+        return False, None, f"Failed to get flake inputs: {stderr.strip()}"
+
+    try:
+        data = json.loads(stdout)
+        return True, data, ""
+    except json.JSONDecodeError as e:
+        return False, None, f"Failed to parse flake archive output: {e}"
+
+
+def _flatten_inputs(data: dict[str, Any], prefix: str = "") -> dict[str, str]:
+    """Flatten nested inputs from nix flake archive output.
+
+    Returns dict mapping input names (e.g., 'nixpkgs', 'flake-parts.nixpkgs-lib')
+    to their nix store paths.
+    """
+    result = {}
+    inputs = data.get("inputs", {})
+
+    for name, info in inputs.items():
+        full_name = f"{prefix}.{name}" if prefix else name
+        store_path = info.get("path", "")
+        if store_path:
+            result[full_name] = store_path
+        # Recursively flatten nested inputs
+        if "inputs" in info and info["inputs"]:
+            nested = _flatten_inputs(info, full_name)
+            result.update(nested)
+
+    return result
+
+
+def _format_size(size: int) -> str:
+    """Format file size in human-readable form."""
+    if size < 1024:
+        return f"{size} B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    elif size < 1024 * 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size / (1024 * 1024 * 1024):.1f} GB"
+
+
+def _validate_store_path(path: str) -> bool:
+    """Validate that a path is within /nix/store/ and doesn't escape."""
+    try:
+        # Resolve the path to handle symlinks and relative components
+        real_path = os.path.realpath(path)
+        # Must be under /nix/store/
+        return real_path.startswith("/nix/store/")
+    except (OSError, ValueError):
+        return False
+
+
+def _is_binary_file(file_path: str, sample_size: int = 8192) -> bool:
+    """Check if a file appears to be binary by looking for null bytes."""
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(sample_size)
+            return b"\x00" in chunk
+    except OSError:
+        return True  # Assume binary if we can't read it
+
+
+# =============================================================================
+# Flake inputs main implementation functions
+# =============================================================================
+
+
+async def _flake_inputs_list(flake_dir: str) -> str:
+    """List all flake inputs with their store paths."""
+    if not _check_nix_available():
+        return error("Nix is not installed or not in PATH", "NIX_NOT_FOUND")
+
+    success, data, err_msg = await _get_flake_inputs(flake_dir)
+    if not success:
+        return error(err_msg, "FLAKE_ERROR")
+
+    if data is None:
+        return error("No flake data returned", "FLAKE_ERROR")
+
+    inputs = _flatten_inputs(data)
+    if not inputs:
+        return "No inputs found for this flake."
+
+    # Get the flake's own path
+    flake_path = data.get("path", flake_dir)
+
+    lines = [f"Flake inputs ({len(inputs)} found):", f"Flake path: {flake_path}", ""]
+
+    for name, store_path in sorted(inputs.items()):
+        lines.append(f"* {name}")
+        lines.append(f"  {store_path}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+async def _flake_inputs_ls(flake_dir: str, query: str) -> str:
+    """List directory contents within a flake input.
+
+    Query format: 'input_name' or 'input_name:subpath'
+    """
+    if not _check_nix_available():
+        return error("Nix is not installed or not in PATH", "NIX_NOT_FOUND")
+
+    # Parse query: input_name or input_name:path
+    if ":" in query:
+        input_name, subpath = query.split(":", 1)
+        subpath = subpath.lstrip("/")
+    else:
+        input_name = query
+        subpath = ""
+
+    success, data, err_msg = await _get_flake_inputs(flake_dir)
+    if not success:
+        return error(err_msg, "FLAKE_ERROR")
+
+    if data is None:
+        return error("No flake data returned", "FLAKE_ERROR")
+
+    inputs = _flatten_inputs(data)
+
+    if input_name not in inputs:
+        available = ", ".join(sorted(inputs.keys())[:10])
+        more = f" ... and {len(inputs) - 10} more" if len(inputs) > 10 else ""
+        return error(f"Input '{input_name}' not found. Available: {available}{more}", "NOT_FOUND")
+
+    store_path = inputs[input_name]
+    target_path = os.path.join(store_path, subpath) if subpath else store_path
+
+    # Security: validate path stays within /nix/store/
+    if not _validate_store_path(target_path):
+        return error("Invalid path: must stay within /nix/store/", "SECURITY_ERROR")
+
+    if not os.path.exists(target_path):
+        return error(f"Path not found: {subpath or '/'} in {input_name}", "NOT_FOUND")
+
+    if not os.path.isdir(target_path):
+        return error(f"Not a directory: {subpath or '/'} in {input_name}", "NOT_DIRECTORY")
+
+    try:
+        entries = os.listdir(target_path)
+    except PermissionError:
+        return error(f"Permission denied: {subpath or '/'}", "PERMISSION_ERROR")
+    except OSError as e:
+        return error(f"Cannot list directory: {e}", "OS_ERROR")
+
+    if not entries:
+        return f"Directory '{subpath or '/'}' in {input_name} is empty."
+
+    # Sort and categorize entries
+    dirs: list[str] = []
+    files: list[tuple[str, int | None]] = []
+
+    for entry in sorted(entries):
+        entry_path = os.path.join(target_path, entry)
+        try:
+            st = os.stat(entry_path)
+            if stat.S_ISDIR(st.st_mode):
+                dirs.append(entry)
+            else:
+                files.append((entry, st.st_size))
+        except OSError:
+            files.append((entry, None))
+
+    display_path = f"{input_name}:{subpath}" if subpath else input_name
+    lines = [f"Contents of {display_path} ({len(dirs)} dirs, {len(files)} files):", ""]
+
+    for name in dirs:
+        lines.append(f"  {name}/")
+
+    for name, size in files:
+        size_str = f" ({_format_size(size)})" if size is not None else ""
+        lines.append(f"  {name}{size_str}")
+
+    return "\n".join(lines)
+
+
+async def _flake_inputs_read(flake_dir: str, query: str, limit: int) -> str:
+    """Read a file from a flake input.
+
+    Query format: 'input_name:path/to/file'
+    """
+    if not _check_nix_available():
+        return error("Nix is not installed or not in PATH", "NIX_NOT_FOUND")
+
+    # Parse query: input_name:path
+    if ":" not in query:
+        return error("Read requires 'input:path' format (e.g., 'nixpkgs:flake.nix')", "INVALID_FORMAT")
+
+    input_name, file_path = query.split(":", 1)
+    file_path = file_path.lstrip("/")
+
+    if not file_path:
+        return error("File path required (e.g., 'nixpkgs:flake.nix')", "INVALID_FORMAT")
+
+    success, data, err_msg = await _get_flake_inputs(flake_dir)
+    if not success:
+        return error(err_msg, "FLAKE_ERROR")
+
+    if data is None:
+        return error("No flake data returned", "FLAKE_ERROR")
+
+    inputs = _flatten_inputs(data)
+
+    if input_name not in inputs:
+        available = ", ".join(sorted(inputs.keys())[:10])
+        more = f" ... and {len(inputs) - 10} more" if len(inputs) > 10 else ""
+        return error(f"Input '{input_name}' not found. Available: {available}{more}", "NOT_FOUND")
+
+    store_path = inputs[input_name]
+    target_path = os.path.join(store_path, file_path)
+
+    # Security: validate path stays within /nix/store/
+    if not _validate_store_path(target_path):
+        return error("Invalid path: must stay within /nix/store/", "SECURITY_ERROR")
+
+    if not os.path.exists(target_path):
+        return error(f"File not found: {file_path} in {input_name}", "NOT_FOUND")
+
+    if os.path.isdir(target_path):
+        return error(f"'{file_path}' is a directory. Use type='ls' to list contents.", "IS_DIRECTORY")
+
+    # Check file size
+    try:
+        file_size = os.path.getsize(target_path)
+    except OSError as e:
+        return error(f"Cannot access file: {e}", "OS_ERROR")
+
+    if file_size > MAX_FILE_SIZE:
+        return error(f"File too large: {_format_size(file_size)} (max {_format_size(MAX_FILE_SIZE)})", "FILE_TOO_LARGE")
+
+    # Check for binary content
+    if _is_binary_file(target_path):
+        return error(f"Binary file detected: {file_path} ({_format_size(file_size)})", "BINARY_FILE")
+
+    # Read file with line limit
+    try:
+        with open(target_path, encoding="utf-8", errors="replace") as f:
+            lines = []
+            for i, line in enumerate(f):
+                if i >= limit:
+                    break
+                lines.append(line.rstrip("\n\r"))
+
+        total_lines = sum(1 for _ in open(target_path, encoding="utf-8", errors="replace"))
+
+        header = [f"File: {input_name}:{file_path}", f"Size: {_format_size(file_size)}", ""]
+
+        if total_lines > limit:
+            header.append(f"(Showing {limit} of {total_lines} lines)")
+            header.append("")
+
+        return "\n".join(header + lines)
+
+    except PermissionError:
+        return error(f"Permission denied: {file_path}", "PERMISSION_ERROR")
+    except OSError as e:
+        return error(f"Cannot read file: {e}", "OS_ERROR")
+
+
+# =============================================================================
 # MCP Tools (only 2 exposed)
 # =============================================================================
 
 
 @mcp.tool()
 async def nix(
-    action: Annotated[str, "search|info|stats|options|channels"],
-    query: Annotated[str, "Search term, name, or prefix"] = "",
-    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim"] = "nixos",
-    type: Annotated[str, "packages|options|programs"] = "packages",
+    action: Annotated[str, "search|info|stats|options|channels|flake-inputs"],
+    query: Annotated[str, "Search term, name, or prefix. For flake-inputs: input_name or input:path"] = "",
+    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim or flake directory path"] = "nixos",
+    type: Annotated[str, "packages|options|programs|list|ls|read"] = "packages",
     channel: Annotated[str, "unstable|stable|25.05"] = "unstable",
-    limit: Annotated[int, "1-100"] = 20,
+    limit: Annotated[int, "1-100 (or 1-2000 for flake-inputs read)"] = 20,
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, or Nixvim."""
+    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, or local flake inputs."""
     if not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -1320,8 +1649,39 @@ async def nix(
     elif action == "channels":
         return _list_channels()
 
+    elif action == "flake-inputs":
+        # Determine flake directory: use source if it's not a known source name
+        flake_dir = source if source not in KNOWN_SOURCES else "."
+
+        # Validate type parameter for flake-inputs
+        if type not in ["list", "ls", "read", "packages"]:
+            return error("Type must be list|ls|read for flake-inputs")
+
+        # Handle limit for read operation
+        read_limit = limit
+        if type == "read":
+            if limit == 20:  # Default was used
+                read_limit = DEFAULT_LINE_LIMIT
+            elif limit > MAX_LINE_LIMIT:
+                return error(f"Limit must be 1-{MAX_LINE_LIMIT} for read", "INVALID_LIMIT")
+            read_limit = min(limit, MAX_LINE_LIMIT)
+
+        # Route to appropriate function
+        if type == "list" or type == "packages":
+            return await _flake_inputs_list(flake_dir)
+        elif type == "ls":
+            if not query:
+                return error("Query required for ls (input name or input:path)")
+            return await _flake_inputs_ls(flake_dir, query)
+        elif type == "read":
+            if not query:
+                return error("Query required for read (input:path format)")
+            return await _flake_inputs_read(flake_dir, query, read_limit)
+        else:
+            return error("Type must be list|ls|read for flake-inputs")
+
     else:
-        return error("Action must be search|info|stats|options|channels")
+        return error("Action must be search|info|stats|options|channels|flake-inputs")
 
 
 @mcp.tool()

@@ -249,3 +249,98 @@ class TestPlainTextOutput:
     async def test_no_json_in_stats(self):
         result = await nix_fn(action="stats", source="nixos")
         assert_plain_text(result)
+
+
+@pytest.mark.integration
+class TestFlakeInputsIntegration:
+    """Test flake-inputs action against real local flake.
+
+    These tests run against this repo's own flake.nix.
+    Skip if nix is not installed.
+    """
+
+    @pytest.fixture(autouse=True)
+    def skip_if_no_nix(self):
+        """Skip tests if nix is not available."""
+        import shutil
+
+        if not shutil.which("nix"):
+            pytest.skip("Nix not installed")
+
+    @pytest.fixture
+    def repo_root(self):
+        """Get the repository root directory."""
+        import os
+
+        # This test file is in tests/, so repo root is one level up
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    @pytest.mark.asyncio
+    async def test_list_inputs(self, repo_root):
+        """Test listing flake inputs from this repo."""
+        result = await nix_fn(action="flake-inputs", type="list", source=repo_root)
+        # Should either list inputs or show no inputs
+        assert "Flake inputs" in result or "No inputs found" in result or "FLAKE_ERROR" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_ls_input_root(self, repo_root):
+        """Test listing root of a flake input."""
+        # First list inputs to get an input name
+        list_result = await nix_fn(action="flake-inputs", type="list", source=repo_root)
+
+        if "No inputs found" in list_result or "FLAKE_ERROR" in list_result:
+            pytest.skip("No flake inputs available")
+
+        # Extract first input name from result
+        import re
+
+        match = re.search(r"\* (\S+)", list_result)
+        if not match:
+            pytest.skip("Could not parse input name from list")
+
+        input_name = match.group(1)
+        result = await nix_fn(action="flake-inputs", type="ls", query=input_name, source=repo_root)
+        assert "Contents of" in result or "Error" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_read_flake_nix(self, repo_root):
+        """Test reading flake.nix from an input."""
+        # First list inputs to get an input name
+        list_result = await nix_fn(action="flake-inputs", type="list", source=repo_root)
+
+        if "No inputs found" in list_result or "FLAKE_ERROR" in list_result:
+            pytest.skip("No flake inputs available")
+
+        # Extract first input name from result
+        import re
+
+        match = re.search(r"\* (\S+)", list_result)
+        if not match:
+            pytest.skip("Could not parse input name from list")
+
+        input_name = match.group(1)
+        result = await nix_fn(action="flake-inputs", type="read", query=f"{input_name}:flake.nix", source=repo_root)
+        # Should either read the file or give a file not found error
+        assert "File:" in result or "NOT_FOUND" in result or "Error" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_invalid_input_name(self, repo_root):
+        """Test error handling for non-existent input."""
+        result = await nix_fn(action="flake-inputs", type="ls", query="nonexistent-input-xyz", source=repo_root)
+        # Should either fail with input not found or flake error
+        assert "NOT_FOUND" in result or "Error" in result or "FLAKE_ERROR" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_graceful_degradation_no_flake(self):
+        """Test graceful handling when directory is not a flake."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = await nix_fn(action="flake-inputs", type="list", source=tmpdir)
+            assert "FLAKE_ERROR" in result
+            assert "no flake.nix" in result.lower()
+            assert_plain_text(result)

@@ -9,7 +9,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 ## Project Structure & Module Organization
 
 - `mcp_nixos/` - Contains the MCP server implementation.
-  - `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions (~970 lines).
+  - `mcp_nixos/server.py` - Single file containing all MCP tools, API interactions, and helper functions (~1300 lines).
 - `tests/` - Holds pytest unit and integration tests; markers live in `pytest.ini` and `tests/conftest.py`.
 - `website/` - The Next.js site; static assets live in `website/public/`.
 - `flake.nix` - Defines the Nix dev shell and build instructions.
@@ -21,7 +21,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 The project is a FastMCP 2.x server (async) with a single main module (Python 3.11+).
 
 Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
-- `nix` - Unified query tool for search/info/stats/options/channels across all sources.
+- `nix` - Unified query tool for search/info/stats/options/channels/flake-inputs across all sources.
 - `nix_versions` - Package version history from NixHub.io.
 
 ### Data Sources
@@ -30,6 +30,7 @@ Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
 - nix-darwin options: HTML parsing from official docs
 - Package versions: NixHub.io API (search.devbox.sh)
 - Flakes: search.nixos.org flake index
+- Local flake inputs: Direct access to /nix/store via `nix flake archive`
 
 All responses are formatted as plain text for optimal LLM consumption.
 
@@ -47,7 +48,7 @@ nix develop
 run           # Start the MCP server
 run-tests     # Run all tests (with coverage in CI)
 lint          # Check code with ruff
-format        # Format code with ruff  
+format        # Format code with ruff
 typecheck     # Run mypy type checker
 build         # Build the package/distributions
 ```
@@ -132,6 +133,7 @@ pytest tests/ -k "nixos" -v
 4. **Async Everything**: Version 1.0.1 migrated to FastMCP 2.x. All tools are async functions.
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
 6. **Environment Variables**: `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
+7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
 
 ## Commit, PR, & Release Guidelines
 
