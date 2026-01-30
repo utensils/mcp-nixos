@@ -1108,7 +1108,7 @@ def _info_wiki(title: str) -> str:
 
         results = [
             f"Wiki: {page_title}",
-            f"URL: https://wiki.nixos.org/wiki/{quote(page_title.replace(' ', '_'), safe='')}",
+            f"URL: https://wiki.nixos.org/wiki/{quote(page_title.replace(' ', '_'), safe='_')}",
             "",
         ]
 
