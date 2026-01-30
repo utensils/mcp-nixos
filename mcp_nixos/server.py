@@ -15,7 +15,7 @@ import os
 import re
 import shutil
 import stat
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, TypedDict
 from urllib.parse import quote
 
@@ -1037,10 +1037,13 @@ def _stats_flakehub() -> str:
 def _search_wiki(query: str, limit: int) -> str:
     """Search NixOS Wiki via MediaWiki API."""
     try:
+        # Normalize query: replace hyphens with spaces for better MediaWiki search matching
+        # e.g., "home-manager" -> "home manager" finds "Home Manager" page
+        normalized_query = query.replace("-", " ")
         params: dict[str, str | int] = {
             "action": "query",
             "list": "search",
-            "srsearch": query,
+            "srsearch": normalized_query,
             "format": "json",
             "utf8": "1",
             "srlimit": limit,
@@ -1099,7 +1102,8 @@ def _info_wiki(title: str) -> str:
 
         # Get first page (there's only one)
         page = next(iter(pages.values()))
-        if page.get("missing"):
+        # Check if "missing" key exists - MediaWiki uses empty string for missing pages
+        if "missing" in page:
             return error(f"Wiki page '{title}' not found", "NOT_FOUND")
 
         page_title = page.get("title", title)
@@ -1825,8 +1829,8 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
     if last_updated:
         try:
             if isinstance(last_updated, int | float):
-                # Epoch timestamp
-                dt = datetime.fromtimestamp(last_updated)
+                # Epoch timestamp - use UTC to match NixHub's timezone
+                dt = datetime.fromtimestamp(last_updated, tz=UTC)
             else:
                 # ISO string
                 dt = datetime.fromisoformat(str(last_updated).replace("Z", "+00:00"))
