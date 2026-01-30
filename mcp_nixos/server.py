@@ -1265,6 +1265,7 @@ async def _run_nix_command(args: list[str], cwd: str | None = None, timeout: int
 
     Returns (success, stdout, stderr).
     """
+    process: asyncio.subprocess.Process | None = None
     try:
         # nix flake commands require experimental features
         full_args = ["nix", "--extra-experimental-features", "nix-command flakes"] + args
@@ -1279,6 +1280,10 @@ async def _run_nix_command(args: list[str], cwd: str | None = None, timeout: int
         stderr_str = stderr.decode("utf-8", errors="replace")
         return process.returncode == 0, stdout_str, stderr_str
     except TimeoutError:
+        # Kill the process and wait for it to terminate
+        if process is not None:
+            process.kill()
+            await process.wait()
         return False, "", "Command timed out"
     except FileNotFoundError:
         return False, "", "nix command not found"
@@ -1581,7 +1586,11 @@ async def nix(
     limit: Annotated[int, "1-100 (or 1-2000 for flake-inputs read)"] = 20,
 ) -> str:
     """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, or local flake inputs."""
-    if not 1 <= limit <= 100:
+    # Limit validation: flake-inputs read allows up to 2000, others limited to 100
+    if action == "flake-inputs" and type == "read":
+        if not 1 <= limit <= MAX_LINE_LIMIT:
+            return error(f"Limit must be 1-{MAX_LINE_LIMIT} for flake-inputs read")
+    elif not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
     if action == "search":
@@ -1660,11 +1669,10 @@ async def nix(
         # Handle limit for read operation
         read_limit = limit
         if type == "read":
-            if limit == 20:  # Default was used
+            if limit == 20:  # Default was used, apply DEFAULT_LINE_LIMIT
                 read_limit = DEFAULT_LINE_LIMIT
-            elif limit > MAX_LINE_LIMIT:
-                return error(f"Limit must be 1-{MAX_LINE_LIMIT} for read", "INVALID_LIMIT")
-            read_limit = min(limit, MAX_LINE_LIMIT)
+            # Ensure read_limit doesn't exceed MAX_LINE_LIMIT
+            read_limit = min(read_limit, MAX_LINE_LIMIT)
 
         # Route to appropriate function
         if type == "list" or type == "packages":

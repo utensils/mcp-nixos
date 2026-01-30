@@ -406,3 +406,83 @@ class TestPlainTextOutput:
             result = await _flake_inputs_list(".")
             assert not result.strip().startswith("<")
             assert "</error>" not in result
+
+
+class TestBugFixes:
+    """Tests for bug fixes identified in peer review."""
+
+    @pytest.mark.asyncio
+    async def test_flake_inputs_read_limit_above_100(self):
+        """Bug #1: flake-inputs read should accept limits > 100 (up to 2000)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake flake.nix
+            with open(os.path.join(tmpdir, "flake.nix"), "w") as f:
+                f.write("{}")
+
+            with patch("mcp_nixos.server._check_nix_available", return_value=True):
+                mock_data = {
+                    "path": "/nix/store/xxx",
+                    "inputs": {"test-input": {"path": "/nix/store/abc-input", "inputs": {}}},
+                }
+                with patch("mcp_nixos.server._get_flake_inputs", return_value=(True, mock_data, "")):
+                    # Limit of 500 should NOT return "Limit must be 1-100" error
+                    result = await nix_fn(
+                        action="flake-inputs",
+                        type="read",
+                        query="test-input:file.txt",
+                        source=tmpdir,
+                        limit=500,
+                    )
+                    # Should NOT be rejected with limit error
+                    assert "Limit must be 1-100" not in result
+
+    @pytest.mark.asyncio
+    async def test_flake_inputs_read_default_limit_is_500(self):
+        """Bug #2: flake-inputs read with default limit should use 500, not 20."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake flake.nix
+            with open(os.path.join(tmpdir, "flake.nix"), "w") as f:
+                f.write("{}")
+
+            with patch("mcp_nixos.server._check_nix_available", return_value=True):
+                mock_data = {
+                    "path": tmpdir,
+                    "inputs": {"test-input": {"path": "/nix/store/abc-input", "inputs": {}}},
+                }
+                with patch("mcp_nixos.server._get_flake_inputs", return_value=(True, mock_data, "")):
+                    with patch("mcp_nixos.server._flake_inputs_read") as mock_read:
+                        mock_read.return_value = "file contents"
+                        # Call with default limit (20 is the MCP default)
+                        await nix_fn(
+                            action="flake-inputs",
+                            type="read",
+                            query="test-input:test.txt",
+                            source=tmpdir,
+                            limit=20,  # This is the MCP default
+                        )
+                        # Verify _flake_inputs_read was called with 500 (DEFAULT_LINE_LIMIT)
+                        # not 20 (the MCP parameter default)
+                        mock_read.assert_called_once()
+                        call_args = mock_read.call_args
+                        # The third argument is the limit
+                        actual_limit = call_args[0][2]
+                        assert actual_limit == 500, f"Expected limit 500, got {actual_limit}"
+
+    @pytest.mark.asyncio
+    async def test_subprocess_killed_on_timeout(self):
+        """Bug #3: subprocess should be killed when timeout occurs."""
+        # We test this by verifying the timeout handling cleans up the process
+        with patch("mcp_nixos.server.asyncio.create_subprocess_exec") as mock_exec:
+            mock_process = AsyncMock()
+            mock_process.communicate = AsyncMock(side_effect=TimeoutError())
+            mock_process.kill = AsyncMock()
+            mock_process.wait = AsyncMock()
+            mock_exec.return_value = mock_process
+
+            success, stdout, stderr = await _run_nix_command(["test"], timeout=1)
+
+            assert success is False
+            assert "timed out" in stderr.lower()
+            # The process should have been killed
+            mock_process.kill.assert_called_once()
+            mock_process.wait.assert_called_once()
