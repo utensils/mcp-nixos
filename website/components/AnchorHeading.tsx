@@ -21,7 +21,8 @@ const AnchorHeading: React.FC<AnchorHeadingProps> = ({
     if (typeof node === 'string') return node;
     if (Array.isArray(node)) return node.map(extractTextContent).join(' ');
     if (React.isValidElement(node)) {
-      const childContent = React.Children.toArray(node.props.children);
+      const props = node.props as { children?: React.ReactNode };
+      const childContent = React.Children.toArray(props.children);
       return extractTextContent(childContent);
     }
     return '';
@@ -63,7 +64,7 @@ const AnchorHeading: React.FC<AnchorHeadingProps> = ({
     }
   }, [headingId]);
 
-  const HeadingTag = `h${level}` as keyof JSX.IntrinsicElements;
+  const HeadingTag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
   // Check if the heading has text-center class
   const isCentered = className.includes('text-center');

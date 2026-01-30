@@ -15,8 +15,8 @@
   "dependencies": {
     "@types/react-syntax-highlighter": "^15.5.13",
     "next": "^16.1.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "react-syntax-highlighter": "^15.6.1",
     "rehype-pretty-code": "^0.14.1",
     "sharp": "^0.33.5",
@@ -25,8 +25,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
     "@types/node": "^20.17.30",
-    "@types/react": "^18.3.20",
-    "@types/react-dom": "^18.3.6",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.29.0",
     "@typescript-eslint/parser": "^8.29.0",
     "autoprefixer": "^10.4.21",
