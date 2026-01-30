@@ -42,6 +42,13 @@ Test the `nix` and `nix_versions` MCP tools by running through these scenarios:
 **Channels**:
 - `action=channels`
 
+**Flake Inputs** (requires nix installed, uses current directory's flake):
+- `action=flake-inputs, type=list` - list all inputs with store paths
+- `action=flake-inputs, type=ls, query=nixpkgs` - list root of nixpkgs input
+- `action=flake-inputs, type=ls, query=nixpkgs:pkgs/by-name` - list subdirectory
+- `action=flake-inputs, type=read, query=nixpkgs:flake.nix` - read flake.nix from input
+- `action=flake-inputs, type=read, query=flake-parts:flake.nix, limit=50` - read with line limit
+
 ## nix_versions tool
 
 - `package=python, limit=3`
@@ -63,6 +70,9 @@ Test the `nix` and `nix_versions` MCP tools by running through these scenarios:
 **Category listing (no prefix)**:
 - `action=options, source=home-manager` (should list all categories)
 
+**Flake inputs with custom source path**:
+- `action=flake-inputs, type=list, source=/path/to/other/flake` (use source for different flake dir)
+
 ## Error handling
 
 Test these produce clear errors:
@@ -70,5 +80,10 @@ Test these produce clear errors:
 - `action=search, source=invalid, query=test`
 - `action=info, source=flakes, query=test` (flakes don't support info)
 - `action=options, source=nixos, query=test` (nixos doesn't support options browsing)
+- `action=flake-inputs, type=ls` (missing query - should error)
+- `action=flake-inputs, type=read, query=nixpkgs` (missing file path - should error)
+- `action=flake-inputs, type=ls, query=nonexistent-input` (should return NOT_FOUND with available inputs)
+- `action=flake-inputs, type=read, query=nixpkgs:nonexistent/file.nix` (should return NOT_FOUND)
+- `action=flake-inputs, source=/tmp/not-a-flake` (should return FLAKE_ERROR)
 
 Summarize results in a table showing pass/fail status for each test.
