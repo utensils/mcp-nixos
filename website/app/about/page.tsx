@@ -66,17 +66,17 @@ export default function AboutPage() {
 
 
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
-            <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Core Components</AnchorHeading>
+            <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Architecture</AnchorHeading>
+            <p className="mb-6 text-gray-800">
+              MCP-NixOS v2.x follows a simple, stateless design with all functionality in a single FastMCP 2.x async server module.
+            </p>
             <ul className="grid gap-3 mb-6">
               {[
-                { name: 'Cache', description: 'In-memory and filesystem HTML caching with TTL-based expiration' },
-                { name: 'Clients', description: 'Elasticsearch API and HTML documentation parsers' },
-                { name: 'Contexts', description: 'Application state management for each platform' },
-                { name: 'Resources', description: 'MCP resource definitions using URL schemes' },
-                { name: 'Tools', description: 'Search, info, and statistics tools with multiple channel support' },
-                { name: 'Utils', description: 'Cross-platform helpers and cache management' },
-                { name: 'Server', description: 'FastMCP server implementation' },
-                { name: 'Pre-Cache', description: 'Command-line option to populate cache data during setup/build' }
+                { name: 'nix tool', description: 'Unified query tool for search/info/stats/options/channels across all sources' },
+                { name: 'nix_versions tool', description: 'Package version history lookup via NixHub.io API' },
+                { name: 'Elasticsearch Client', description: 'Queries search.nixos.org for packages, options, and flakes' },
+                { name: 'HTML Parsers', description: 'Parse Home Manager and nix-darwin documentation' },
+                { name: 'Plain Text Formatter', description: 'All responses formatted as human-readable text for optimal LLM consumption' }
               ].map((component, index) => (
                 <li key={index} className="flex items-start">
                   <span className="inline-block w-2 h-2 rounded-full bg-nix-primary mt-2 mr-3 flex-shrink-0"></span>
@@ -93,11 +93,12 @@ export default function AboutPage() {
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Features</AnchorHeading>
             <ul className="grid gap-3 mb-6">
               {[
-                { name: 'NixOS Resources', description: 'Packages and system options via Elasticsearch API with multiple channel support (unstable, stable/25.11)' },
+                { name: 'NixOS Resources', description: 'Packages and system options via Elasticsearch API with multiple channel support (unstable, stable)' },
                 { name: 'Home Manager', description: 'User configuration options via parsed documentation with hierarchical paths' },
                 { name: 'nix-darwin', description: 'macOS configuration options for system defaults, services, and settings' },
-                { name: 'Smart Caching', description: 'Reduces network requests, improves startup time, and works offline once cached' },
-                { name: 'Rich Search', description: 'Fast in-memory search with related options for better discovery' }
+                { name: 'FlakeHub Integration', description: 'Search and discover flakes from the FlakeHub registry' },
+                { name: 'Version History', description: 'Package version tracking with nixpkgs commit hashes via NixHub.io' },
+                { name: 'Stateless Design', description: 'Direct API calls with no caching complexity - simple, reliable, and maintainable' }
               ].map((feature, index) => (
                 <li key={index} className="flex items-start">
                   <span className="inline-block w-2 h-2 rounded-full bg-nix-primary mt-2 mr-3 flex-shrink-0"></span>
@@ -359,11 +360,9 @@ export default function AboutPage() {
           <section className="mb-16 bg-nix-light bg-opacity-30 rounded-lg p-6 shadow-sm">
             <AnchorHeading level={2} className="text-2xl font-bold mb-6 text-nix-primary border-b border-nix-light pb-2">Contributing</AnchorHeading>
             <p className="mb-6 text-gray-800">
-              MCP-NixOS is an open-source project and welcomes contributions. The default development branch is{' '}
-              <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">develop</code>, and the main release branch is{' '}
-              <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code>. Pull requests should follow the pattern:
-              commit to <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">develop</code> → open PR to{' '}
-              <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code> → merge once approved.
+              MCP-NixOS is an open-source project and welcomes contributions. Fork the repository, create a feature branch,
+              and open a pull request to <code className="bg-gray-100 px-1 py-0.5 rounded text-nix-dark">main</code>.
+              CI runs automatically on all PRs including flake checks, builds, linting, type checking, and tests.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">

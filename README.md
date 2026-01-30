@@ -170,6 +170,37 @@ nix run github:utensils/mcp-nixos
 nix profile install github:utensils/mcp-nixos
 ```
 
+### Declarative Installation (NixOS / Home Manager / nix-darwin)
+
+mcp-nixos is available in [nixpkgs](https://search.nixos.org/packages?channel=unstable&show=mcp-nixos&query=mcp-nixos):
+
+```nix
+# NixOS (configuration.nix)
+environment.systemPackages = [ pkgs.mcp-nixos ];
+
+# Home Manager (home.nix)
+home.packages = [ pkgs.mcp-nixos ];
+
+# nix-darwin (darwin-configuration.nix)
+environment.systemPackages = [ pkgs.mcp-nixos ];
+```
+
+Or use the flake directly with the provided overlay:
+
+```nix
+# flake.nix
+{
+  inputs.mcp-nixos.url = "github:utensils/mcp-nixos";
+
+  outputs = { nixpkgs, mcp-nixos, ... }: {
+    # Add the overlay to your nixpkgs
+    nixpkgs.overlays = [ mcp-nixos.overlays.default ];
+
+    # Then use pkgs.mcp-nixos in your configuration
+  };
+}
+```
+
 ## Development
 
 ```bash
