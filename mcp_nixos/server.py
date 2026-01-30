@@ -17,6 +17,7 @@ import shutil
 import stat
 from datetime import datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -1060,7 +1061,9 @@ def _search_wiki(query: str, limit: int) -> str:
             wordcount = item.get("wordcount", 0)
 
             results.append(f"* {title}")
-            results.append(f"  https://wiki.nixos.org/wiki/{title.replace(' ', '_')}")
+            # Properly URL-encode the title for the wiki URL
+            encoded_title = quote(title.replace(' ', '_'), safe='')
+            results.append(f"  https://wiki.nixos.org/wiki/{encoded_title}")
             if snippet:
                 # Truncate long snippets
                 snippet = snippet[:200] + "..." if len(snippet) > 200 else snippet

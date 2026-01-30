@@ -298,6 +298,30 @@ class TestWikiFunctions:
         assert "highlighted" in result
 
     @patch("mcp_nixos.server.requests.get")
+    def test_search_wiki_url_encodes_special_chars(self, mock_get):
+        """Test wiki search properly URL-encodes special characters in titles."""
+        from mcp_nixos.server import _search_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "query": {
+                "search": [
+                    {"title": "C++", "snippet": "C++ programming", "wordcount": 100},
+                    {"title": "C&C", "snippet": "Command & Conquer", "wordcount": 50},
+                    {"title": "Test (Example)", "snippet": "Test page", "wordcount": 25},
+                ]
+            }
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _search_wiki("test", 10)
+        # Verify special characters are properly URL-encoded
+        assert "https://wiki.nixos.org/wiki/C%2B%2B" in result  # + becomes %2B
+        assert "https://wiki.nixos.org/wiki/C%26C" in result  # & becomes %26
+        assert "https://wiki.nixos.org/wiki/Test_%28Example%29" in result  # ( and ) become %28 and %29
+
+    @patch("mcp_nixos.server.requests.get")
     def test_info_wiki_success(self, mock_get):
         """Test successful wiki page info."""
         from mcp_nixos.server import _info_wiki
