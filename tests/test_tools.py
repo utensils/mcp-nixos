@@ -816,6 +816,55 @@ class TestNixToolNixDevSource:
         assert "not available" in result.lower()
 
 
+class TestNixToolNoogleSource:
+    """Test nix tool routing for noogle source."""
+
+    @patch("mcp_nixos.server._search_noogle")
+    @pytest.mark.asyncio
+    async def test_search_noogle(self, mock_search):
+        """Test noogle search delegates correctly."""
+        mock_search.return_value = "Found 3 Nix functions matching 'map':\n\n* builtins.map\n..."
+        result = await nix_fn(action="search", query="map", source="noogle", limit=10)
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("map", 10)
+
+    @patch("mcp_nixos.server._search_noogle")
+    @pytest.mark.asyncio
+    async def test_search_noogle_default_limit(self, mock_search):
+        """Test noogle search uses default limit."""
+        mock_search.return_value = "Found results"
+        result = await nix_fn(action="search", query="filter", source="noogle")
+        assert result == mock_search.return_value
+        mock_search.assert_called_once_with("filter", 20)
+
+    @patch("mcp_nixos.server._info_noogle")
+    @pytest.mark.asyncio
+    async def test_info_noogle(self, mock_info):
+        """Test noogle info delegates correctly."""
+        mock_info.return_value = "Function: builtins.map\nSignature: map f list\n..."
+        result = await nix_fn(action="info", query="builtins.map", source="noogle")
+        assert result == mock_info.return_value
+        mock_info.assert_called_once_with("builtins.map")
+
+    @patch("mcp_nixos.server._stats_noogle")
+    @pytest.mark.asyncio
+    async def test_stats_noogle(self, mock_stats):
+        """Test noogle stats delegates correctly."""
+        mock_stats.return_value = "Noogle Database Stats:\n\nTotal functions: 1234\n..."
+        result = await nix_fn(action="stats", source="noogle")
+        assert result == mock_stats.return_value
+        mock_stats.assert_called_once()
+
+    @patch("mcp_nixos.server._browse_noogle_options")
+    @pytest.mark.asyncio
+    async def test_options_noogle(self, mock_options):
+        """Test noogle options delegates correctly."""
+        mock_options.return_value = "Noogle Functions:\n\n* lib.attrsets\n..."
+        result = await nix_fn(action="options", source="noogle", query="lib")
+        assert result == mock_options.return_value
+        mock_options.assert_called_once_with("lib")
+
+
 @pytest.mark.unit
 class TestStripHtml:
     """Test HTML stripping utility."""
