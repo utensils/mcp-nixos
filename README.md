@@ -105,6 +105,8 @@ nix(action, query, source, type, channel, limit)
 | `flakehub` | FlakeHub registry (flakehub.com) |
 | `nixvim` | Nixvim Neovim configuration options |
 | `noogle` | Nix function signatures and docs (noogle.dev) |
+| `wiki` | NixOS Wiki articles (wiki.nixos.org) |
+| `nix-dev` | Official Nix documentation (nix.dev) |
 
 **Examples:**
 
