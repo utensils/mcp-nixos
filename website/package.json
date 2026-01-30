@@ -19,7 +19,7 @@
     "react-dom": "^19.0.0",
     "react-syntax-highlighter": "^15.6.1",
     "rehype-pretty-code": "^0.14.1",
-    "sharp": "^0.33.5",
+    "sharp": "^0.34.5",
     "shiki": "^3.2.1"
   },
   "devDependencies": {
