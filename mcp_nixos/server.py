@@ -1061,7 +1061,7 @@ def _search_wiki(query: str, limit: int) -> str:
             wordcount = item.get("wordcount", 0)
 
             results.append(f"* {title}")
-            results.append(f"  https://wiki.nixos.org/wiki/{title.replace(' ', '_')}")
+            results.append(f"  https://wiki.nixos.org/wiki/{quote(title.replace(' ', '_'), safe='_')}")
             if snippet:
                 # Truncate long snippets
                 snippet = snippet[:200] + "..." if len(snippet) > 200 else snippet
