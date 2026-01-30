@@ -48,7 +48,7 @@ class TestNixToolValidation:
     async def test_invalid_source(self):
         result = await nix_fn(action="search", query="test", source="invalid")
         assert "Error" in result
-        assert "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev" in result
+        assert "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle" in result
 
     @pytest.mark.asyncio
     async def test_options_only_for_hm_darwin_nixvim(self):
