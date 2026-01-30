@@ -17,7 +17,7 @@
     "next": "^16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-syntax-highlighter": "^15.6.1",
+    "react-syntax-highlighter": "^16.1.0",
     "rehype-pretty-code": "^0.14.1",
     "sharp": "^0.33.5",
     "shiki": "^3.2.1"
