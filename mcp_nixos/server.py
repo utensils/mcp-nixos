@@ -1183,8 +1183,8 @@ def _search_nixdev(query: str, limit: int) -> str:
                 results.append("")
 
         return "\n".join(results).strip()
-    except APIError:
-        raise
+    except APIError as exc:
+        return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
 
