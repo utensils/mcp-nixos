@@ -2093,8 +2093,11 @@ def _parse_narinfo(text: str) -> NarInfo:
     return result
 
 
-def _search_nixhub(query: str, limit: int) -> str:
-    """Search packages via NixHub API."""
+def _fetch_nixhub_search(query: str) -> tuple[str | None, dict[str, Any] | list[Any] | None]:
+    """Fetch NixHub search results synchronously (for use with asyncio.to_thread).
+
+    Returns (error_message, data) tuple. If error_message is set, data is None.
+    """
     try:
         url = f"{NIXHUB_API}/v2/search"
         params = {"q": query}
@@ -2102,10 +2105,25 @@ def _search_nixhub(query: str, limit: int) -> str:
         resp = requests.get(url, params=params, headers=headers, timeout=15)
 
         if resp.status_code >= 500:
-            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR"), None
         resp.raise_for_status()
 
-        data = resp.json()
+        return None, resp.json()
+    except requests.Timeout:
+        return error("NixHub API timed out", "TIMEOUT"), None
+    except requests.RequestException as e:
+        return error(f"NixHub API error: {e}", "API_ERROR"), None
+    except Exception as e:
+        return error(str(e)), None
+
+
+async def _search_nixhub(query: str, limit: int) -> str:
+    """Search packages via NixHub API."""
+    err, data = await asyncio.to_thread(_fetch_nixhub_search, query)
+    if err:
+        return err
+
+    try:
         # v2/search returns {"query": "...", "total_results": N, "results": [...]}
         packages = data.get("results", []) if isinstance(data, dict) else data
         if not packages:
@@ -2137,80 +2155,102 @@ def _search_nixhub(query: str, limit: int) -> str:
             results.append("")
 
         return "\n".join(results).strip()
-    except requests.Timeout:
-        return error("NixHub API timed out", "TIMEOUT")
-    except requests.RequestException as e:
-        return error(f"NixHub API error: {e}", "API_ERROR")
     except Exception as e:
         return error(str(e))
 
 
-def _info_nixhub(name: str) -> str:
+def _fetch_nixhub_pkg(name: str) -> tuple[str | None, list[Any] | None]:
+    """Fetch package data from NixHub v1/pkg API synchronously (for use with asyncio.to_thread).
+
+    Returns (error_message, data) tuple. If error_message is set, data is None.
+    """
+    try:
+        url = f"{NIXHUB_API}/v1/pkg"
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        resp = requests.get(url, params={"name": name}, headers=headers, timeout=15)
+
+        if resp.status_code in (400, 404):
+            return error(f"Package '{name}' not found", "NOT_FOUND"), None
+        if resp.status_code >= 500:
+            return error("NixHub API temporarily unavailable", "SERVICE_ERROR"), None
+        resp.raise_for_status()
+
+        return None, resp.json()
+    except requests.Timeout:
+        return error("NixHub API timed out", "TIMEOUT"), None
+    except requests.RequestException as e:
+        return error(f"NixHub API error: {e}", "API_ERROR"), None
+    except Exception as e:
+        return error(str(e)), None
+
+
+def _fetch_nixhub_resolve_sync(name: str, version: str) -> dict[str, Any] | None:
+    """Fetch resolve data from NixHub v2/resolve API synchronously (for use with asyncio.to_thread).
+
+    Returns resolve data or None on error (silently fails).
+    """
+    try:
+        url = f"{NIXHUB_API}/v2/resolve"
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        resp = requests.get(url, params={"name": name, "version": version}, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            result: dict[str, Any] = resp.json()
+            return result
+        return None
+    except Exception:
+        return None
+
+
+async def _info_nixhub(name: str) -> str:
     """Get detailed package info from NixHub.
 
     Combines data from v1/pkg (rich metadata) and v2/resolve (flake ref, store paths).
     """
+    # Fetch package data via thread pool to avoid blocking event loop
+    err, pkg_array = await asyncio.to_thread(_fetch_nixhub_pkg, name)
+    if err:
+        return err
+
     try:
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
-
-        # Get detailed package info from v1/pkg
-        # v1/pkg returns an array of version records, first is latest
-        pkg_url = f"{NIXHUB_API}/v1/pkg"
-        pkg_resp = requests.get(pkg_url, params={"name": name}, headers=headers, timeout=15)
-
-        if pkg_resp.status_code in (400, 404):
-            return error(f"Package '{name}' not found", "NOT_FOUND")
-        if pkg_resp.status_code >= 500:
-            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
-        pkg_resp.raise_for_status()
-
-        pkg_array = pkg_resp.json()
         if not pkg_array or not isinstance(pkg_array, list):
             return error(f"Package '{name}' not found", "NOT_FOUND")
 
         # First element is the latest version
-        pkg_data = pkg_array[0]
+        pkg_data: dict[str, Any] = pkg_array[0]
 
         # Get flake reference and store paths from v2/resolve
         # v2/resolve requires version parameter and returns systems as a dict
-        resolve_url = f"{NIXHUB_API}/v2/resolve"
         flake_ref = ""
         store_paths: dict[str, str] = {}
-        version = pkg_data.get("version", "latest")
-        try:
-            resolve_resp = requests.get(
-                resolve_url, params={"name": name, "version": version}, headers=headers, timeout=10
-            )
-            if resolve_resp.status_code == 200:
-                resolve_data = resolve_resp.json()
-                # systems is a dict keyed by system name
-                systems_data = resolve_data.get("systems", {})
-                if isinstance(systems_data, dict):
-                    for sys_name, sys_info in systems_data.items():
-                        # Get flake_installable from first system
-                        if not flake_ref:
-                            fi = sys_info.get("flake_installable", {})
-                            if fi:
-                                ref = fi.get("ref", {})
-                                attr_path = fi.get("attr_path", "")
-                                if ref.get("type") == "github":
-                                    owner = ref.get("owner", "")
-                                    repo = ref.get("repo", "")
-                                    rev = ref.get("rev", "")[:8] if ref.get("rev") else ""
-                                    if owner and repo:
-                                        flake_ref = f"github:{owner}/{repo}/{rev}#{attr_path}"
-                        # Get store path from outputs
-                        outputs = sys_info.get("outputs", [])
-                        if outputs and isinstance(outputs, list):
-                            default_output = next(
-                                (o for o in outputs if o.get("default")), outputs[0] if outputs else None
-                            )
-                            if default_output:
-                                path = default_output.get("path", "")
-                                if path:
-                                    store_paths[sys_name] = path
-        except Exception:
-            pass  # Continue without flake ref
+        version: str = pkg_data.get("version", "latest")
+
+        # Fetch resolve data via thread pool (silently fails)
+        resolve_data = await asyncio.to_thread(_fetch_nixhub_resolve_sync, name, version)
+        if resolve_data:
+            # systems is a dict keyed by system name
+            systems_data = resolve_data.get("systems", {})
+            if isinstance(systems_data, dict):
+                for sys_name, sys_info in systems_data.items():
+                    # Get flake_installable from first system
+                    if not flake_ref:
+                        fi = sys_info.get("flake_installable", {})
+                        if fi:
+                            ref = fi.get("ref", {})
+                            attr_path = fi.get("attr_path", "")
+                            if ref.get("type") == "github":
+                                owner = ref.get("owner", "")
+                                repo = ref.get("repo", "")
+                                rev = ref.get("rev", "")[:8] if ref.get("rev") else ""
+                                if owner and repo:
+                                    flake_ref = f"github:{owner}/{repo}/{rev}#{attr_path}"
+                    # Get store path from outputs
+                    outputs = sys_info.get("outputs", [])
+                    if outputs and isinstance(outputs, list):
+                        default_output = next((o for o in outputs if o.get("default")), outputs[0] if outputs else None)
+                        if default_output:
+                            path = default_output.get("path", "")
+                            if path:
+                                store_paths[sys_name] = path
 
         # Format output
         results = [f"Package: {pkg_data.get('name', name)}"]
@@ -2273,10 +2313,6 @@ def _info_nixhub(name: str) -> str:
                 results.append(f"  {sys_name}: {sys_path}")
 
         return "\n".join(results)
-    except requests.Timeout:
-        return error("NixHub API timed out", "TIMEOUT")
-    except requests.RequestException as e:
-        return error(f"NixHub API error: {e}", "API_ERROR")
     except Exception as e:
         return error(str(e))
 
@@ -2668,7 +2704,7 @@ async def nix(
         elif source == "noogle":
             return _search_noogle(query, limit)
         elif source == "nixhub":
-            return _search_nixhub(query, limit)
+            return await _search_nixhub(query, limit)
         else:
             return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
 
@@ -2695,7 +2731,7 @@ async def nix(
         elif source == "noogle":
             return _info_noogle(query)
         elif source == "nixhub":
-            return _info_nixhub(query)
+            return await _info_nixhub(query)
         else:
             return error("Source must be nixos|home-manager|darwin|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
 
@@ -2785,20 +2821,12 @@ async def nix_versions(
     if not 1 <= limit <= 50:
         return error("Limit must be 1-50")
 
+    # Fetch package data via thread pool to avoid blocking event loop
+    err, data = await asyncio.to_thread(_fetch_nixhub_pkg, package)
+    if err:
+        return err
+
     try:
-        # Use v1/pkg for richer metadata (license, homepage, programs)
-        # v1/pkg returns an array of version records, first is latest
-        url = f"{NIXHUB_API}/v1/pkg"
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
-        resp = requests.get(url, params={"name": package}, headers=headers, timeout=15)
-
-        if resp.status_code in (400, 404):
-            return error(f"Package '{package}' not found", "NOT_FOUND")
-        if resp.status_code >= 500:
-            return error("NixHub API temporarily unavailable", "SERVICE_ERROR")
-        resp.raise_for_status()
-
-        data = resp.json()
         # v1/pkg returns an array of version records
         if not isinstance(data, list) or not data:
             return error(f"Package '{package}' not found", "NOT_FOUND")
@@ -2870,10 +2898,6 @@ async def nix_versions(
             results.append("")
         return "\n".join(results).strip()
 
-    except requests.Timeout:
-        return error("Request timed out", "TIMEOUT")
-    except requests.RequestException as e:
-        return error(f"Network error: {e}", "NETWORK_ERROR")
     except Exception as e:
         return error(str(e))
 

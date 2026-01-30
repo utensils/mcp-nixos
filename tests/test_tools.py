@@ -424,7 +424,7 @@ class TestNixVersionsAPI:
 
         result = await nix_versions_fn(package="python")
         assert "Error" in result
-        assert "NETWORK_ERROR" in result
+        assert "API_ERROR" in result  # Uses shared helper which returns API_ERROR
 
     @patch("mcp_nixos.server.requests.get")
     @pytest.mark.asyncio
@@ -1085,7 +1085,8 @@ class TestNixHubInternalFunctions:
     """Test NixHub internal functions with mocked API responses."""
 
     @patch("mcp_nixos.server.requests.get")
-    def test_search_nixhub_success(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_search_nixhub_success(self, mock_get):
         from mcp_nixos.server import _search_nixhub
 
         mock_resp = Mock()
@@ -1109,12 +1110,13 @@ class TestNixHubInternalFunctions:
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
-        result = _search_nixhub("python", 10)
+        result = await _search_nixhub("python", 10)
         assert "Found 2 of 2 packages on NixHub" in result
         assert "python" in result
 
     @patch("mcp_nixos.server.requests.get")
-    def test_search_nixhub_no_results(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_search_nixhub_no_results(self, mock_get):
         from mcp_nixos.server import _search_nixhub
 
         mock_resp = Mock()
@@ -1124,22 +1126,24 @@ class TestNixHubInternalFunctions:
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
-        result = _search_nixhub("nonexistent", 10)
+        result = await _search_nixhub("nonexistent", 10)
         assert "No packages found on NixHub" in result
 
     @patch("mcp_nixos.server.requests.get")
-    def test_search_nixhub_timeout(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_search_nixhub_timeout(self, mock_get):
         import requests
         from mcp_nixos.server import _search_nixhub
 
         mock_get.side_effect = requests.Timeout()
 
-        result = _search_nixhub("python", 10)
+        result = await _search_nixhub("python", 10)
         assert "Error" in result
         assert "TIMEOUT" in result
 
     @patch("mcp_nixos.server.requests.get")
-    def test_info_nixhub_success(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_info_nixhub_success(self, mock_get):
         from mcp_nixos.server import _info_nixhub
 
         # First call: v1/pkg - returns array of version records
@@ -1183,7 +1187,7 @@ class TestNixHubInternalFunctions:
 
         mock_get.side_effect = [pkg_resp, resolve_resp]
 
-        result = _info_nixhub("ripgrep")
+        result = await _info_nixhub("ripgrep")
         assert "Package: ripgrep" in result
         assert "Version: 15.1.0" in result
         assert "License: Unlicense" in result
@@ -1192,25 +1196,27 @@ class TestNixHubInternalFunctions:
         assert "Flake Reference:" in result
 
     @patch("mcp_nixos.server.requests.get")
-    def test_info_nixhub_not_found(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_info_nixhub_not_found(self, mock_get):
         from mcp_nixos.server import _info_nixhub
 
         mock_resp = Mock()
         mock_resp.status_code = 404
         mock_get.return_value = mock_resp
 
-        result = _info_nixhub("nonexistent-package")
+        result = await _info_nixhub("nonexistent-package")
         assert "Error" in result
         assert "NOT_FOUND" in result
 
     @patch("mcp_nixos.server.requests.get")
-    def test_info_nixhub_timeout(self, mock_get):
+    @pytest.mark.asyncio
+    async def test_info_nixhub_timeout(self, mock_get):
         import requests
         from mcp_nixos.server import _info_nixhub
 
         mock_get.side_effect = requests.Timeout()
 
-        result = _info_nixhub("python")
+        result = await _info_nixhub("python")
         assert "Error" in result
         assert "TIMEOUT" in result
 
