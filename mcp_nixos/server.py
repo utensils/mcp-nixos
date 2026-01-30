@@ -17,6 +17,7 @@ import shutil
 import stat
 from datetime import datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -1107,7 +1108,7 @@ def _info_wiki(title: str) -> str:
 
         results = [
             f"Wiki: {page_title}",
-            f"URL: https://wiki.nixos.org/wiki/{page_title.replace(' ', '_')}",
+            f"URL: https://wiki.nixos.org/wiki/{quote(page_title.replace(' ', '_'), safe='')}",
             "",
         ]
 
