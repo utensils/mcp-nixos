@@ -95,7 +95,7 @@ def _info_flakehub(name: str) -> str:
                 dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
                 results.append(f"Published: {dt.strftime('%Y-%m-%d %H:%M UTC')}")
             except Exception:
-                pass
+                pass  # Skip malformed timestamps; omit Published line rather than failing
 
         mirrored = version_info.get("mirrored")
         if mirrored:

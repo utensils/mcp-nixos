@@ -149,6 +149,11 @@ export default function Home() {
               description="Human-readable responses with no XML parsing needed. Just clear, formatted text."
               iconName="document"
             />
+            <FeatureCard
+              title="Context Efficient"
+              description="~1,030 tokens total. While other MCP servers hog your context like it's Black Friday, we're sipping minimalist tea in the corner."
+              iconName="sparkles"
+            />
           </div>
         </div>
       </section>

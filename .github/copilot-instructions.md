@@ -118,6 +118,7 @@ async def nix(...) -> str:
 3. **Flake inputs security:** Always validate paths stay within `/nix/store/` (see `_validate_nix_store_path()`)
 4. **Line limits:** flake-inputs read allows 1-2000, all other actions limited to 1-100
 5. **Generated artifacts:** Never manually edit `dist/`, `htmlcov/`, or `result/` directories
+6. **Never bypass linting:** Do not use `# noqa`, `# type: ignore`, `# pylint: disable`, or similar comments to suppress warnings. Fix the underlying issue instead. If a rule is wrong for the project, update configuration in `pyproject.toml`.
 
 ## Documentation References
 

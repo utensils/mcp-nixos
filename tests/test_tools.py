@@ -306,7 +306,7 @@ class TestNixVersionsValidation:
 class TestNixVersionsAPI:
     """Test nix_versions API interactions."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_success(self, mock_get):
         mock_resp = Mock()
@@ -337,7 +337,7 @@ class TestNixVersionsAPI:
         assert "Package: python" in result
         assert "3.12.0" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_find_specific_version(self, mock_get):
         mock_resp = Mock()
@@ -360,7 +360,7 @@ class TestNixVersionsAPI:
         assert "Found python version 3.12.0" in result
         assert "commit" in result.lower()
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_version_not_found(self, mock_get):
         mock_resp = Mock()
@@ -382,7 +382,7 @@ class TestNixVersionsAPI:
         assert "not found" in result.lower()
         assert "3.12.0" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_package_not_found(self, mock_get):
         mock_resp = Mock()
@@ -393,7 +393,7 @@ class TestNixVersionsAPI:
         assert "Error" in result
         assert "NOT_FOUND" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_service_error(self, mock_get):
         mock_resp = Mock()
@@ -404,7 +404,7 @@ class TestNixVersionsAPI:
         assert "Error" in result
         assert "SERVICE_ERROR" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_timeout(self, mock_get):
         import requests
@@ -415,7 +415,7 @@ class TestNixVersionsAPI:
         assert "Error" in result
         assert "TIMEOUT" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_network_error(self, mock_get):
         import requests
@@ -426,7 +426,7 @@ class TestNixVersionsAPI:
         assert "Error" in result
         assert "API_ERROR" in result  # Uses shared helper which returns API_ERROR
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_no_releases(self, mock_get):
         mock_resp = Mock()
@@ -620,7 +620,7 @@ class TestNixvimInternalFunctions:
 class TestFlakeHubInternalFunctions:
     """Test FlakeHub internal functions with mocked API responses."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_search_flakehub_success(self, mock_get):
         from mcp_nixos.server import _search_flakehub
 
@@ -648,7 +648,7 @@ class TestFlakeHubInternalFunctions:
         assert "nix-community/home-manager" in result
         assert "flakehub.com/flake/NixOS/nixpkgs" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_search_flakehub_no_results(self, mock_get):
         from mcp_nixos.server import _search_flakehub
 
@@ -660,7 +660,7 @@ class TestFlakeHubInternalFunctions:
         result = _search_flakehub("nonexistent", 10)
         assert "No flakes found on FlakeHub" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_search_flakehub_normalizes_whitespace(self, mock_get):
         from mcp_nixos.server import _search_flakehub
 
@@ -680,7 +680,7 @@ class TestFlakeHubInternalFunctions:
         assert "Description with whitespace" in result
         assert "\n\t" not in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_search_flakehub_timeout(self, mock_get):
         import requests
         from mcp_nixos.server import _search_flakehub
@@ -691,7 +691,7 @@ class TestFlakeHubInternalFunctions:
         assert "Error" in result
         assert "TIMEOUT" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_info_flakehub_success(self, mock_get):
         from mcp_nixos.server import _info_flakehub
 
@@ -716,7 +716,7 @@ class TestFlakeHubInternalFunctions:
         assert "0.2511.123456" in result
         assert "public" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_info_flakehub_not_found(self, mock_get):
         from mcp_nixos.server import _info_flakehub
 
@@ -735,7 +735,7 @@ class TestFlakeHubInternalFunctions:
         assert "Error" in result
         assert "org/project" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_stats_flakehub_success(self, mock_get):
         from mcp_nixos.server import _stats_flakehub
 
@@ -754,7 +754,7 @@ class TestFlakeHubInternalFunctions:
         assert "Organizations: 2" in result
         assert "NixOS" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.flakehub.requests.get")
     def test_stats_flakehub_timeout(self, mock_get):
         import requests
         from mcp_nixos.server import _stats_flakehub
@@ -970,8 +970,8 @@ class TestNixToolCacheAction:
 class TestBinaryCacheInternalFunctions:
     """Test binary cache internal functions with mocked API responses."""
 
-    @patch("mcp_nixos.server.requests.head")
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.head")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_check_binary_cache_cached(self, mock_get, mock_head):
         """Test _check_binary_cache when package is cached."""
@@ -1013,7 +1013,7 @@ class TestBinaryCacheInternalFunctions:
         assert "hello@2.12" in result
         assert "CACHED" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_check_binary_cache_not_found(self, mock_get):
         """Test _check_binary_cache when package not found on NixHub."""
@@ -1027,7 +1027,7 @@ class TestBinaryCacheInternalFunctions:
         assert "Error" in result
         assert "NOT_FOUND" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_check_binary_cache_timeout(self, mock_get):
         """Test _check_binary_cache when NixHub times out."""
@@ -1084,7 +1084,7 @@ class TestNixToolNixHubSource:
 class TestNixHubInternalFunctions:
     """Test NixHub internal functions with mocked API responses."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_search_nixhub_success(self, mock_get):
         from mcp_nixos.server import _search_nixhub
@@ -1114,7 +1114,7 @@ class TestNixHubInternalFunctions:
         assert "Found 2 of 2 packages on NixHub" in result
         assert "python" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_search_nixhub_no_results(self, mock_get):
         from mcp_nixos.server import _search_nixhub
@@ -1129,7 +1129,7 @@ class TestNixHubInternalFunctions:
         result = await _search_nixhub("nonexistent", 10)
         assert "No packages found on NixHub" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_search_nixhub_timeout(self, mock_get):
         import requests
@@ -1141,7 +1141,7 @@ class TestNixHubInternalFunctions:
         assert "Error" in result
         assert "TIMEOUT" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixhub_success(self, mock_get):
         from mcp_nixos.server import _info_nixhub
@@ -1195,7 +1195,7 @@ class TestNixHubInternalFunctions:
         assert "Programs: rg" in result
         assert "Flake Reference:" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixhub_not_found(self, mock_get):
         from mcp_nixos.server import _info_nixhub
@@ -1208,7 +1208,7 @@ class TestNixHubInternalFunctions:
         assert "Error" in result
         assert "NOT_FOUND" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixhub_timeout(self, mock_get):
         import requests
@@ -1225,7 +1225,7 @@ class TestNixHubInternalFunctions:
 class TestNixVersionsEnhanced:
     """Test enhanced nix_versions with rich metadata."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_versions_includes_metadata(self, mock_get):
         """Test nix_versions includes license, homepage, programs."""
@@ -1260,7 +1260,7 @@ class TestNixVersionsEnhanced:
         assert "15.1.0" in result
         assert "Platforms:" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio
     async def test_versions_platform_summary(self, mock_get):
         """Test nix_versions shows platform summary."""

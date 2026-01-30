@@ -80,7 +80,7 @@ An MCP server providing accurate, real-time information about:
 
 Just two. We consolidated 17 tools into 2 because your AI's context window isn't infinite.
 
-**~365 tokens total.** That's it. While other MCP servers are hogging your context like it's Black Friday, we're sipping minimalist tea in the corner. Your AI gets NixOS superpowers without the bloat.
+**~1,030 tokens total.** That's it. While other MCP servers are hogging your context like it's Black Friday, we're sipping minimalist tea in the corner. Your AI gets NixOS superpowers without the bloat.
 
 ### `nix` - Unified Query Tool
 

@@ -109,6 +109,7 @@ pytest tests/ -k "nixos" -v
 - Python 3.11+; 4-space indentation; max line length 120 (ruff enforces).
 - Use `snake_case` for functions/vars, `PascalCase` for classes; tests named `test_*.py`.
 - Keep MCP responses plain text (no raw JSON) to match server behavior.
+- **Never bypass linting**: Do not use `# noqa`, `# type: ignore`, `# pylint: disable`, or similar comments to suppress linter/type checker warnings. Fix the underlying issue instead. If a lint rule is genuinely wrong for the project, update the ruff/mypy configuration in `pyproject.toml`.
 
 ## Installation & Configuration
 

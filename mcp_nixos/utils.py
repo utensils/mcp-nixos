@@ -145,7 +145,7 @@ def _format_release(release: dict[str, Any], package_name: str | None = None) ->
                 dt = datetime.fromisoformat(str(last_updated).replace("Z", "+00:00"))
             results.append(f"  Updated: {dt.strftime('%Y-%m-%d')}")
         except Exception:
-            pass
+            pass  # Skip malformed timestamps; omit Updated line rather than failing
 
     # Platforms can be either:
     # 1. Array of system names: ["x86_64-linux", "aarch64-darwin", ...]
@@ -234,12 +234,12 @@ def _parse_narinfo(text: str) -> NarInfo:
             try:
                 result["file_size"] = int(value)
             except ValueError:
-                pass
+                pass  # Skip malformed values; omit field rather than failing parse
         elif key == "narsize":
             try:
                 result["nar_size"] = int(value)
             except ValueError:
-                pass
+                pass  # Skip malformed values; omit field rather than failing parse
         elif key == "compression":
             result["compression"] = value
         elif key == "storepath":

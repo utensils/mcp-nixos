@@ -41,7 +41,7 @@ class TestErrorFunction:
 class TestElasticsearchQuery:
     """Test Elasticsearch query helper."""
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_success(self, mock_post):
         mock_resp = Mock()
         mock_resp.json.return_value = {"hits": {"hits": [{"_source": {"test": "data"}}]}}
@@ -57,7 +57,7 @@ class TestElasticsearchQuery:
             timeout=10,
         )
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_custom_size(self, mock_post):
         mock_resp = Mock()
         mock_resp.json.return_value = {"hits": {"hits": []}}
@@ -67,7 +67,7 @@ class TestElasticsearchQuery:
         call_args = mock_post.call_args[1]
         assert call_args["json"]["size"] == 50
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_timeout(self, mock_post):
         from mcp_nixos.server import APIError
 
@@ -75,7 +75,7 @@ class TestElasticsearchQuery:
         with pytest.raises(APIError, match="Connection timed out"):
             es_query("test-index", {"match_all": {}})
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_request_error(self, mock_post):
         from mcp_nixos.server import APIError
 
@@ -83,7 +83,7 @@ class TestElasticsearchQuery:
         with pytest.raises(APIError, match="API error"):
             es_query("test-index", {"match_all": {}})
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_malformed_response(self, mock_post):
         mock_resp = Mock()
         mock_resp.json.return_value = {"invalid": "structure"}
@@ -96,7 +96,7 @@ class TestElasticsearchQuery:
 class TestParseHtmlOptions:
     """Test HTML option parsing."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.utils.requests.get")
     def test_success(self, mock_get):
         html = b"""
         <html><body>
@@ -112,7 +112,7 @@ class TestParseHtmlOptions:
         result = parse_html_options(HOME_MANAGER_URL)
         assert isinstance(result, list)
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.utils.requests.get")
     def test_with_query(self, mock_get):
         html = b"""
         <html><body>
@@ -130,7 +130,7 @@ class TestParseHtmlOptions:
         # Should find the git option
         assert len(result) >= 1
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.utils.requests.get")
     def test_timeout(self, mock_get):
         from mcp_nixos.server import DocumentParseError
 
@@ -138,7 +138,7 @@ class TestParseHtmlOptions:
         with pytest.raises(DocumentParseError, match="Failed to fetch docs"):
             parse_html_options(HOME_MANAGER_URL)
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.utils.requests.get")
     def test_request_error(self, mock_get):
         from mcp_nixos.server import DocumentParseError
 
@@ -164,7 +164,7 @@ class TestChannelCache:
         assert cache.using_fallback is True
         assert "unstable" in result
 
-    @patch("mcp_nixos.server.requests.post")
+    @patch("mcp_nixos.sources.base.requests.post")
     def test_discover_channels(self, mock_post):
         mock_resp = Mock()
         mock_resp.status_code = 200
@@ -217,7 +217,7 @@ class TestGetChannels:
 class TestWikiFunctions:
     """Test wiki.nixos.org internal functions."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_search_wiki_success(self, mock_get):
         """Test successful wiki search."""
         from mcp_nixos.server import _search_wiki
@@ -240,7 +240,7 @@ class TestWikiFunctions:
         assert "wiki.nixos.org" in result
         assert "Error" not in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_search_wiki_no_results(self, mock_get):
         """Test wiki search with no results."""
         from mcp_nixos.server import _search_wiki
@@ -253,7 +253,7 @@ class TestWikiFunctions:
         result = _search_wiki("xyznonexistent", 10)
         assert "No wiki articles found" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_search_wiki_timeout(self, mock_get):
         """Test wiki search timeout handling."""
         from mcp_nixos.server import _search_wiki
@@ -263,7 +263,7 @@ class TestWikiFunctions:
         assert "Error" in result
         assert "TIMEOUT" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_search_wiki_api_error(self, mock_get):
         """Test wiki search API error handling."""
         from mcp_nixos.server import _search_wiki
@@ -273,7 +273,7 @@ class TestWikiFunctions:
         assert "Error" in result
         assert "API_ERROR" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_search_wiki_strips_html(self, mock_get):
         """Test wiki search strips HTML from snippets."""
         from mcp_nixos.server import _search_wiki
@@ -297,7 +297,7 @@ class TestWikiFunctions:
         assert "<span" not in result
         assert "highlighted" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_success(self, mock_get):
         """Test successful wiki page info."""
         from mcp_nixos.server import _info_wiki
@@ -316,7 +316,7 @@ class TestWikiFunctions:
         assert "wiki.nixos.org" in result
         assert "Flakes are a new way" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_not_found(self, mock_get):
         """Test wiki page not found."""
         from mcp_nixos.server import _info_wiki
@@ -329,7 +329,7 @@ class TestWikiFunctions:
         result = _info_wiki("NonexistentPage")
         assert "NOT_FOUND" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_timeout(self, mock_get):
         """Test wiki info timeout handling."""
         from mcp_nixos.server import _info_wiki
@@ -339,7 +339,7 @@ class TestWikiFunctions:
         assert "Error" in result
         assert "TIMEOUT" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_truncates_long_extract(self, mock_get):
         """Test wiki info truncates very long extracts."""
         from mcp_nixos.server import _info_wiki
@@ -359,7 +359,7 @@ class TestWikiFunctions:
 class TestNixDevFunctions:
     """Test nix.dev internal functions."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_success(self, mock_get):
         """Test successful nix.dev search."""
         import json
@@ -383,7 +383,7 @@ class TestNixDevFunctions:
         assert "Flakes" in result
         assert "nix.dev" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_no_results(self, mock_get):
         """Test nix.dev search with no matches."""
         import json
@@ -401,7 +401,7 @@ class TestNixDevFunctions:
         result = _search_nixdev("xyznonexistent", 10)
         assert "No nix.dev documentation found" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_nixdev_cache_reuse(self, mock_get):
         """Test that nix.dev cache is reused."""
         import json
@@ -426,7 +426,7 @@ class TestNixDevFunctions:
         # Should only fetch once due to caching
         assert mock_get.call_count == 1
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_nixdev_cache_timeout(self, mock_get):
         """Test nix.dev cache handles timeout."""
         from mcp_nixos.server import APIError, nixdev_cache
@@ -438,7 +438,7 @@ class TestNixDevFunctions:
             nixdev_cache.get_index()
         assert "Timeout" in str(exc_info.value)
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_title_match_bonus(self, mock_get):
         """Test nix.dev search gives bonus to title matches."""
         import json
@@ -466,7 +466,7 @@ class TestNixDevFunctions:
 class TestPlainTextOutputDocs:
     """Verify wiki/nix-dev outputs are plain text."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_wiki_search_no_xml(self, mock_get):
         """Test wiki search returns plain text."""
         from mcp_nixos.server import _search_wiki
@@ -483,7 +483,7 @@ class TestPlainTextOutputDocs:
         assert "</error>" not in result
         assert not result.strip().startswith("{")
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.sources.wiki.requests.get")
     def test_wiki_info_no_xml(self, mock_get):
         """Test wiki info returns plain text."""
         from mcp_nixos.server import _info_wiki
@@ -518,7 +518,7 @@ class TestPlainTextOutput:
 class TestNoogleFunctions:
     """Test Noogle (noogle.dev) internal functions."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_success(self, mock_get):
         """Test successful Noogle search."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -556,7 +556,7 @@ class TestNoogleFunctions:
         assert "lib.attrsets.mapAttrs" in result
         assert "Error" not in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_no_results(self, mock_get):
         """Test Noogle search with no matches."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -577,7 +577,7 @@ class TestNoogleFunctions:
         result = _search_noogle("xyznonexistent", 10)
         assert "No Noogle functions found" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_timeout(self, mock_get):
         """Test Noogle search timeout handling."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -589,7 +589,7 @@ class TestNoogleFunctions:
         result = _search_noogle("test", 10)
         assert "Error" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_info_noogle_success(self, mock_get):
         """Test successful Noogle function info."""
         from mcp_nixos.server import _info_noogle, noogle_cache
@@ -628,7 +628,7 @@ class TestNoogleFunctions:
         assert "Example:" in result
         assert "Source:" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_info_noogle_not_found(self, mock_get):
         """Test Noogle function not found."""
         from mcp_nixos.server import _info_noogle, noogle_cache
@@ -649,7 +649,7 @@ class TestNoogleFunctions:
         result = _info_noogle("nonexistent.function")
         assert "NOT_FOUND" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_stats_noogle_success(self, mock_get):
         """Test Noogle statistics."""
         from mcp_nixos.server import _stats_noogle, noogle_cache
@@ -682,7 +682,7 @@ class TestNoogleFunctions:
         assert "Categories:" in result
         assert "noogle.dev" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_browse_noogle_no_prefix(self, mock_get):
         """Test browsing Noogle categories with no prefix."""
         from mcp_nixos.server import _browse_noogle_options, noogle_cache
@@ -707,7 +707,7 @@ class TestNoogleFunctions:
         assert "lib.strings" in result
         assert "lib.attrsets" in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_browse_noogle_with_prefix(self, mock_get):
         """Test browsing Noogle functions with a prefix."""
         from mcp_nixos.server import _browse_noogle_options, noogle_cache
@@ -739,7 +739,7 @@ class TestNoogleFunctions:
         assert "hasPrefix" in result
         assert "mapAttrs" not in result
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_noogle_cache_reuse(self, mock_get):
         """Test that Noogle cache is reused."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -761,7 +761,7 @@ class TestNoogleFunctions:
         # Should only fetch once due to caching
         assert mock_get.call_count == 1
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_alias_matching(self, mock_get):
         """Test Noogle search matches aliases."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -795,7 +795,7 @@ class TestNoogleFunctions:
 class TestNooglePlainTextOutput:
     """Verify Noogle outputs are plain text."""
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_noogle_search_no_xml(self, mock_get):
         """Test Noogle search returns plain text."""
         from mcp_nixos.server import _search_noogle, noogle_cache
@@ -816,7 +816,7 @@ class TestNooglePlainTextOutput:
         assert "</error>" not in result
         assert not result.strip().startswith("{")
 
-    @patch("mcp_nixos.server.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_noogle_info_no_xml(self, mock_get):
         """Test Noogle info returns plain text."""
         from mcp_nixos.server import _info_noogle, noogle_cache

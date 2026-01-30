@@ -230,7 +230,7 @@ async def _search_nixhub(query: str, limit: int) -> str:
                     dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
                     results.append(f"  Updated: {dt.strftime('%Y-%m-%d')}")
                 except Exception:
-                    pass
+                    pass  # Skip malformed timestamps; omit Updated line rather than failing
             results.append("")
 
         return "\n".join(results).strip()

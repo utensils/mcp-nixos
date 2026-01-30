@@ -28,13 +28,13 @@ nix_fn = nix.fn
 class TestCheckNixAvailable:
     """Test _check_nix_available helper."""
 
-    @patch("mcp_nixos.server.shutil.which")
+    @patch("mcp_nixos.sources.flake_inputs.shutil.which")
     def test_nix_available(self, mock_which):
         mock_which.return_value = "/nix/var/nix/profiles/default/bin/nix"
         assert _check_nix_available() is True
         mock_which.assert_called_once_with("nix")
 
-    @patch("mcp_nixos.server.shutil.which")
+    @patch("mcp_nixos.sources.flake_inputs.shutil.which")
     def test_nix_not_available(self, mock_which):
         mock_which.return_value = None
         assert _check_nix_available() is False

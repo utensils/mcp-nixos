@@ -11,10 +11,8 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 
 import asyncio
 import re
-import shutil  # noqa: F401 - imported for backward compatibility with test mocks
 from typing import Annotated, Any
 
-import requests  # noqa: F401 - imported for backward compatibility with test mocks
 from fastmcp import FastMCP
 
 # Import from our modules
