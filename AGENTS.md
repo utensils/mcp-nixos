@@ -82,6 +82,24 @@ uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
 uv run mcp-nixos  # or python -m mcp_nixos.server
 ```
 
+### Transports (STDIO vs HTTP)
+
+By default the server runs over STDIO (for local MCP clients). The latest versions also support an HTTP transport (Remote MCP) using FastMCP.
+
+```bash
+# STDIO (default)
+MCP_NIXOS_TRANSPORT=stdio mcp-nixos
+
+# HTTP (default endpoint: http://127.0.0.1:8000/mcp)
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_HOST=127.0.0.1 MCP_NIXOS_PORT=8000 mcp-nixos
+
+# Custom path
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_PATH=/api/mcp mcp-nixos
+
+# Stateless HTTP (disables per-client session state)
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixos
+```
+
 ## Testing Guidelines
 
 - Pytest with `pytest-asyncio` (auto mode enabled, function-scoped event loops); async tests are standard.
@@ -152,7 +170,12 @@ pytest tests/ -k "nixos" -v
 3. **No Caching**: Version 1.0+ removed all caching for simplicity. All queries hit live APIs.
 4. **Async Everything**: Version 1.0.1 migrated to FastMCP 2.x. All tools are async functions. All blocking HTTP calls and file I/O are wrapped in `asyncio.to_thread()` to prevent blocking the event loop.
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
-6. **Environment Variables**: `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
+6. **Environment Variables**:
+   - `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
+   - `MCP_NIXOS_TRANSPORT` selects transport: `stdio` (default) or `http`.
+   - `MCP_NIXOS_HOST`, `MCP_NIXOS_PORT` configure HTTP bind address/port.
+   - `MCP_NIXOS_PATH` configures the HTTP MCP endpoint path (default: `/mcp`); must be an absolute non-empty path.
+   - `MCP_NIXOS_STATELESS_HTTP=1` disables per-client session state for HTTP.
 7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
 8. **Binary Cache Status**: The `cache` action queries cache.nixos.org to check if packages have pre-built binaries. It uses NixHub to resolve package versions to store paths, then checks narinfo availability.
 9. **NixHub Source**: The `nixhub` source provides rich package metadata including license, homepage, programs, and store paths via the search.devbox.sh API.
