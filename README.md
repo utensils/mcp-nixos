@@ -59,6 +59,33 @@
 
 Your AI now has access to real NixOS data instead of making things up. You're welcome.
 
+### Option 4: HTTP (Remote MCP)
+
+FastMCP supports running this server over HTTP at a URL (the MCP endpoint defaults to `/mcp`).
+
+```bash
+# Run an HTTP MCP server at http://127.0.0.1:8000/mcp
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_HOST=127.0.0.1 MCP_NIXOS_PORT=8000 mcp-nixos
+```
+
+STDIO (default):
+
+```bash
+MCP_NIXOS_TRANSPORT=stdio mcp-nixos
+```
+
+Custom path:
+
+```bash
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_PATH=/api/mcp mcp-nixos
+```
+
+Stateless HTTP (disables per-client session state):
+
+```bash
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixos
+```
+
 ## What Is This?
 
 An MCP server providing accurate, real-time information about:

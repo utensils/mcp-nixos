@@ -10,6 +10,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 """
 
 import asyncio
+import os
 import re
 from typing import Annotated, Any
 
@@ -131,6 +132,13 @@ from .utils import (
 
 # Create MCP server instance
 mcp = FastMCP("mcp-nixos")
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 # =============================================================================
@@ -382,7 +390,38 @@ async def nix_versions(
 def main() -> None:
     """Run the MCP server."""
     try:
-        mcp.run()
+        transport = os.environ.get("MCP_NIXOS_TRANSPORT", "").strip().lower()
+        if transport in {"", "stdio"}:
+            # Defaults to STDIO transport
+            mcp.run()
+        elif transport == "http":
+            host = os.environ.get("MCP_NIXOS_HOST", "127.0.0.1").strip() or "127.0.0.1"
+            port_raw = os.environ.get("MCP_NIXOS_PORT", "8000").strip() or "8000"
+            try:
+                port = int(port_raw)
+            except ValueError:
+                raise ValueError("MCP_NIXOS_PORT must be an integer")
+
+            if not 1 <= port <= 65535:
+                raise ValueError("MCP_NIXOS_PORT must be between 1 and 65535")
+
+            path_raw = os.environ.get("MCP_NIXOS_PATH")
+            if path_raw is None:
+                path = "/mcp"
+            else:
+                path = path_raw.strip()
+                if not path:
+                    raise ValueError("MCP_NIXOS_PATH must be a non-empty absolute path")
+
+            if not path.startswith("/"):
+                raise ValueError("MCP_NIXOS_PATH must start with '/'")
+            if "//" in path:
+                raise ValueError("MCP_NIXOS_PATH must not contain '//'")
+
+            stateless_http = env_bool("MCP_NIXOS_STATELESS_HTTP", default=False)
+            mcp.run(transport="http", host=host, port=port, path=path, stateless_http=stateless_http)
+        else:
+            raise ValueError("MCP_NIXOS_TRANSPORT must be one of: stdio, http")
     except KeyboardInterrupt:
         pass
 
