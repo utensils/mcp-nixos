@@ -173,7 +173,8 @@ pytest tests/ -k "nixos" -v
 6. **Environment Variables**:
    - `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
    - `MCP_NIXOS_TRANSPORT` selects transport: `stdio` (default) or `http`.
-   - `MCP_NIXOS_HOST`, `MCP_NIXOS_PORT` configure HTTP bind address/port.
+   - `MCP_NIXOS_HOST` configures the HTTP bind address (default: `127.0.0.1`).
+   - `MCP_NIXOS_PORT` configures the HTTP bind port (default: `8000`).
    - `MCP_NIXOS_PATH` configures the HTTP MCP endpoint path (default: `/mcp`); must be an absolute non-empty path.
    - `MCP_NIXOS_STATELESS_HTTP=1` disables per-client session state for HTTP.
 7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
