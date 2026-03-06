@@ -12,6 +12,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 import asyncio
 import os
 import re
+import sys
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
@@ -134,11 +135,20 @@ from .utils import (
 mcp = FastMCP("mcp-nixos")
 
 
+_TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
+_FALSE_TOKENS = {"0", "false", "no", "n", "off", ""}
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+    value = raw.strip().lower()
+    if value in _TRUE_TOKENS:
+        return True
+    if value in _FALSE_TOKENS:
+        return False
+    raise ValueError(f"{name} must be a boolean (true/false/1/0/yes/no), got {raw!r}")
 
 
 # =============================================================================
@@ -400,7 +410,7 @@ def main() -> None:
             try:
                 port = int(port_raw)
             except ValueError:
-                raise ValueError("MCP_NIXOS_PORT must be an integer")
+                raise ValueError("MCP_NIXOS_PORT must be an integer") from None
 
             if not 1 <= port <= 65535:
                 raise ValueError("MCP_NIXOS_PORT must be between 1 and 65535")
@@ -424,6 +434,9 @@ def main() -> None:
             raise ValueError("MCP_NIXOS_TRANSPORT must be one of: stdio, http")
     except KeyboardInterrupt:
         pass
+    except ValueError as exc:
+        print(f"mcp-nixos: error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 # =============================================================================
@@ -435,6 +448,7 @@ __all__ = [
     # MCP server and tools
     "mcp",
     "main",
+    "env_bool",
     "nix",
     "nix_versions",
     # Exceptions

@@ -9,9 +9,9 @@ export default function UsagePage() {
         <div className="prose prose-lg max-w-none">
           <div className="bg-gradient-to-br from-nix-light to-white p-6 rounded-lg shadow-sm mb-8">
             <p className="text-gray-800 mb-6 leading-relaxed text-xl">
-              Pick your poison. We&apos;ve got three ways to run this thing.
+              Pick your poison. We&apos;ve got four ways to run this thing.
               They all do the same thing, so just choose based on what tools you already have installed.
-              Or be a rebel and try all three. We don&apos;t judge.
+              Or be a rebel and try all four. We don&apos;t judge.
             </p>
 
             <p className="text-gray-700 mb-4 font-semibold">
@@ -131,6 +131,35 @@ environment.systemPackages = [ pkgs.mcp-nixos ];`}
               />
               <p className="text-sm text-gray-600 mt-3">
                 Warning: May consume 500MB of disk space for a 10MB Python script. But hey, it&apos;s &quot;isolated&quot;!
+              </p>
+            </div>
+
+            {/* Option 4 */}
+            <div className="bg-white rounded-lg shadow-md border-l-4 border-nix-secondary p-6">
+              <h2 className="text-2xl font-bold text-nix-dark mb-4">
+                Option 4: HTTP Transport (Remote MCP)
+              </h2>
+              <p className="text-gray-700 mb-4">
+                Run the server over HTTP instead of STDIO. Great for shared setups, remote hosts,
+                or when you want one server instance serving multiple clients like a responsible adult.
+              </p>
+              <CodeBlock
+                code={`# Start with defaults (http://127.0.0.1:8000/mcp)
+MCP_NIXOS_TRANSPORT=http mcp-nixos
+
+# Custom host, port, and path
+MCP_NIXOS_TRANSPORT=http \\
+  MCP_NIXOS_HOST=0.0.0.0 \\
+  MCP_NIXOS_PORT=9090 \\
+  MCP_NIXOS_PATH=/api/mcp \\
+  mcp-nixos
+
+# Stateless mode (no per-client sessions)
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixos`}
+                language="bash"
+              />
+              <p className="text-sm text-gray-600 mt-3">
+                Defaults: host 127.0.0.1, port 8000, path /mcp. Works with any MCP client that supports HTTP transport.
               </p>
             </div>
           </div>
