@@ -17,6 +17,8 @@ from typing import Annotated, Any
 
 from fastmcp import FastMCP
 
+from . import __version__
+
 # Import from our modules
 from .caches import (
     ChannelCache,
@@ -132,7 +134,7 @@ from .utils import (
 )
 
 # Create MCP server instance
-mcp = FastMCP("mcp-nixos")
+mcp = FastMCP("mcp-nixos", version=__version__)
 
 
 _TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
