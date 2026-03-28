@@ -46,6 +46,14 @@ class TestServerImport:
         assert len(sig.parameters) == 0
         assert callable(main)
 
+    def test_tool_function_aliases_exist(self):
+        from mcp_nixos import server
+
+        assert hasattr(server.nix, "fn")
+        assert hasattr(server.nix_versions, "fn")
+        assert server.nix.fn is server.nix
+        assert server.nix_versions.fn is server.nix_versions
+
 
 @pytest.mark.unit
 class TestEnvBool:

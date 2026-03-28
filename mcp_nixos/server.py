@@ -399,6 +399,12 @@ async def nix_versions(
         return error(str(e))
 
 
+_nix_tool: Any = nix
+_nix_versions_tool: Any = nix_versions
+_nix_tool.fn = nix
+_nix_versions_tool.fn = nix_versions
+
+
 def main() -> None:
     """Run the MCP server."""
     try:
