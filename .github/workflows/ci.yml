@@ -117,7 +117,7 @@ jobs:
         nix develop --command pytest tests/ -v -n auto --cov=mcp_nixos --cov-report=xml --cov-report=term
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: utensils/mcp-nixos
