@@ -282,9 +282,9 @@ class TestDottedPackageNameSearch:
 
         # There should be a clause matching package_attr_name
         attr_name_clauses = [c for c in should_clauses if "package_attr_name" in str(c)]
-        assert len(attr_name_clauses) > 0, (
-            "ES query should include package_attr_name in should clauses " "to support dotted package name searches"
-        )
+        assert (
+            len(attr_name_clauses) > 0
+        ), "ES query should include package_attr_name in should clauses to support dotted package name searches"
 
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")
