@@ -29,10 +29,19 @@ SEARCH:
 - action=search, source=nixos, channel=stable, query=firefox, limit=3
 - action=search, source=nixos, query=xyznonexistent12345 (expect "No packages found")
 
+DOTTED/NAMESPACED PACKAGE SEARCH (issue #118 regression):
+- action=search, source=nixos, type=packages, query=kdePackages.qt6ct (expect results containing qt6ct)
+- action=search, source=nixos, type=packages, query=python314Packages.matplotlib (expect results containing matplotlib)
+- action=search, source=nixos, type=packages, query=rocmPackages.clang (expect results containing clang)
+- action=search, source=nixos, type=packages, query=llvmPackages_22.systemLibcxxClang (expect results; may match clang variants)
+- action=search, source=nixos, type=packages, query=flang (expect exact match - control test)
+
 INFO:
 - action=info, source=nixos, type=package, query=firefox
 - action=info, source=nixos, type=option, query=services.nginx.enable
 - action=info, source=nixos, query=nonexistentpkg123 (expect NOT_FOUND)
+- action=info, source=nixos, type=package, query=kdePackages.qt6ct (issue #118: should find qt6ct via attr path)
+- action=info, source=nixos, type=package, query=qt6ct (should show attribute path in output)
 
 STATS:
 - action=stats, source=nixos

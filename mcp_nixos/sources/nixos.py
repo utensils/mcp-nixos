@@ -21,11 +21,15 @@ def _search_nixos(query: str, search_type: str, limit: int, channel: str) -> str
 
     try:
         if search_type == "packages":
+            # For dotted names like "kdePackages.qt6ct", extract the last component
+            # as the pname and also search the full string against package_attr_name
+            pname_query = query.rsplit(".", 1)[-1] if "." in query else query
             q = {
                 "bool": {
                     "must": [{"term": {"type": "package"}}],
                     "should": [
-                        {"match": {"package_pname": {"query": query, "boost": 3}}},
+                        {"match": {"package_pname": {"query": pname_query, "boost": 3}}},
+                        {"match": {"package_attr_name": {"query": query, "boost": 2}}},
                         {"match": {"package_description": query}},
                     ],
                     "minimum_should_match": 1,
@@ -63,9 +67,11 @@ def _search_nixos(query: str, search_type: str, limit: int, channel: str) -> str
             src = hit.get("_source", {})
             if search_type == "packages":
                 name = src.get("package_pname", "")
+                attr_name = src.get("package_attr_name", "")
                 version = src.get("package_pversion", "")
                 desc = src.get("package_description", "")
-                results.append(f"* {name} ({version})")
+                display_name = attr_name if attr_name and attr_name != name else name
+                results.append(f"* {display_name} ({version})")
                 if desc:
                     results.append(f"  {desc}")
                 results.append("")
@@ -106,12 +112,22 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
         query = {"bool": {"must": [{"term": {"type": info_type}}, {"term": {field: name}}]}}
         hits = es_query(channels[channel], query, 1)
 
+        # For packages, fall back to searching by attribute name (e.g. kdePackages.qt6ct)
+        if not hits and info_type == "package":
+            attr_query = {"bool": {"must": [{"term": {"type": "package"}}, {"term": {"package_attr_name": name}}]}}
+            hits = es_query(channels[channel], attr_query, 1)
+
         if not hits:
             return error(f"{info_type.capitalize()} '{name}' not found", "NOT_FOUND")
 
         src = hits[0].get("_source", {})
         if info_type == "package":
-            info = [f"Package: {src.get('package_pname', '')}", f"Version: {src.get('package_pversion', '')}"]
+            attr_name = src.get("package_attr_name", "")
+            pname = src.get("package_pname", "")
+            info = [f"Package: {pname}"]
+            if attr_name and attr_name != pname:
+                info.append(f"Attribute: {attr_name}")
+            info.append(f"Version: {src.get('package_pversion', '')}")
             desc = src.get("package_description", "")
             if desc:
                 info.append(f"Description: {desc}")

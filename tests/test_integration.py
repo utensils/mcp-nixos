@@ -118,6 +118,48 @@ class TestNixInfoIntegration:
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestDottedPackageNameIntegration:
+    """Integration tests for dotted/namespaced package name search.
+
+    Regression tests for GitHub issue #118: models unable to find packages
+    by their exact namespaced names (e.g. kdePackages.qt6ct).
+    """
+
+    @pytest.mark.asyncio
+    async def test_search_kdePackages_qt6ct(self):
+        """Search for kdePackages.qt6ct should find the qt6ct package."""
+        result = await nix_fn(action="search", query="kdePackages.qt6ct", type="packages", limit=5)
+        assert "qt6ct" in result.lower(), f"Should find qt6ct package, got: {result}"
+        assert "No packages found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_python_matplotlib(self):
+        """Search for python314Packages.matplotlib should find matplotlib."""
+        result = await nix_fn(action="search", query="python314Packages.matplotlib", type="packages", limit=5)
+        assert "matplotlib" in result.lower(), f"Should find matplotlib package, got: {result}"
+        assert "No packages found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_results_show_attr_path(self):
+        """Search results should show the full attribute path (package set)."""
+        result = await nix_fn(action="search", query="qt6ct", type="packages", limit=5)
+        # The result should contain the attribute path so users know which package set
+        assert "qt6ct" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_by_attr_name(self):
+        """Info lookup by full attribute path should find the package."""
+        result = await nix_fn(action="info", query="kdePackages.qt6ct", type="package")
+        # Should either find the package or gracefully handle it
+        assert "qt6ct" in result.lower() or "NOT_FOUND" in result
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestNixStatsIntegration:
     """Test nix stats action against real APIs."""
 

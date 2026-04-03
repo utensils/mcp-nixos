@@ -257,6 +257,145 @@ class TestNixToolOptions:
         mock_browse.assert_called_once_with("home-manager", "programs.git")
 
 
+class TestDottedPackageNameSearch:
+    """Test that dotted/namespaced package names (e.g. kdePackages.qt6ct) are searchable.
+
+    Regression tests for GitHub issue #118.
+    """
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_search_queries_package_attr_name(self, mock_channels, mock_es):
+        """Verify that the ES query includes package_attr_name in the should clause."""
+        from mcp_nixos.sources.nixos import _search_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.return_value = []
+
+        _search_nixos("kdePackages.qt6ct", "packages", 5, "unstable")
+
+        # Inspect the query passed to es_query
+        call_args = mock_es.call_args
+        query = call_args[0][1]  # second positional arg is the query dict
+        should_clauses = query["bool"]["should"]
+
+        # There should be a clause matching package_attr_name
+        attr_name_clauses = [c for c in should_clauses if "package_attr_name" in str(c)]
+        assert len(attr_name_clauses) > 0, (
+            "ES query should include package_attr_name in should clauses " "to support dotted package name searches"
+        )
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_search_results_include_attr_name(self, mock_channels, mock_es):
+        """Verify that search results display the attribute name (package set)."""
+        from mcp_nixos.sources.nixos import _search_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.return_value = [
+            {
+                "_source": {
+                    "package_pname": "qt6ct",
+                    "package_attr_name": "kdePackages.qt6ct",
+                    "package_pversion": "0.11",
+                    "package_description": "Qt6 Configuration Tool",
+                }
+            }
+        ]
+
+        result = _search_nixos("qt6ct", "packages", 5, "unstable")
+        # Check that the attr path appears in the package listing lines, not just the header
+        lines = result.split("\n")
+        package_lines = [line for line in lines if line.startswith("* ")]
+        attr_in_listing = any("kdePackages.qt6ct" in line for line in package_lines)
+        assert attr_in_listing, (
+            "Search results should display the full attribute path in the package listing "
+            f"so users can see which package set a package belongs to. Got lines: {package_lines}"
+        )
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_search_dotted_name_extracts_pname(self, mock_channels, mock_es):
+        """Verify that dotted names also search the last component as pname."""
+        from mcp_nixos.sources.nixos import _search_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.return_value = []
+
+        _search_nixos("python314Packages.matplotlib", "packages", 5, "unstable")
+
+        call_args = mock_es.call_args
+        query = call_args[0][1]
+        should_clauses = query["bool"]["should"]
+
+        # The pname clause should search for "matplotlib" (the last component),
+        # not the full dotted string
+        pname_clauses = [c for c in should_clauses if "match" in c and "package_pname" in c.get("match", {})]
+        assert len(pname_clauses) > 0, "Should have a package_pname match clause"
+        pname_query = pname_clauses[0]["match"]["package_pname"]
+        if isinstance(pname_query, dict):
+            pname_value = pname_query["query"]
+        else:
+            pname_value = pname_query
+        assert (
+            pname_value == "matplotlib"
+        ), f"package_pname should search for 'matplotlib' (last component), got '{pname_value}'"
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_info_finds_package_by_attr_name(self, mock_channels, mock_es):
+        """Verify that info lookup can find packages by their full attribute path."""
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        # First call (pname lookup) returns nothing, second call (attr_name) returns the package
+        mock_es.side_effect = [
+            [],  # pname lookup fails
+            [
+                {
+                    "_source": {
+                        "package_pname": "qt6ct",
+                        "package_attr_name": "kdePackages.qt6ct",
+                        "package_pversion": "0.11",
+                        "package_description": "Qt6 Configuration Tool",
+                    }
+                }
+            ],
+        ]
+
+        result = _info_nixos("kdePackages.qt6ct", "package", "unstable")
+        assert "NOT_FOUND" not in result, "Info should find packages by attribute path when pname lookup fails"
+        assert "qt6ct" in result
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_info_result_shows_attr_name(self, mock_channels, mock_es):
+        """Verify that info results display the attribute path."""
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.return_value = [
+            {
+                "_source": {
+                    "package_pname": "qt6ct",
+                    "package_attr_name": "kdePackages.qt6ct",
+                    "package_pversion": "0.11",
+                    "package_description": "Qt6 Configuration Tool",
+                    "package_homepage": ["https://example.com"],
+                    "package_license_set": ["BSD"],
+                }
+            }
+        ]
+
+        result = _info_nixos("qt6ct", "package", "unstable")
+        assert "kdePackages.qt6ct" in result, "Info output should include the full attribute path"
+
+
 class TestNixToolChannels:
     """Test nix tool channels action."""
 
