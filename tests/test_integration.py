@@ -145,16 +145,19 @@ class TestDottedPackageNameIntegration:
     async def test_search_results_show_attr_path(self):
         """Search results should show the full attribute path (package set)."""
         result = await nix_fn(action="search", query="qt6ct", type="packages", limit=5)
-        # The result should contain the attribute path so users know which package set
-        assert "qt6ct" in result
+        # The result should contain a dotted attribute path in at least one package listing
+        lines = result.split("\n")
+        package_lines = [line for line in lines if line.startswith("* ")]
+        has_dotted_attr = any("." in line.split("(")[0] for line in package_lines)
+        assert has_dotted_attr, f"Should show dotted attr path in listing, got: {package_lines}"
         assert_plain_text(result)
 
     @pytest.mark.asyncio
     async def test_info_by_attr_name(self):
         """Info lookup by full attribute path should find the package."""
         result = await nix_fn(action="info", query="kdePackages.qt6ct", type="package")
-        # Should either find the package or gracefully handle it
-        assert "qt6ct" in result.lower() or "NOT_FOUND" in result
+        assert "NOT_FOUND" not in result, f"Attr-path info lookup failed: {result}"
+        assert "qt6ct" in result.lower(), f"Should find qt6ct package info, got: {result}"
         assert_plain_text(result)
 
 

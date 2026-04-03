@@ -30,7 +30,7 @@ def _search_nixos(query: str, search_type: str, limit: int, channel: str) -> str
                     "should": [
                         {"match": {"package_pname": {"query": pname_query, "boost": 3}}},
                         {"match": {"package_attr_name": {"query": query, "boost": 2}}},
-                        {"match": {"package_description": query}},
+                        {"match": {"package_description": pname_query}},
                     ],
                     "minimum_should_match": 1,
                 }
