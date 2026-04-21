@@ -383,7 +383,10 @@ class TestNixDevIntegration:
             source="nix-dev",
         )
         assert isinstance(result, str)
-        assert "Error" not in result
+        # Error responses come in via `error(...)` which prefixes "Error"; a
+        # prose mention of "Error" inside the page body should not fail the
+        # test.
+        assert not result.startswith("Error"), result
         assert "Title:" in result
         assert "Source: https://nix.dev/tutorials/nix-language.html" in result
         assert "Docname: tutorials/nix-language" in result
