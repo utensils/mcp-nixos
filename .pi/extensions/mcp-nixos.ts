@@ -159,7 +159,7 @@ const nixToolParams = Type.Object({
 	type: Type.Optional(
 		Type.String({
 			description:
-				"Sub-type of query. For source=nixos with action=search: packages, options, programs. " +
+				"Sub-type of query. For source=nixos with action=search: packages, options, programs, flakes. " +
 				"For source=nixos with action=info: package or option. For flake-inputs: list, ls, or read. " +
 				"Ignored by most other sources.",
 		}),

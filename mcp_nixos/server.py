@@ -178,7 +178,7 @@ async def nix(
     ] = "nixos",
     type: Annotated[
         str,
-        "Sub-type of query. For source=nixos with action=search: packages|options|programs. "
+        "Sub-type of query. For source=nixos with action=search: packages|options|programs|flakes. "
         "For source=nixos with action=info: package|option. For flake-inputs: list|ls|read. "
         "Ignored by most other sources.",
     ] = "packages",
@@ -187,7 +187,7 @@ async def nix(
     version: Annotated[str, "Only used by action=cache. Package version (default: latest)."] = "latest",
     system: Annotated[str, "Only used by action=cache. System arch e.g. x86_64-linux. Empty for all."] = "",
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub.
+    """Query NixOS, Home Manager, Darwin, FlakeHub, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub.
 
     Examples (the JSON shape matters — copy exactly):
       Search NixOS packages:    {"action": "search", "query": "firefox"}
@@ -283,7 +283,7 @@ async def nix(
         else:
             return error(
                 f"Unknown source: {source!r}. For action=info, must be one of: "
-                "nixos, home-manager, darwin, flakehub, nixvim, wiki, noogle, nixhub."
+                "nixos, home-manager, darwin, flakehub, nixvim, wiki, nix-dev, noogle, nixhub."
             )
 
     elif action == "stats":
