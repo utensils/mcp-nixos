@@ -1,8 +1,14 @@
 """nix.dev documentation source."""
 
+import requests
+
 from ..caches import nixdev_cache
 from ..config import NIXDEV_BASE_URL, APIError
 from ..utils import error
+
+# Cap markdown body at 200KB (~50k tokens) to avoid swamping the LLM context.
+# nix.dev pages are typically 5-60KB so this is plenty for legitimate docs.
+_NIXDEV_MAX_MD_BYTES = 200 * 1024
 
 
 def _search_nixdev(query: str, limit: int) -> str:
@@ -61,3 +67,90 @@ def _search_nixdev(query: str, limit: int) -> str:
         return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
+
+
+def _normalize_nixdev_docname(query: str) -> str:
+    """Normalize a nix.dev query into a docname (e.g. 'tutorials/nix-language').
+
+    Accepts either a bare docname or a full rendered URL like
+    'https://nix.dev/tutorials/nix-language.html'. Strips the base URL prefix,
+    a trailing '.html', a leading slash, and any URL fragment/query string.
+    """
+    name = query.strip()
+    if name.startswith(NIXDEV_BASE_URL):
+        name = name[len(NIXDEV_BASE_URL) :]
+    # Drop fragment and query string if the caller passed a full URL
+    for sep in ("#", "?"):
+        if sep in name:
+            name = name.split(sep, 1)[0]
+    name = name.lstrip("/")
+    if name.endswith(".html"):
+        name = name[: -len(".html")]
+    return name
+
+
+def _extract_nixdev_title(body: str, fallback: str) -> str:
+    """Pull the first markdown H1 from a nix.dev page body."""
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if line.startswith("# "):
+            return line[2:].strip() or fallback
+    return fallback
+
+
+def _info_nixdev(query: str) -> str:
+    """Fetch a nix.dev page as markdown.
+
+    The `query` may be a docname (e.g. 'tutorials/nix-language') or the rendered
+    '.html' URL printed by `_search_nixdev` (e.g.
+    'https://nix.dev/tutorials/nix-language.html'). Both are normalized to the
+    docname before fetching '{NIXDEV_BASE_URL}/_sources/{docname}.md'.
+    """
+    if not query or not query.strip():
+        return error("Query required for nix-dev info (docname or URL)")
+
+    docname = _normalize_nixdev_docname(query)
+    if not docname:
+        return error("Empty docname after normalization")
+
+    # Guard against path traversal — the docname is interpolated into a URL path.
+    if ".." in docname.split("/"):
+        return error("Invalid docname: path traversal not allowed")
+
+    url = f"{NIXDEV_BASE_URL}/_sources/{docname}.md"
+    canonical_url = f"{NIXDEV_BASE_URL}/{docname}.html"
+
+    try:
+        resp = requests.get(url, timeout=15)
+    except requests.Timeout:
+        return error("nix.dev request timed out", "TIMEOUT")
+    except requests.RequestException as exc:
+        return error(f"nix.dev request failed: {exc}", "API_ERROR")
+
+    if resp.status_code == 404:
+        return error(f"nix.dev page not found: {docname}", "NOT_FOUND")
+    try:
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        return error(f"nix.dev request failed: {exc}", "API_ERROR")
+
+    body = resp.text
+    truncated = False
+    if len(body.encode("utf-8")) > _NIXDEV_MAX_MD_BYTES:
+        # Slice by bytes, then decode defensively — rare for ASCII/UTF-8 docs.
+        body = body.encode("utf-8")[:_NIXDEV_MAX_MD_BYTES].decode("utf-8", errors="ignore")
+        truncated = True
+
+    title = _extract_nixdev_title(body, fallback=docname)
+
+    lines = [
+        f"Title: {title}",
+        f"Source: {canonical_url}",
+        f"Docname: {docname}",
+        "",
+        body.rstrip(),
+    ]
+    if truncated:
+        lines.append("")
+        lines.append("[truncated]")
+    return "\n".join(lines)

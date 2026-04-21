@@ -978,12 +978,14 @@ class TestNixToolNixDevSource:
         assert result == mock_search.return_value
         mock_search.assert_called_once_with("packaging", 20)
 
+    @patch("mcp_nixos.server._info_nixdev")
     @pytest.mark.asyncio
-    async def test_info_nixdev_not_supported(self):
-        """Test nix-dev info returns helpful message."""
-        result = await nix_fn(action="info", query="flakes", source="nix-dev")
-        assert "Error" in result
-        assert "not available" in result.lower()
+    async def test_info_nixdev_delegates(self, mock_info):
+        """Test nix-dev info delegates to _info_nixdev with the docname."""
+        mock_info.return_value = "Title: Flakes\nSource: https://nix.dev/concepts/flakes.html\n\n# Flakes\n"
+        result = await nix_fn(action="info", query="concepts/flakes", source="nix-dev")
+        assert result == mock_info.return_value
+        mock_info.assert_called_once_with("concepts/flakes")
 
     @pytest.mark.asyncio
     async def test_stats_wiki_not_supported(self):
@@ -998,6 +1000,120 @@ class TestNixToolNixDevSource:
         result = await nix_fn(action="stats", source="nix-dev")
         assert "Error" in result
         assert "not available" in result.lower()
+
+
+@pytest.mark.unit
+class TestInfoNixDev:
+    """Unit tests for _info_nixdev: verifies URL shape, normalization, and guards.
+
+    We mock requests.get so no real network is hit. Integration tests live in
+    tests/test_integration.py.
+    """
+
+    _SAMPLE_MD = (
+        "(reading-nix-language)=\n\n"
+        "# Nix language basics\n\n"
+        "The Nix language is designed for conveniently creating derivations.\n"
+    )
+
+    @patch("mcp_nixos.sources.nixdev.requests.get")
+    @pytest.mark.asyncio
+    async def test_info_nixdev_docname(self, mock_get):
+        """Happy path: docname input returns markdown with title header."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.text = self._SAMPLE_MD
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_fn(action="info", query="tutorials/nix-language", source="nix-dev")
+
+        # Verify the URL shape we hit
+        call_url = mock_get.call_args[0][0]
+        assert call_url == "https://nix.dev/_sources/tutorials/nix-language.md"
+
+        assert "Title: Nix language basics" in result
+        assert "Source: https://nix.dev/tutorials/nix-language.html" in result
+        assert "Docname: tutorials/nix-language" in result
+        assert "# Nix language basics" in result
+
+    @patch("mcp_nixos.sources.nixdev.requests.get")
+    @pytest.mark.asyncio
+    async def test_info_nixdev_full_html_url(self, mock_get):
+        """Full .html URL is normalized to the docname before fetching."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.text = self._SAMPLE_MD
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_fn(
+            action="info",
+            query="https://nix.dev/tutorials/nix-language.html",
+            source="nix-dev",
+        )
+
+        call_url = mock_get.call_args[0][0]
+        assert call_url == "https://nix.dev/_sources/tutorials/nix-language.md"
+        assert "Docname: tutorials/nix-language" in result
+
+    @patch("mcp_nixos.sources.nixdev.requests.get")
+    @pytest.mark.asyncio
+    async def test_info_nixdev_404(self, mock_get):
+        """404 returns NOT_FOUND with the normalized docname."""
+        mock_resp = Mock()
+        mock_resp.status_code = 404
+        mock_resp.text = "<html>not found</html>"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_fn(action="info", query="does/not/exist", source="nix-dev")
+        assert "NOT_FOUND" in result
+        assert "does/not/exist" in result
+
+    @pytest.mark.asyncio
+    async def test_info_nixdev_path_traversal_rejected(self):
+        """Path traversal attempts are rejected before any network call."""
+        with patch("mcp_nixos.sources.nixdev.requests.get") as mock_get:
+            result = await nix_fn(action="info", query="../../etc/passwd", source="nix-dev")
+            assert "Error" in result
+            assert "traversal" in result.lower()
+            mock_get.assert_not_called()
+
+    @patch("mcp_nixos.sources.nixdev.requests.get")
+    @pytest.mark.asyncio
+    async def test_info_nixdev_truncation(self, mock_get):
+        """Responses above the size cap are truncated with a marker."""
+        # 250KB of body to exceed the 200KB cap
+        big_body = "# Big Doc\n\n" + ("x" * (250 * 1024))
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.text = big_body
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = await nix_fn(action="info", query="big/doc", source="nix-dev")
+        assert "[truncated]" in result
+        # Body bytes after header should be capped
+        assert len(result.encode("utf-8")) < len(big_body.encode("utf-8"))
+
+    @patch("mcp_nixos.sources.nixdev.requests.get")
+    @pytest.mark.asyncio
+    async def test_info_nixdev_network_error(self, mock_get):
+        """Network errors degrade gracefully to a plain-text error."""
+        import requests as _requests
+
+        mock_get.side_effect = _requests.ConnectionError("boom")
+
+        result = await nix_fn(action="info", query="tutorials/nix-language", source="nix-dev")
+        assert "Error" in result
+        assert "API_ERROR" in result
+
+    @pytest.mark.asyncio
+    async def test_info_nixdev_empty_query(self):
+        """Empty query is rejected by the outer nix tool (before the source dispatch)."""
+        result = await nix_fn(action="info", query="", source="nix-dev")
+        assert "Error" in result
 
 
 @pytest.mark.unit

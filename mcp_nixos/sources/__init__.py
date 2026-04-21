@@ -54,6 +54,7 @@ from .home_manager import (
 
 # nix.dev documentation
 from .nixdev import (
+    _info_nixdev,
     _search_nixdev,
 )
 
@@ -135,6 +136,7 @@ __all__ = [
     "_info_wiki",
     # nix.dev
     "_search_nixdev",
+    "_info_nixdev",
     # Nixvim
     "_search_nixvim",
     "_info_nixvim",

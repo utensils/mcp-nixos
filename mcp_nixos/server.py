@@ -86,6 +86,8 @@ from .sources import (
     _info_flakehub,
     # Home Manager
     _info_home_manager,
+    # nix.dev
+    _info_nixdev,
     _info_nixhub,
     # NixOS
     _info_nixos,
@@ -199,6 +201,8 @@ async def nix(
       Search Home Manager:      {"action": "search", "query": "git", "source": "home-manager"}
       Browse HM option tree:    {"action": "browse", "query": "programs", "source": "home-manager"}
       Search the NixOS wiki:    {"action": "search", "query": "zfs", "source": "wiki"}
+      Search nix.dev docs:      {"action": "search", "query": "flakes", "source": "nix-dev"}
+      Read a nix.dev page:      {"action": "info", "query": "tutorials/nix-language", "source": "nix-dev"}
       List channels:            {"action": "channels"}
       Check binary cache:       {"action": "cache", "query": "firefox"}
 
@@ -206,6 +210,8 @@ async def nix(
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
         for source=nixos — browse is for walking a pre-indexed option tree and only works with
         home-manager, darwin, nixvim, or noogle.
+      - For source=nix-dev, action=info returns the page markdown. The query may be a docname
+        like "tutorials/nix-language" OR the full .html URL printed by search.
       - Omit parameters you don't need; do not pass empty strings for optional args.
       - For package version history use the separate `nix_versions` tool.
     """
@@ -277,7 +283,7 @@ async def nix(
         elif source == "wiki":
             return await asyncio.to_thread(_info_wiki, query)
         elif source == "nix-dev":
-            return error("Info not available for nix-dev. Use search to find docs, then visit the URL.")
+            return await asyncio.to_thread(_info_nixdev, query)
         elif source == "noogle":
             return await asyncio.to_thread(_info_noogle, query)
         elif source == "nixhub":
@@ -601,6 +607,7 @@ __all__ = [
     "_info_wiki",
     # nix.dev functions
     "_search_nixdev",
+    "_info_nixdev",
     # Nixvim functions
     "_search_nixvim",
     "_info_nixvim",

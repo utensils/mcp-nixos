@@ -374,6 +374,23 @@ class TestNixDevIntegration:
         assert isinstance(result, str)
         assert_plain_text(result)
 
+    @pytest.mark.asyncio
+    async def test_info_nixdev_fetches_page_markdown(self):
+        """Test nix.dev info fetches real page markdown for a stable tutorial."""
+        result = await nix_fn(
+            action="info",
+            query="tutorials/nix-language",
+            source="nix-dev",
+        )
+        assert isinstance(result, str)
+        assert "Error" not in result
+        assert "Title:" in result
+        assert "Source: https://nix.dev/tutorials/nix-language.html" in result
+        assert "Docname: tutorials/nix-language" in result
+        # Markdown body should include at least one heading or common term
+        assert "# " in result
+        assert_plain_text(result)
+
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
