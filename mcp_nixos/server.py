@@ -10,6 +10,7 @@ All responses are formatted as human-readable plain text for optimal LLM interac
 """
 
 import asyncio
+import json
 import os
 import re
 import sys
@@ -259,9 +260,9 @@ async def nix(
         if not query:
             return error('Name required for info. Example: {"action": "info", "query": "firefox"}')
         if source == "flakes":
+            example = json.dumps({"action": "search", "source": "flakes", "query": query})
             return error(
-                "action=info is not supported for source=flakes. Use action=search instead. "
-                f'Example: {{"action": "search", "source": "flakes", "query": "{query}"}}.'
+                f"action=info is not supported for source=flakes. Use action=search instead. Example: {example}."
             )
         if source == "nixos":
             if type not in ["package", "packages", "option", "options"]:

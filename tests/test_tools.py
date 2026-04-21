@@ -25,6 +25,7 @@ nix_fn = getattr(nix, "fn", nix)
 nix_versions_fn = getattr(nix_versions, "fn", nix_versions)
 
 
+@pytest.mark.unit
 class TestNixToolValidation:
     """Test input validation for the nix tool."""
 
