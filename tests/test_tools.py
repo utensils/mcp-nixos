@@ -53,6 +53,23 @@ class TestNixToolValidation:
         assert "nixos" in result and "home-manager" in result
 
     @pytest.mark.asyncio
+    async def test_info_flakes_redirects_to_search(self):
+        """action=info with source=flakes should point at action=search with a JSON example."""
+        result = await nix_fn(action="info", source="flakes", query="test")
+        assert "Error" in result
+        assert '"action": "search"' in result
+        assert '"source": "flakes"' in result
+
+    @pytest.mark.asyncio
+    async def test_info_unknown_source_uses_prose_not_pipes(self):
+        """Unknown sources for action=info keep the allowlist error but use commas, not pipes."""
+        result = await nix_fn(action="info", source="bogus", query="test")
+        assert "Error" in result
+        assert "Unknown source" in result
+        assert "|" not in result
+        assert "nixos, home-manager" in result
+
+    @pytest.mark.asyncio
     async def test_browse_nixos_redirects_to_search(self):
         """action=browse with source=nixos should redirect to the correct search/info form (#125)."""
         result = await nix_fn(action="browse", source="nixos")

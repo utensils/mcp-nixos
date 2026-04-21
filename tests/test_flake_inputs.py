@@ -353,7 +353,8 @@ class TestNixToolFlakeInputsRouting:
     async def test_invalid_type(self):
         result = await nix_fn(action="flake-inputs", type="invalid")
         assert "Error" in result
-        assert "list|ls|read" in result
+        assert "list" in result and "ls" in result and "read" in result
+        assert "|" not in result
 
     @pytest.mark.asyncio
     async def test_ls_requires_query(self):
