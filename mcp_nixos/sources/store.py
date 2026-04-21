@@ -114,18 +114,13 @@ async def _store_read(query: str, limit: int) -> str:
         return error(f"'{target_path}' is a directory. Use type='ls' to list contents.", "IS_DIRECTORY")
 
     # Catch PermissionError before the broad OSError so permission problems
-    # surface cleanly instead of being flattened into OS_ERROR (and to match
-    # what _is_binary_file does internally — without this check, an unreadable
-    # file would be misreported as BINARY_FILE below).
+    # surface cleanly instead of being flattened into OS_ERROR.
     try:
         file_size = os.path.getsize(target_path)
     except PermissionError:
         return error(f"Permission denied: {target_path}", "PERMISSION_ERROR")
     except OSError as exc:
         return error(f"Cannot access file: {exc}", "OS_ERROR")
-
-    if not os.access(target_path, os.R_OK):
-        return error(f"Permission denied: {target_path}", "PERMISSION_ERROR")
 
     if file_size > MAX_FILE_SIZE:
         return error(
