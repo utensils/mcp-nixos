@@ -76,9 +76,42 @@
       ];
 
       flake = {
-        overlays.default = final: _: {
-          mcp-nixos = mkMcpNixos { pkgs = final; };
+        # Upgrade fastmcp to 3.2.4 ahead of nixpkgs.
+        # Mirrors nixpkgs PR #510339 (PrefectHQ/fastmcp v3.2.4). Can be removed
+        # once that PR merges and our flake input moves past it.
+        overlays.fastmcp3 = final: prev: {
+          pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+            (pyFinal: pyPrev: {
+              fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
+                version = "3.2.4";
+                src = prev.fetchFromGitHub {
+                  owner = "PrefectHQ";
+                  repo = "fastmcp";
+                  tag = "v${version}";
+                  hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
+                };
+                dependencies = (old.dependencies or [ ]) ++ [
+                  pyFinal.griffelib
+                  pyFinal.opentelemetry-api
+                  pyFinal.uncalled-for
+                  pyFinal.watchfiles
+                  pyFinal.pyyaml
+                ];
+                dontCheckRuntimeDeps = true;
+                doCheck = false;
+              });
+            })
+          ];
         };
+
+        # Downstream consumers who apply `mcp-nixos.overlays.default` get both
+        # mcp-nixos itself and the fastmcp 3 upgrade needed to satisfy our
+        # fastmcp>=3.2.0 dependency against nixpkgs that still ships 2.x.
+        overlays.default = nixpkgs.lib.composeExtensions self.overlays.fastmcp3 (
+          final: _: {
+            mcp-nixos = mkMcpNixos { pkgs = final; };
+          }
+        );
 
         lib.mkMcpNixos = mkMcpNixos;
       };
@@ -88,35 +121,7 @@
         let
           pkgs = import nixpkgs {
             inherit system;
-            overlays = [
-              (final: prev: {
-                # Upgrade fastmcp to 3.2.4 ahead of nixpkgs.
-                # Mirrors nixpkgs PR #510339 (PrefectHQ/fastmcp v3.2.4). Can be removed
-                # once that PR merges and our flake input moves past it.
-                pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-                  (pyFinal: pyPrev: {
-                    fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
-                      version = "3.2.4";
-                      src = prev.fetchFromGitHub {
-                        owner = "PrefectHQ";
-                        repo = "fastmcp";
-                        tag = "v${version}";
-                        hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
-                      };
-                      dependencies = (old.dependencies or [ ]) ++ [
-                        pyFinal.griffelib
-                        pyFinal.opentelemetry-api
-                        pyFinal.uncalled-for
-                        pyFinal.watchfiles
-                        pyFinal.pyyaml
-                      ];
-                      dontCheckRuntimeDeps = true;
-                      doCheck = false;
-                    });
-                  })
-                ];
-              })
-            ];
+            overlays = [ self.overlays.fastmcp3 ];
           };
         in
         {
