@@ -30,7 +30,7 @@ class TestNixToolValidation:
     async def test_invalid_action(self):
         result = await nix_fn(action="invalid")
         assert "Error" in result
-        assert "search|info|stats|options|channels" in result
+        assert "search" in result and "browse" in result
 
     @pytest.mark.asyncio
     async def test_search_requires_query(self):
@@ -48,13 +48,30 @@ class TestNixToolValidation:
     async def test_invalid_source(self):
         result = await nix_fn(action="search", query="test", source="invalid")
         assert "Error" in result
-        assert "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle" in result
+        assert "nixos" in result and "home-manager" in result
 
     @pytest.mark.asyncio
-    async def test_options_only_for_hm_darwin_nixvim(self):
+    async def test_browse_nixos_redirects_to_search(self):
+        """action=browse with source=nixos should redirect to the correct search/info form (#125)."""
+        result = await nix_fn(action="browse", source="nixos")
+        assert "Error" in result
+        assert '"action": "search"' in result
+        assert '"type": "options"' in result
+
+    @pytest.mark.asyncio
+    async def test_options_alias_nixos_redirects_to_search(self):
+        """Legacy action=options alias should behave like browse and redirect for source=nixos."""
         result = await nix_fn(action="options", source="nixos")
         assert "Error" in result
-        assert "home-manager|darwin|nixvim|noogle" in result
+        assert '"action": "search"' in result
+        assert '"type": "options"' in result
+
+    @pytest.mark.asyncio
+    async def test_browse_only_for_hm_darwin_nixvim_noogle(self):
+        result = await nix_fn(action="browse", source="flakes")
+        assert "Error" in result
+        assert "home-manager" in result and "darwin" in result
+        assert "nixvim" in result and "noogle" in result
 
     @pytest.mark.asyncio
     async def test_limit_too_low(self):
@@ -282,9 +299,9 @@ class TestDottedPackageNameSearch:
 
         # There should be a clause matching package_attr_name
         attr_name_clauses = [c for c in should_clauses if "package_attr_name" in str(c)]
-        assert len(attr_name_clauses) > 0, (
-            "ES query should include package_attr_name in should clauses to support dotted package name searches"
-        )
+        assert (
+            len(attr_name_clauses) > 0
+        ), "ES query should include package_attr_name in should clauses to support dotted package name searches"
 
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")
@@ -340,9 +357,9 @@ class TestDottedPackageNameSearch:
             pname_value = pname_query["query"]
         else:
             pname_value = pname_query
-        assert pname_value == "matplotlib", (
-            f"package_pname should search for 'matplotlib' (last component), got '{pname_value}'"
-        )
+        assert (
+            pname_value == "matplotlib"
+        ), f"package_pname should search for 'matplotlib' (last component), got '{pname_value}'"
 
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")

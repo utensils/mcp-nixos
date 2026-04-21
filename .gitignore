@@ -84,6 +84,10 @@ TODO.md
 *.log
 *.DS_Store
 
+# Pi coding agent extensions (editor-only deps; Pi resolves at runtime)
+/.pi/node_modules/
+/.pi/package-lock.json
+
 # Website (Next.js)
 /website/node_modules/
 /website/.next/

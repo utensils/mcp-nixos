@@ -1,0 +1,12 @@
+{
+  "name": "mcp-nixos-pi-extensions",
+  "private": true,
+  "description": "Project-local pi-coding-agent extension that exposes mcp-nixos as native Pi tools. Install dev deps (npm install) only if you want editor type resolution; Pi itself resolves these from its own install at runtime.",
+  "type": "module",
+  "devDependencies": {
+    "@mariozechner/pi-ai": "^0.68.0",
+    "@mariozechner/pi-coding-agent": "^0.68.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

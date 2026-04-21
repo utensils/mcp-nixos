@@ -86,6 +86,32 @@ Stateless HTTP (disables per-client session state):
 MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixos
 ```
 
+### Option 5: Pi Coding Agent
+
+[Pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) does not speak MCP natively. Two supported paths:
+
+**A. pi-mcp-adapter (recommended — speaks MCP, single source of truth):**
+
+```bash
+pi install npm:pi-mcp-adapter
+```
+
+Then add to `~/.pi/agent/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "nixos": {
+      "command": "uvx",
+      "args": ["mcp-nixos"],
+      "lifecycle": "lazy"
+    }
+  }
+}
+```
+
+**B. Project-local extension (clone + run):** this repo ships `.pi/extensions/mcp-nixos.ts`, auto-loaded when you run `pi` in the cloned repo. Optional: `cd .pi && npm install` for editor type resolution. Pi runs it either way.
+
 ## What Is This?
 
 An MCP server providing accurate, real-time information about:

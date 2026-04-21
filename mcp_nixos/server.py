@@ -160,16 +160,53 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 @mcp.tool()
 async def nix(
-    action: Annotated[str, "search|info|stats|options|channels|flake-inputs|cache"],
-    query: Annotated[str, "Search term, name, or prefix. For flake-inputs: input_name or input:path"] = "",
-    source: Annotated[str, "nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub"] = "nixos",
-    type: Annotated[str, "packages|options|programs|list|ls|read"] = "packages",
-    channel: Annotated[str, "unstable|stable|25.05"] = "unstable",
-    limit: Annotated[int, "1-100 (or 1-2000 for flake-inputs read)"] = 20,
-    version: Annotated[str, "Version for cache action (default: latest)"] = "latest",
-    system: Annotated[str, "System for cache action (e.g., x86_64-linux). Empty for all."] = "",
+    action: Annotated[
+        str,
+        "One of: search, info, stats, browse, channels, flake-inputs, cache. "
+        "Use 'search' for keyword lookup, 'info' for details about a specific name, "
+        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only).",
+    ],
+    query: Annotated[
+        str,
+        "Search term for 'search', exact name for 'info', prefix path for 'browse'. "
+        "For flake-inputs: input_name or input:path. Leave empty for 'stats'/'channels'.",
+    ] = "",
+    source: Annotated[
+        str,
+        "Data source. One of: nixos (default), home-manager, darwin, flakes, flakehub, "
+        "nixvim, wiki, nix-dev, noogle, nixhub.",
+    ] = "nixos",
+    type: Annotated[
+        str,
+        "Sub-type of query. For source=nixos with action=search: packages|options|programs. "
+        "For source=nixos with action=info: package|option. For flake-inputs: list|ls|read. "
+        "Ignored by most other sources.",
+    ] = "packages",
+    channel: Annotated[str, "NixOS channel: unstable (default), stable, or a release like 25.05."] = "unstable",
+    limit: Annotated[int, "Max results. 1-100 (or 1-2000 for flake-inputs read)."] = 20,
+    version: Annotated[str, "Only used by action=cache. Package version (default: latest)."] = "latest",
+    system: Annotated[str, "Only used by action=cache. System arch e.g. x86_64-linux. Empty for all."] = "",
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, flakes, FlakeHub, Nixvim, Wiki, nix.dev, Noogle, NixHub, or flake inputs."""
+    """Query NixOS, Home Manager, Darwin, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub.
+
+    Examples (the JSON shape matters — copy exactly):
+      Search NixOS packages:    {"action": "search", "query": "firefox"}
+      Search NixOS options:     {"action": "search", "query": "nginx", "type": "options"}
+      Get a package's details:  {"action": "info", "query": "firefox"}
+      Get an option's details:  {"action": "info", "query": "services.nginx.enable", "type": "option"}
+      Search Home Manager:      {"action": "search", "query": "git", "source": "home-manager"}
+      Browse HM option tree:    {"action": "browse", "query": "programs", "source": "home-manager"}
+      Search the NixOS wiki:    {"action": "search", "query": "zfs", "source": "wiki"}
+      List channels:            {"action": "channels"}
+      Check binary cache:       {"action": "cache", "query": "firefox"}
+
+    Notes:
+      - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
+        for source=nixos — browse is for walking a pre-indexed option tree and only works with
+        home-manager, darwin, nixvim, or noogle.
+      - Omit parameters you don't need; do not pass empty strings for optional args.
+      - For package version history use the separate `nix_versions` tool.
+    """
     # Limit validation: flake-inputs read allows up to 2000, others limited to 100
     if action == "flake-inputs" and type == "read":
         if not 1 <= limit <= MAX_LINE_LIMIT:
@@ -177,12 +214,20 @@ async def nix(
     elif not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
+    # Accept `browse` as canonical, keep `options` as a legacy alias.
+    # The action=options name was confusing small models (GitHub #125).
+    if action == "options":
+        action = "browse"
+
     if action == "search":
         if not query:
-            return error("Query required for search")
+            return error('Query required for search. Example: {"action": "search", "query": "firefox"}')
         if source == "nixos":
             if type not in ["packages", "options", "programs", "flakes"]:
-                return error("Type must be packages|options|programs|flakes")
+                return error(
+                    "For source=nixos, type must be one of: packages, options, programs, flakes. "
+                    'Example: {"action": "search", "query": "nginx", "type": "options"}'
+                )
             return await asyncio.to_thread(_search_nixos, query, type, limit, channel)
         elif source == "home-manager":
             return await asyncio.to_thread(_search_home_manager, query, limit)
@@ -203,14 +248,20 @@ async def nix(
         elif source == "nixhub":
             return await _search_nixhub(query, limit)
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
+            return error(
+                f"Unknown source: {source!r}. Must be one of: "
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub."
+            )
 
     elif action == "info":
         if not query:
-            return error("Name required for info")
+            return error('Name required for info. Example: {"action": "info", "query": "firefox"}')
         if source == "nixos":
             if type not in ["package", "packages", "option", "options"]:
-                return error("Type must be package|option")
+                return error(
+                    "For source=nixos, type must be 'package' or 'option'. "
+                    'Example: {"action": "info", "query": "services.nginx.enable", "type": "option"}'
+                )
             info_type = "package" if type in ["package", "packages"] else "option"
             return await asyncio.to_thread(_info_nixos, query, info_type, channel)
         elif source == "home-manager":
@@ -230,7 +281,10 @@ async def nix(
         elif source == "nixhub":
             return await _info_nixhub(query)
         else:
-            return error("Source must be nixos|home-manager|darwin|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
+            return error(
+                f"Unknown source: {source!r}. For action=info, must be one of: "
+                "nixos, home-manager, darwin, flakehub, nixvim, wiki, noogle, nixhub."
+            )
 
     elif action == "stats":
         if source == "nixos":
@@ -248,13 +302,26 @@ async def nix(
         elif source == "noogle":
             return await asyncio.to_thread(_stats_noogle)
         elif source in ["wiki", "nix-dev", "nixhub"]:
-            return error(f"Stats not available for {source}")
+            return error(f"Stats not available for source={source}.")
         else:
-            return error("Source must be nixos|home-manager|darwin|flakes|flakehub|nixvim|wiki|nix-dev|noogle|nixhub")
+            return error(
+                f"Unknown source: {source!r}. For action=stats, must be one of: "
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, noogle."
+            )
 
-    elif action == "options":
+    elif action == "browse":
+        if source == "nixos":
+            return error(
+                "action=browse is not for NixOS. To search NixOS options, use: "
+                '{"action": "search", "query": "<keyword>", "type": "options"}. '
+                "To get a specific option's details, use: "
+                '{"action": "info", "query": "<option.path>", "type": "option"}.'
+            )
         if source not in ["home-manager", "darwin", "nixvim", "noogle"]:
-            return error("Options browsing only for home-manager|darwin|nixvim|noogle")
+            return error(
+                "action=browse only supports source in: home-manager, darwin, nixvim, noogle. "
+                'Example: {"action": "browse", "query": "programs", "source": "home-manager"}'
+            )
         if source == "nixvim":
             return await asyncio.to_thread(_browse_nixvim_options, query)
         if source == "noogle":
@@ -301,7 +368,11 @@ async def nix(
         return await _check_binary_cache(query, version, system)
 
     else:
-        return error("Action must be search|info|stats|options|channels|flake-inputs|cache")
+        return error(
+            f"Unknown action: {action!r}. Must be one of: "
+            "search, info, stats, browse, channels, flake-inputs, cache. "
+            'Example: {"action": "search", "query": "firefox"}'
+        )
 
 
 @mcp.tool()
