@@ -382,7 +382,7 @@ async def nix(
     elif action == "store":
         if type not in ["ls", "read"]:
             return error(
-                "Type must be ls|read for store. "
+                "Type must be one of: ls, read for store. "
                 'Example: {"action": "store", "type": "ls", "query": "/nix/store/<hash>-<name>"}'
             )
         if not query:

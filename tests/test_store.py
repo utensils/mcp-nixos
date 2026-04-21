@@ -287,7 +287,11 @@ class TestStoreRouting:
             query="/nix/store/0000000000000000000000000000000000000000-x",
         )
         assert "Error" in result
-        assert "ls" in result and "read" in result
+        # Anchor on the specific wording so future error rewrites can't
+        # silently satisfy a permissive substring match (e.g. "fails",
+        # "thread" happen to contain "ls"/"read").
+        assert "Type must be" in result
+        assert "ls, read" in result or "ls or read" in result
 
     @pytest.mark.asyncio
     async def test_missing_query_for_ls(self):
