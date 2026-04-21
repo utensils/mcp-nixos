@@ -90,10 +90,26 @@
             inherit system;
             overlays = [
               (final: prev: {
-                # fastmcp in nixpkgs has overly strict mcp version bounds
+                # Upgrade fastmcp to 3.2.4 ahead of nixpkgs.
+                # Mirrors nixpkgs PR #510339 (PrefectHQ/fastmcp v3.2.4). Can be removed
+                # once that PR merges and our flake input moves past it.
                 pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
                   (pyFinal: pyPrev: {
-                    fastmcp = pyPrev.fastmcp.overridePythonAttrs (_: {
+                    fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
+                      version = "3.2.4";
+                      src = prev.fetchFromGitHub {
+                        owner = "PrefectHQ";
+                        repo = "fastmcp";
+                        tag = "v${version}";
+                        hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
+                      };
+                      dependencies = (old.dependencies or [ ]) ++ [
+                        pyFinal.griffelib
+                        pyFinal.opentelemetry-api
+                        pyFinal.uncalled-for
+                        pyFinal.watchfiles
+                        pyFinal.pyyaml
+                      ];
                       dontCheckRuntimeDeps = true;
                       doCheck = false;
                     });

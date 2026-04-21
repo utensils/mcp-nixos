@@ -20,8 +20,10 @@ from mcp_nixos.server import (
     nix,
 )
 
-# Get underlying function from MCP tool wrapper
-nix_fn = nix.fn
+# Get underlying function from MCP tool wrapper.
+# FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
+# returns the plain async function. Support both.
+nix_fn = getattr(nix, "fn", nix)
 
 
 @pytest.mark.unit
