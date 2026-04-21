@@ -159,9 +159,9 @@ const nixToolParams = Type.Object({
 	type: Type.Optional(
 		Type.String({
 			description:
-				"Sub-type of query. For source=nixos with action=search: packages, options, programs, flakes. " +
-				"For source=nixos with action=info: package or option. For flake-inputs: list, ls, or read. " +
-				"Ignored by most other sources.",
+				"Sub-type of query. For source=nixos with action=search, one of: " +
+				"packages, options, programs, flakes. For source=nixos with action=info, one of: " +
+				"package, option. For flake-inputs, one of: list, ls, read. Ignored by most other sources.",
 		}),
 	),
 	channel: Type.Optional(
@@ -221,16 +221,19 @@ const nixTool = defineTool({
 		// server.py also normalizes this, but translating here keeps details.args honest.
 		const action = params.action === "options" ? "browse" : params.action;
 
-		const normalized = {
-			action,
-			query: params.query ?? "",
-			source: params.source ?? "nixos",
-			type: params.type ?? "packages",
-			channel: params.channel ?? "unstable",
-			limit: params.limit ?? 20,
-			version: params.version ?? "latest",
-			system: params.system ?? "",
-		};
+		// Only forward keys the caller actually set. Passing empty-string defaults would
+		// (a) echo noisy args back in details.args, contradicting the "omit optional
+		// parameters" guidance in the tool description, and (b) train small models to
+		// copy those empties into future calls. The Python server already supplies its
+		// own sensible defaults when a key is omitted.
+		const normalized: Record<string, string | number> = { action };
+		if (params.query !== undefined) normalized.query = params.query;
+		if (params.source !== undefined) normalized.source = params.source;
+		if (params.type !== undefined) normalized.type = params.type;
+		if (params.channel !== undefined) normalized.channel = params.channel;
+		if (params.limit !== undefined) normalized.limit = params.limit;
+		if (params.version !== undefined) normalized.version = params.version;
+		if (params.system !== undefined) normalized.system = params.system;
 
 		const text = await runNixosTool("nix", normalized, signal);
 		return {
@@ -264,11 +267,9 @@ const nixVersionsTool = defineTool({
 	],
 	parameters: nixVersionsParams,
 	async execute(_toolCallId: string, params: NixVersionsParams, signal: AbortSignal | undefined) {
-		const normalized = {
-			package: params.package,
-			version: params.version ?? "",
-			limit: params.limit ?? 10,
-		};
+		const normalized: Record<string, string | number> = { package: params.package };
+		if (params.version !== undefined) normalized.version = params.version;
+		if (params.limit !== undefined) normalized.limit = params.limit;
 
 		const text = await runNixosTool("nix_versions", normalized, signal);
 		return {

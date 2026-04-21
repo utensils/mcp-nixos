@@ -178,9 +178,9 @@ async def nix(
     ] = "nixos",
     type: Annotated[
         str,
-        "Sub-type of query. For source=nixos with action=search: packages|options|programs|flakes. "
-        "For source=nixos with action=info: package|option. For flake-inputs: list|ls|read. "
-        "Ignored by most other sources.",
+        "Sub-type of query. For source=nixos with action=search, one of: "
+        "packages, options, programs, flakes. For source=nixos with action=info, one of: "
+        "package, option. For flake-inputs, one of: list, ls, read. Ignored by most other sources.",
     ] = "packages",
     channel: Annotated[str, "NixOS channel: unstable (default), stable, or a release like 25.05."] = "unstable",
     limit: Annotated[int, "Max results. 1-100 (or 1-2000 for flake-inputs read)."] = 20,
@@ -313,9 +313,9 @@ async def nix(
         if source == "nixos":
             return error(
                 "action=browse is not for NixOS. To search NixOS options, use: "
-                '{"action": "search", "query": "<keyword>", "type": "options"}. '
+                '{"action": "search", "query": "nginx", "type": "options"}. '
                 "To get a specific option's details, use: "
-                '{"action": "info", "query": "<option.path>", "type": "option"}.'
+                '{"action": "info", "query": "services.nginx.enable", "type": "option"}.'
             )
         if source not in ["home-manager", "darwin", "nixvim", "noogle"]:
             return error(
