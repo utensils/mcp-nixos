@@ -90,13 +90,20 @@
                   tag = "v${version}";
                   hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
                 };
-                dependencies = (old.dependencies or [ ]) ++ [
-                  pyFinal.griffelib
-                  pyFinal.opentelemetry-api
-                  pyFinal.uncalled-for
-                  pyFinal.watchfiles
-                  pyFinal.pyyaml
-                ];
+                # Drop pydocket (moved to optional-dependencies.tasks upstream in
+                # nixpkgs PR #510339) and add fastmcp 3's new transitive deps.
+                # pydocket's build pulls in lupa → luajit, which fails to link on
+                # aarch64-linux (bundled libluajit.a is in the wrong format), and
+                # we don't use fastmcp task features.
+                dependencies =
+                  builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ])
+                  ++ [
+                    pyFinal.griffelib
+                    pyFinal.opentelemetry-api
+                    pyFinal.uncalled-for
+                    pyFinal.watchfiles
+                    pyFinal.pyyaml
+                  ];
                 dontCheckRuntimeDeps = true;
                 doCheck = false;
               });
