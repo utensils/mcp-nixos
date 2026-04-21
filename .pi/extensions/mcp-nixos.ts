@@ -46,12 +46,21 @@ interface CommandResult {
 	stderr: string;
 }
 
+class CancelledError extends Error {
+	constructor() {
+		super("Cancelled");
+		this.name = "CancelledError";
+	}
+}
+
 async function runCommand(
 	command: string,
 	args: string[],
 	env: NodeJS.ProcessEnv,
 	signal?: AbortSignal,
 ): Promise<CommandResult> {
+	if (signal?.aborted) throw new CancelledError();
+
 	return new Promise((resolvePromise, reject) => {
 		const child = spawn(command, args, {
 			cwd: projectRoot,
@@ -69,26 +78,20 @@ async function runCommand(
 			stderr += String(chunk);
 		});
 
-		child.on("error", reject);
+		const onAbort = () => {
+			child.kill("SIGTERM");
+			reject(new CancelledError());
+		};
+		if (signal) signal.addEventListener("abort", onAbort, { once: true });
+
+		child.on("error", (err) => {
+			signal?.removeEventListener("abort", onAbort);
+			reject(err);
+		});
 		child.on("close", (code) => {
+			signal?.removeEventListener("abort", onAbort);
 			resolvePromise({ code, stdout, stderr });
 		});
-
-		if (signal) {
-			if (signal.aborted) {
-				child.kill("SIGTERM");
-				reject(new Error("Cancelled"));
-				return;
-			}
-			signal.addEventListener(
-				"abort",
-				() => {
-					child.kill("SIGTERM");
-					reject(new Error("Cancelled"));
-				},
-				{ once: true },
-			);
-		}
 	});
 }
 
@@ -122,6 +125,10 @@ async function runNixosTool(tool: "nix" | "nix_versions", args: unknown, signal?
 			}
 			errors.push(`${candidate.command} exited with ${result.code}: ${(result.stderr || result.stdout).trim()}`);
 		} catch (error) {
+			// Cancellation stops retries — don't spawn more Python processes after abort.
+			if (error instanceof CancelledError || signal?.aborted) {
+				throw error instanceof CancelledError ? error : new CancelledError();
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			errors.push(`${candidate.command}: ${message}`);
 		}
@@ -153,7 +160,10 @@ const nixToolParams = Type.Object({
 	source: Type.Optional(
 		Type.String({
 			description:
-				"Data source. One of: nixos (default), home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub.",
+				"Data source for search/info/stats/browse/cache. One of: nixos (default), " +
+				"home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. " +
+				"For action=flake-inputs, this may instead be a path to a flake directory; " +
+				"omit/default to use the current project.",
 		}),
 	),
 	type: Type.Optional(

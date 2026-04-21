@@ -173,8 +173,10 @@ async def nix(
     ] = "",
     source: Annotated[
         str,
-        "Data source. One of: nixos (default), home-manager, darwin, flakes, flakehub, "
-        "nixvim, wiki, nix-dev, noogle, nixhub.",
+        "Data source for search/info/stats/browse/cache. One of: nixos (default), "
+        "home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. "
+        "For action=flake-inputs, this may instead be a path to a flake directory; "
+        "omit/default to use the current project.",
     ] = "nixos",
     type: Annotated[
         str,
