@@ -97,6 +97,12 @@ from .noogle import (
     _stats_noogle,
 )
 
+# Direct /nix/store path access
+from .store import (
+    _store_ls,
+    _store_read,
+)
+
 # NixOS Wiki
 from .wiki import (
     _info_wiki,
@@ -167,4 +173,7 @@ __all__ = [
     "_flake_inputs_list",
     "_flake_inputs_ls",
     "_flake_inputs_read",
+    # Store
+    "_store_ls",
+    "_store_read",
 ]

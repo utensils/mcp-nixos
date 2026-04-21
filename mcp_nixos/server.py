@@ -114,6 +114,8 @@ from .sources import (
     _stats_nixos,
     _stats_nixvim,
     _stats_noogle,
+    _store_ls,
+    _store_read,
     es_query,
     get_channel_suggestions,
     get_channels,
@@ -162,30 +164,33 @@ def env_bool(name: str, default: bool = False) -> bool:
 async def nix(
     action: Annotated[
         str,
-        "One of: search, info, stats, browse, channels, flake-inputs, cache. "
+        "One of: search, info, stats, browse, channels, flake-inputs, cache, store. "
         "Use 'search' for keyword lookup, 'info' for details about a specific name, "
-        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only).",
+        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only). "
+        "'store' reads files or lists directories at an explicit /nix/store/ path.",
     ],
     query: Annotated[
         str,
         "Search term for 'search', exact name for 'info', prefix path for 'browse'. "
-        "For flake-inputs: input_name or input:path. Leave empty for 'stats'/'channels'.",
+        "For flake-inputs: input_name or input:path. For store: absolute /nix/store/ path. "
+        "Leave empty for 'stats'/'channels'.",
     ] = "",
     source: Annotated[
         str,
         "Data source for search/info/stats/browse/cache. One of: nixos (default), "
         "home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. "
         "For action=flake-inputs, this may instead be a path to a flake directory; "
-        "omit/default to use the current project.",
+        "omit/default to use the current project. Ignored by action=store.",
     ] = "nixos",
     type: Annotated[
         str,
         "Sub-type of query. For source=nixos with action=search, one of: "
         "packages, options, programs, flakes. For source=nixos with action=info, one of: "
-        "package, option. For flake-inputs, one of: list, ls, read. Ignored by most other sources.",
+        "package, option. For flake-inputs, one of: list, ls, read. For store, one of: "
+        "ls, read. Ignored by most other sources.",
     ] = "packages",
     channel: Annotated[str, "NixOS channel: unstable (default), stable, or a release like 25.05."] = "unstable",
-    limit: Annotated[int, "Max results. 1-100 (or 1-2000 for flake-inputs read)."] = 20,
+    limit: Annotated[int, "Max results. 1-100 (or 1-2000 for flake-inputs/store read)."] = 20,
     version: Annotated[str, "Only used by action=cache. Package version (default: latest)."] = "latest",
     system: Annotated[str, "Only used by action=cache. System arch e.g. x86_64-linux. Empty for all."] = "",
 ) -> str:
@@ -201,6 +206,8 @@ async def nix(
       Search the NixOS wiki:    {"action": "search", "query": "zfs", "source": "wiki"}
       List channels:            {"action": "channels"}
       Check binary cache:       {"action": "cache", "query": "firefox"}
+      List a store directory:   {"action": "store", "type": "ls", "query": "/nix/store/abc...-foo"}
+      Read a store file:        {"action": "store", "type": "read", "query": "/nix/store/abc...-foo/bin/foo"}
 
     Notes:
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
@@ -209,10 +216,13 @@ async def nix(
       - Omit parameters you don't need; do not pass empty strings for optional args.
       - For package version history use the separate `nix_versions` tool.
     """
-    # Limit validation: flake-inputs read allows up to 2000, others limited to 100
+    # Limit validation: flake-inputs/store read allow up to 2000, others limited to 100
     if action == "flake-inputs" and type == "read":
         if not 1 <= limit <= MAX_LINE_LIMIT:
             return error(f"Limit must be 1-{MAX_LINE_LIMIT} for flake-inputs read")
+    elif action == "store" and type == "read":
+        if not 1 <= limit <= MAX_LINE_LIMIT:
+            return error(f"Limit must be 1-{MAX_LINE_LIMIT} for store read")
     elif not 1 <= limit <= 100:
         return error("Limit must be 1-100")
 
@@ -369,10 +379,31 @@ async def nix(
             return error("Package name required for cache action")
         return await _check_binary_cache(query, version, system)
 
+    elif action == "store":
+        if type not in ["ls", "read"]:
+            return error(
+                "Type must be ls|read for store. "
+                'Example: {"action": "store", "type": "ls", "query": "/nix/store/<hash>-<name>"}'
+            )
+        if not query:
+            return error(
+                "Query required for store (absolute /nix/store/ path). "
+                'Example: {"action": "store", "type": "ls", "query": "/nix/store/<hash>-<name>"}'
+            )
+        if type == "ls":
+            return await _store_ls(query)
+
+        # type == "read": default limit behavior mirrors flake-inputs read.
+        read_limit = limit
+        if limit == 20:  # Default was used, apply DEFAULT_LINE_LIMIT
+            read_limit = DEFAULT_LINE_LIMIT
+        read_limit = min(read_limit, MAX_LINE_LIMIT)
+        return await _store_read(query, read_limit)
+
     else:
         return error(
             f"Unknown action: {action!r}. Must be one of: "
-            "search, info, stats, browse, channels, flake-inputs, cache. "
+            "search, info, stats, browse, channels, flake-inputs, cache, store. "
             'Example: {"action": "search", "query": "firefox"}'
         )
 
@@ -635,6 +666,9 @@ __all__ = [
     "_flake_inputs_list",
     "_flake_inputs_ls",
     "_flake_inputs_read",
+    # Store functions
+    "_store_ls",
+    "_store_read",
 ]
 
 

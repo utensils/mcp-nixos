@@ -146,15 +146,17 @@ async function runNixosTool(tool: "nix" | "nix_versions", args: unknown, signal?
 const nixToolParams = Type.Object({
 	action: Type.String({
 		description:
-			"One of: search, info, stats, browse, channels, flake-inputs, cache. " +
+			"One of: search, info, stats, browse, channels, flake-inputs, cache, store. " +
 			"search = keyword lookup; info = details for a specific name; " +
-			"browse = walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only).",
+			"browse = walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only); " +
+			"store = read files or list directories at an explicit /nix/store/ path.",
 	}),
 	query: Type.Optional(
 		Type.String({
 			description:
 				"Search term for 'search', exact name for 'info', prefix path for 'browse'. " +
-				"For flake-inputs: input_name or input:path. Omit for 'stats'/'channels'.",
+				"For flake-inputs: input_name or input:path. For store: absolute /nix/store/ path. " +
+				"Omit for 'stats'/'channels'.",
 		}),
 	),
 	source: Type.Optional(
@@ -163,7 +165,7 @@ const nixToolParams = Type.Object({
 				"Data source for search/info/stats/browse/cache. One of: nixos (default), " +
 				"home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. " +
 				"For action=flake-inputs, this may instead be a path to a flake directory; " +
-				"omit/default to use the current project.",
+				"omit/default to use the current project. Ignored by action=store.",
 		}),
 	),
 	type: Type.Optional(
@@ -171,14 +173,15 @@ const nixToolParams = Type.Object({
 			description:
 				"Sub-type of query. For source=nixos with action=search, one of: " +
 				"packages, options, programs, flakes. For source=nixos with action=info, one of: " +
-				"package, option. For flake-inputs, one of: list, ls, read. Ignored by most other sources.",
+				"package, option. For flake-inputs, one of: list, ls, read. For store, one of: " +
+				"ls, read. Ignored by most other sources.",
 		}),
 	),
 	channel: Type.Optional(
 		Type.String({ description: "NixOS channel: unstable (default), stable, or a release like 25.05." }),
 	),
 	limit: Type.Optional(
-		Type.Integer({ description: "Max results. 1-100 (or 1-2000 for flake-inputs read). Default 20." }),
+		Type.Integer({ description: "Max results. 1-100 (or 1-2000 for flake-inputs/store read). Default 20." }),
 	),
 	version: Type.Optional(
 		Type.String({ description: "Only used by action=cache. Package version (default: latest)." }),
@@ -205,6 +208,8 @@ const nixToolDescription = [
 	'  Search the wiki:          {"action": "search", "query": "zfs", "source": "wiki"}',
 	'  List channels:            {"action": "channels"}',
 	'  Check binary cache:       {"action": "cache", "query": "firefox"}',
+	'  List a store directory:   {"action": "store", "type": "ls", "query": "/nix/store/abc...-foo"}',
+	'  Read a store file:        {"action": "store", "type": "read", "query": "/nix/store/abc...-foo/bin/foo"}',
 	"",
 	"Notes:",
 	"  - To search NixOS options, use action=search with type=options. Do NOT use action=browse for source=nixos.",
