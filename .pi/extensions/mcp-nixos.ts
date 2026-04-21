@@ -17,14 +17,20 @@ import sys
 from mcp_nixos.server import nix, nix_versions
 
 
+def _callable(tool):
+    # FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (not directly callable);
+    # FastMCP 3.x keeps them as plain async functions. Support both.
+    return getattr(tool, "fn", tool)
+
+
 async def main() -> None:
     tool = os.environ["PI_NIXOS_TOOL"]
     args = json.loads(os.environ["PI_NIXOS_ARGS"])
 
     if tool == "nix":
-        result = await nix(**args)
+        result = await _callable(nix)(**args)
     elif tool == "nix_versions":
-        result = await nix_versions(**args)
+        result = await _callable(nix_versions)(**args)
     else:
         raise ValueError(f"Unknown tool: {tool}")
 
