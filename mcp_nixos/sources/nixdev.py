@@ -72,11 +72,16 @@ def _search_nixdev(query: str, limit: int) -> str:
 def _normalize_nixdev_docname(query: str) -> str:
     """Normalize a nix.dev query into a docname (e.g. 'tutorials/nix-language').
 
-    Accepts either a bare docname or a full rendered URL like
-    'https://nix.dev/tutorials/nix-language.html'. Strips the base URL prefix,
-    a trailing '.html', a leading slash, and any URL fragment/query string.
+    Accepts either a bare docname, a nix.dev URL as printed by `_search_nixdev`
+    (e.g. 'https://nix.dev/tutorials/nix-language'), or a rendered '.html' URL
+    pasted from a browser. Strips the base URL prefix, a trailing '.html', a
+    leading slash, any URL fragment/query string, and percent-decodes the
+    result so the traversal guard in `_info_nixdev` sees the real path
+    segments instead of `%2e%2e` escapes.
     """
-    name = query.strip()
+    from urllib.parse import unquote
+
+    name = unquote(query.strip())
     if name.startswith(NIXDEV_BASE_URL):
         name = name[len(NIXDEV_BASE_URL) :]
     # Drop fragment and query string if the caller passed a full URL
@@ -101,10 +106,11 @@ def _extract_nixdev_title(body: str, fallback: str) -> str:
 def _info_nixdev(query: str) -> str:
     """Fetch a nix.dev page as markdown.
 
-    The `query` may be a docname (e.g. 'tutorials/nix-language') or the rendered
-    '.html' URL printed by `_search_nixdev` (e.g.
-    'https://nix.dev/tutorials/nix-language.html'). Both are normalized to the
-    docname before fetching '{NIXDEV_BASE_URL}/_sources/{docname}.md'.
+    The `query` may be a bare docname (e.g. 'tutorials/nix-language'), the
+    extensionless URL printed by `_search_nixdev` (e.g.
+    'https://nix.dev/tutorials/nix-language'), or a rendered '.html' URL
+    pasted from a browser. All three are normalized to the docname before
+    fetching '{NIXDEV_BASE_URL}/_sources/{docname}.md'.
     """
     if not query or not query.strip():
         return error("Query required for nix-dev info (docname or URL)")

@@ -1080,6 +1080,19 @@ class TestInfoNixDev:
             assert "traversal" in result.lower()
             mock_get.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_info_nixdev_percent_encoded_traversal_rejected(self):
+        """Percent-encoded traversal (%2e%2e/%2e%2e/...) must also be rejected."""
+        with patch("mcp_nixos.sources.nixdev.requests.get") as mock_get:
+            result = await nix_fn(
+                action="info",
+                query="%2e%2e/%2e%2e/etc/passwd",
+                source="nix-dev",
+            )
+            assert "Error" in result
+            assert "traversal" in result.lower()
+            mock_get.assert_not_called()
+
     @patch("mcp_nixos.sources.nixdev.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixdev_truncation(self, mock_get):

@@ -211,7 +211,7 @@ const nixToolDescription = [
 	"Notes:",
 	"  - To search NixOS options, use action=search with type=options. Do NOT use action=browse for source=nixos.",
 	"  - action=browse walks a pre-indexed option tree and only supports home-manager, darwin, nixvim, or noogle.",
-	"  - For source=nix-dev, action=info returns the page markdown. Query accepts either a docname ('tutorials/nix-language') or the full .html URL from search.",
+	"  - For source=nix-dev, action=info returns the page markdown. Query accepts a bare docname ('tutorials/nix-language'), the URL printed by nix-dev search ('https://nix.dev/tutorials/nix-language'), or a rendered '.html' URL.",
 	"  - Omit optional parameters; don't pass empty strings.",
 	"  - For package version history use the separate nix_versions tool.",
 ].join("\n");

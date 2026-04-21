@@ -210,8 +210,9 @@ async def nix(
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
         for source=nixos — browse is for walking a pre-indexed option tree and only works with
         home-manager, darwin, nixvim, or noogle.
-      - For source=nix-dev, action=info returns the page markdown. The query may be a docname
-        like "tutorials/nix-language" OR the full .html URL printed by search.
+      - For source=nix-dev, action=info returns the page markdown. The query may be a bare
+        docname like "tutorials/nix-language", the URL printed by nix-dev search
+        ("https://nix.dev/tutorials/nix-language"), or a rendered ".html" URL.
       - Omit parameters you don't need; do not pass empty strings for optional args.
       - For package version history use the separate `nix_versions` tool.
     """
