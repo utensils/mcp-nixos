@@ -95,15 +95,19 @@
                 # pydocket's build pulls in lupa → luajit, which fails to link on
                 # aarch64-linux (bundled libluajit.a is in the wrong format), and
                 # we don't use fastmcp task features.
-                dependencies =
-                  builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ])
-                  ++ [
-                    pyFinal.griffelib
-                    pyFinal.opentelemetry-api
-                    pyFinal.uncalled-for
-                    pyFinal.watchfiles
-                    pyFinal.pyyaml
-                  ];
+                #
+                # griffelib and uncalled-for are recent additions to nixos-unstable
+                # (March 2026) and absent from stable channels. Use upstream if the
+                # consumer's nixpkgs has them; otherwise fall back to our inline
+                # definitions so `inputs.nixpkgs.follows = "nixpkgs"` works against
+                # older pins. See issue #135.
+                dependencies = builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ]) ++ [
+                  (pyFinal.griffelib or (pyFinal.callPackage ./nix/griffelib.nix { }))
+                  pyFinal.opentelemetry-api
+                  (pyFinal.uncalled-for or (pyFinal.callPackage ./nix/uncalled-for.nix { }))
+                  pyFinal.watchfiles
+                  pyFinal.pyyaml
+                ];
                 dontCheckRuntimeDeps = true;
                 doCheck = false;
               });
