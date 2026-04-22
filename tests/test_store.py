@@ -53,7 +53,16 @@ def _find_text_file_in_dir(root: str, max_files: int = 200) -> str | None:
 
 
 def _find_binary_file_in_dir(root: str, max_files: int = 500) -> str | None:
-    """Find a binary file under `root`, or None if none found quickly."""
+    """Find a binary file under `root` below `MAX_FILE_SIZE`, or None if none found quickly.
+
+    The size cap matters because `_store_read` rejects files over
+    `MAX_FILE_SIZE` with `FILE_TOO_LARGE` before the binary check runs —
+    and many /nix/store binaries (compiled libraries, CA bundles, etc.)
+    exceed the 1 MB default. Picking one over the cap would short-circuit
+    the test on an unrelated error.
+    """
+    from mcp_nixos.config import MAX_FILE_SIZE
+
     count = 0
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
@@ -64,7 +73,8 @@ def _find_binary_file_in_dir(root: str, max_files: int = 500) -> str | None:
             try:
                 if os.path.islink(path):
                     continue
-                if os.path.getsize(path) == 0:
+                size = os.path.getsize(path)
+                if size == 0 or size >= MAX_FILE_SIZE:
                     continue
                 with open(path, "rb") as f:
                     chunk = f.read(4096)
