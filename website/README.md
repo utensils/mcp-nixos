@@ -1,126 +1,98 @@
 # MCP-NixOS Website
 
-The official website for the MCP-NixOS project built with Next.js 15.2 and Tailwind CSS. Deployed automatically via CI/CD to AWS S3 and CloudFront.
+The official marketing + documentation site for the MCP-NixOS project. Built with
+[VitePress](https://vitepress.dev/) and deployed automatically via CI/CD to AWS S3 and
+CloudFront.
 
-## Development
+## Stack
 
-This website is built with:
-
-- [Next.js 15.2](https://nextjs.org/) using the App Router
-- [TypeScript](https://www.typescriptlang.org/)
-- [Tailwind CSS](https://tailwindcss.com/) for styling
-- Static export for hosting on S3/CloudFront
+- **[VitePress 1.x](https://vitepress.dev/)** — Vue-powered static site generator
+- **Custom theme** — Default VitePress theme extended with NixOS brand colors
+- **Markdown-first content** — `index.md`, `usage.md`, `about.md`
+- **Static export** — Output lands in `website/out/` for S3/CloudFront hosting
 
 ## Getting Started
 
-### Using Nix (Recommended)
+### Using Nix (recommended)
 
-If you have Nix installed, you can use the dedicated website development shell:
+From the repo root, drop into the website dev shell:
 
-#### Option 1: Direct Website Shell Access
 ```bash
-# Enter the website development shell directly
 nix develop .#web
-
-# Use the menu commands or run directly:
-install   # Install dependencies 
-dev       # Start development server
-build     # Build for production
-lint      # Lint code
 ```
 
-#### Option 2: From Main Development Shell
-```bash
-# Enter the main development shell
-nix develop
+You'll get Node.js, npm, and a `menu` printout with the common commands. Then:
 
-# Launch the website development shell
-web-dev   # This opens the website shell with Node.js
+```bash
+npm install       # one-time, installs VitePress + deps
+npm run dev       # local dev server with hot reload (http://localhost:5173)
+npm run build     # static build into website/out/
+npm run preview   # serve the built site locally
 ```
 
-### Manual Setup
+Or use the convenience helpers printed by the menu:
 
 ```bash
-# Navigate to the website directory
+web-install       # npm install
+web-dev           # npm run dev
+web-build         # npm run build
+web-preview       # npm run preview
+```
+
+### Without Nix
+
+Any Node.js 20+ will do:
+
+```bash
 cd website
-
-# Install dependencies
 npm install
-# or
-yarn
-# or
-pnpm install
-
-# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-
-# Build for production
-npm run build
-# or
-yarn build
-# or
-pnpm build
 ```
 
 ## Project Structure
 
-- `app/` - Next.js app router pages
-- `components/` - Shared UI components
-- `public/` - Static assets
-- `tailwind.config.js` - Tailwind CSS configuration with NixOS color scheme
+```
+website/
+├── .vitepress/
+│   ├── config.mts          # Site config: nav, sidebar, SEO, theme
+│   └── theme/
+│       ├── index.ts        # Theme entry — registers components + CSS
+│       ├── Layout.vue      # Layout override (hero image animation)
+│       ├── style.css       # NixOS palette + custom components
+│       └── components/
+│           ├── AuthorCard.vue
+│           └── UsageOption.vue
+├── index.md                # Home page
+├── usage.md                # Usage / configuration reference
+├── about.md                # Project overview, architecture, authors
+├── public/                 # Static assets served from /
+│   ├── favicon/
+│   └── images/
+└── package.json
+```
 
 ## Design Notes
 
-- The website follows NixOS brand colors:
-  - Primary: #5277C3
-  - Secondary: #7EBAE4
-  - Dark Blue: #1C3E5A
-  - Light Blue: #E6F0FA
+The theme uses the NixOS brand palette:
 
-- Designed to be fully responsive for mobile, tablet, and desktop
-- SEO optimized with proper metadata
-- Follows accessibility guidelines (WCAG 2.1 AA)
+| Token | Hex | Role |
+|-------|-----|------|
+| `--nix-primary` | `#5277C3` | Primary blue (buttons, links, brand) |
+| `--nix-secondary` | `#7EBAE4` | Secondary blue (accents) |
+| `--nix-dark` | `#1C3E5A` | Dark blue (contrast, headers) |
+| `--nix-light` | `#E6F0FA` | Light blue (backgrounds) |
 
-## Code Quality
+Light and dark modes are both supported out of the box (VitePress handles the toggle).
 
-The project includes comprehensive linting and type checking:
+## Deployment
 
-```bash
-# Run ESLint to check for issues
-npm run lint
+The `deploy-website.yml` GitHub Actions workflow builds on push to `main` (when anything
+under `website/` changes) and syncs `website/out/` to S3, then invalidates CloudFront.
 
-# Fix automatically fixable ESLint issues
-npm run lint:fix
+## Editing Content
 
-# Run TypeScript type checking
-npm run type-check
-```
+- Marketing copy and feature grid: `index.md` frontmatter.
+- Installation options and tool reference: `usage.md`.
+- Project context, architecture, and bios: `about.md`.
 
-VS Code settings are included for automatic formatting and linting.
-
-## Next.js 15.2 Component Model
-
-Next.js 15.2 enforces a stricter separation between client and server components:
-
-### Client Components
-- Must include `"use client";` at the top of the file
-- Can use React hooks (useState, useEffect, etc.)
-- Can include event handlers (onClick, onChange, etc.)
-- Can access browser APIs
-
-### Server Components (Default)
-- Cannot use React hooks
-- Cannot include event handlers
-- Cannot access browser APIs
-- Can access backend resources directly
-- Keep sensitive information secure
-
-### Best Practices
-- Mark components with interactive elements as client components
-- Use dynamic imports with `{ ssr: false }` for components with useLayoutEffect
-- Keep server components as the default when possible for better performance
-- Use client components only when necessary for interactivity
+Keep the voice. MCP-NixOS has one.

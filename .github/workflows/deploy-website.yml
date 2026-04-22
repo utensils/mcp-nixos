@@ -17,30 +17,36 @@ jobs:
     environment:
       name: AWS
       url: https://mcp-nixos.io/
-    
+
     steps:
     - uses: actions/checkout@v6
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v6
       with:
         node-version: '20'
         cache: 'npm'
         cache-dependency-path: website/package-lock.json
-    
+
+    - name: Install dependencies
+      working-directory: website
+      run: npm ci
+
+    - name: Type-check Vue components
+      working-directory: website
+      run: npm run check
+
     - name: Build website
-      run: |
-        cd website
-        npm install
-        npm run build
-      
+      working-directory: website
+      run: npm run build
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v6
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-    
+
     - name: Deploy to S3
       run: |
         aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete

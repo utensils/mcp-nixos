@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    devshell = {
+      url = "github:numtide/devshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -68,6 +72,10 @@
         };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        inputs.devshell.flakeModule
+      ];
+
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -134,6 +142,56 @@
             inherit system;
             overlays = [ self.overlays.fastmcp3 ];
           };
+
+          # Shared docs/website commands — available in both the default and
+          # `web` devshells so you can pick the right weight class (full Python
+          # + docs vs docs-only).
+          docsCommands = [
+            {
+              category = "docs";
+              name = "docs-install";
+              help = "install VitePress + theme deps (first-time setup)";
+              command = "cd \"$PRJ_ROOT/website\" && npm install \"$@\"";
+            }
+            {
+              category = "docs";
+              name = "docs-dev";
+              help = "VitePress dev server with hot reload (auto-increments port if 5173 is taken)";
+              command = ''
+                cd "$PRJ_ROOT/website"
+                [ -d node_modules ] || npm install
+                npm run dev -- "$@"
+              '';
+            }
+            {
+              category = "docs";
+              name = "docs-build";
+              help = "build the documentation site into website/out/";
+              command = ''
+                cd "$PRJ_ROOT/website"
+                [ -d node_modules ] || npm install
+                npm run build
+              '';
+            }
+            {
+              category = "docs";
+              name = "docs-preview";
+              help = "serve the built docs site (auto-increments port if 4173 is taken)";
+              command = "cd \"$PRJ_ROOT/website\" && npm run preview -- \"$@\"";
+            }
+            {
+              category = "docs";
+              name = "docs-check";
+              help = "type-check Vue components with vue-tsc";
+              command = "cd \"$PRJ_ROOT/website\" && npm run check \"$@\"";
+            }
+            {
+              category = "docs";
+              name = "docs-clean";
+              help = "remove VitePress build + cache artifacts";
+              command = "rm -rf \"$PRJ_ROOT/website/.vitepress/cache\" \"$PRJ_ROOT/website/.vitepress/dist\" \"$PRJ_ROOT/website/out\"";
+            }
+          ];
         in
         {
           packages = rec {
@@ -173,23 +231,162 @@
 
           formatter = pkgs.nixfmt-rfc-style;
 
-          devShells.default = pkgs.mkShell {
-            inputsFrom = [ self.packages.${system}.mcp-nixos ];
-            packages = with pkgs.python3Packages; [
-              pkgs.python3
-              hatchling
-              build
-              pytest
-              pytest-asyncio
-              pytest-cov
-              pytest-rerunfailures
-              pytest-xdist
-              ruff
-              mypy
-              types-requests
-              types-beautifulsoup4
-              twine
+          # Default dev shell — Python backend + docs tooling in one place.
+          # Enter with: `nix develop`
+          devshells.default = {
+            name = "mcp-nixos";
+
+            motd = ''
+              {202}mcp-nixos{reset} — Model Context Protocol server for NixOS ({bold}${system}{reset})
+              $(type menu &>/dev/null && menu)
+            '';
+
+            packagesFrom = [ self.packages.${system}.mcp-nixos ];
+
+            packages = with pkgs; [
+              # Python toolchain
+              python3
+              python3Packages.hatchling
+              python3Packages.build
+              python3Packages.pytest
+              python3Packages.pytest-asyncio
+              python3Packages.pytest-cov
+              python3Packages.pytest-rerunfailures
+              python3Packages.pytest-xdist
+              python3Packages.ruff
+              python3Packages.mypy
+              python3Packages.types-requests
+              python3Packages.types-beautifulsoup4
+              python3Packages.twine
+              # Docs toolchain
+              nodejs_20
+              # Misc
+              git
+              gh
+              jq
+              nixfmt-rfc-style
             ];
+
+            commands = [
+              # ── server / run ───────────────────────────────────────────────
+              {
+                category = "run";
+                name = "run";
+                help = "start the MCP server over STDIO";
+                command = "mcp-nixos \"$@\"";
+              }
+              {
+                category = "run";
+                name = "run-http";
+                help = "start the MCP server over HTTP (http://127.0.0.1:8000/mcp)";
+                command = ''
+                  MCP_NIXOS_TRANSPORT=http \
+                    MCP_NIXOS_HOST="''${MCP_NIXOS_HOST:-127.0.0.1}" \
+                    MCP_NIXOS_PORT="''${MCP_NIXOS_PORT:-8000}" \
+                    mcp-nixos "$@"
+                '';
+              }
+
+              # ── checks / tests ─────────────────────────────────────────────
+              {
+                category = "check";
+                name = "run-tests";
+                help = "pytest tests/ -n auto (matches CI)";
+                command = "cd \"$PRJ_ROOT\" && pytest tests/ -v -n auto --cov=mcp_nixos \"$@\"";
+              }
+              {
+                category = "check";
+                name = "test-unit";
+                help = "run unit tests only (fast, offline)";
+                command = "cd \"$PRJ_ROOT\" && pytest tests/ -m unit \"$@\"";
+              }
+              {
+                category = "check";
+                name = "test-integration";
+                help = "run integration tests (hits real APIs)";
+                command = "cd \"$PRJ_ROOT\" && pytest tests/ -m integration \"$@\"";
+              }
+              {
+                category = "check";
+                name = "lint";
+                help = "ruff check + format check (matches CI)";
+                command = ''
+                  cd "$PRJ_ROOT"
+                  ruff check mcp_nixos/ tests/
+                  ruff format --check mcp_nixos/ tests/
+                '';
+              }
+              {
+                category = "check";
+                name = "format";
+                help = "ruff format mcp_nixos/ tests/";
+                command = "cd \"$PRJ_ROOT\" && ruff format mcp_nixos/ tests/";
+              }
+              {
+                category = "check";
+                name = "typecheck";
+                help = "mypy mcp_nixos/";
+                command = "cd \"$PRJ_ROOT\" && mypy mcp_nixos/";
+              }
+              {
+                category = "check";
+                name = "ci-local";
+                help = "run the same sequence CI runs: lint, typecheck, tests";
+                command = ''
+                  set -euo pipefail
+                  cd "$PRJ_ROOT"
+                  ruff check mcp_nixos/ tests/
+                  ruff format --check mcp_nixos/ tests/
+                  mypy mcp_nixos/
+                  pytest tests/ -v -n auto --cov=mcp_nixos
+                '';
+              }
+
+              # ── build / release ────────────────────────────────────────────
+              {
+                category = "build";
+                name = "build";
+                help = "build the Python wheel + sdist into dist/";
+                command = "cd \"$PRJ_ROOT\" && python -m build \"$@\"";
+              }
+              {
+                category = "build";
+                name = "build-check";
+                help = "twine check — validate package metadata";
+                command = "cd \"$PRJ_ROOT\" && twine check dist/*";
+              }
+              {
+                category = "build";
+                name = "build-nix";
+                help = "nix build — full flake build (matches CI)";
+                command = "cd \"$PRJ_ROOT\" && nix build \"$@\"";
+              }
+              {
+                category = "build";
+                name = "build-docker";
+                help = "nix build .#docker — build the multi-arch Docker image";
+                command = "cd \"$PRJ_ROOT\" && nix build .#docker \"$@\"";
+              }
+            ] ++ docsCommands;
+          };
+
+          # Lightweight docs-only dev shell — just Node + VitePress helpers.
+          # Enter with: `nix develop .#web`
+          devshells.web = {
+            name = "mcp-nixos-website";
+
+            motd = ''
+              {202}mcp-nixos-website{reset} — VitePress docs ({bold}${system}{reset})
+              $(type menu &>/dev/null && menu)
+            '';
+
+            packages = with pkgs; [
+              nodejs_20
+              git
+              jq
+            ];
+
+            commands = docsCommands;
           };
         };
     };

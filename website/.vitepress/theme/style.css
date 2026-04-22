@@ -1,0 +1,174 @@
+/**
+ * NixOS-branded palette for VitePress default theme.
+ * Primary: #5277C3  Secondary: #7EBAE4  Dark: #1C3E5A  Light: #E6F0FA
+ */
+
+:root {
+  --nix-primary: #5277c3;
+  --nix-secondary: #7ebae4;
+  --nix-dark: #1c3e5a;
+  --nix-light: #e6f0fa;
+
+  /* Brand */
+  --vp-c-brand-1: var(--nix-primary);
+  --vp-c-brand-2: #4268b0;
+  --vp-c-brand-3: var(--nix-dark);
+  --vp-c-brand-soft: rgba(82, 119, 195, 0.14);
+
+  /* Button */
+  --vp-button-brand-bg: var(--nix-primary);
+  --vp-button-brand-hover-bg: var(--nix-dark);
+  --vp-button-brand-active-bg: var(--nix-dark);
+  --vp-button-brand-border: var(--nix-primary);
+  --vp-button-brand-hover-border: var(--nix-dark);
+  --vp-button-brand-active-border: var(--nix-dark);
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-hover-text: #ffffff;
+
+  /* Home hero */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    var(--nix-primary) 30%,
+    var(--nix-secondary) 70%
+  );
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    var(--nix-secondary) 0%,
+    var(--nix-primary) 100%
+  );
+  --vp-home-hero-image-filter: blur(48px);
+
+  /* Custom block colors */
+  --vp-custom-block-tip-border: var(--nix-primary);
+  --vp-custom-block-tip-text: var(--nix-dark);
+  --vp-custom-block-tip-bg: var(--nix-light);
+}
+
+.dark {
+  --vp-c-brand-1: var(--nix-secondary);
+  --vp-c-brand-2: var(--nix-primary);
+  --vp-c-brand-3: var(--nix-primary);
+  --vp-c-brand-soft: rgba(126, 186, 228, 0.16);
+
+  --vp-button-brand-bg: var(--nix-primary);
+  --vp-button-brand-hover-bg: var(--nix-secondary);
+  --vp-button-brand-active-bg: var(--nix-secondary);
+  --vp-button-brand-border: var(--nix-primary);
+  --vp-button-brand-hover-border: var(--nix-secondary);
+}
+
+/* Smooth anchor jumps for deep links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* --- Author cards on /about --- */
+.author-card {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  padding: 1.5rem;
+  margin: 1.25rem 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+.author-card:hover {
+  border-color: var(--nix-primary);
+  transform: translateY(-2px);
+}
+.author-card__avatar {
+  width: 160px;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--nix-light);
+  box-shadow: 0 6px 18px rgba(28, 62, 90, 0.12);
+}
+.author-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.author-card__body h3 {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+.author-card__role {
+  color: var(--vp-c-text-2);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.author-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.author-card__links a {
+  color: var(--nix-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.author-card__links a:hover {
+  color: var(--nix-dark);
+  text-decoration: underline;
+}
+@media (max-width: 640px) {
+  .author-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .author-card__avatar {
+    margin: 0 auto;
+  }
+  .author-card__links {
+    justify-content: center;
+  }
+}
+
+/* --- Usage option cards --- */
+.usage-option {
+  border-left: 4px solid var(--nix-primary);
+  background: var(--vp-c-bg-soft);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+.usage-option--alt {
+  border-left-color: var(--nix-secondary);
+}
+.usage-option h3 {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+.usage-option__note {
+  color: var(--vp-c-text-2);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin-top: 0.75rem;
+}
+
+/* Subtle chip treatment for inline "pills" used in markdown */
+.pill {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: var(--nix-light);
+  color: var(--nix-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0.25rem;
+}
+.dark .pill {
+  background: rgba(126, 186, 228, 0.15);
+  color: var(--nix-secondary);
+}
