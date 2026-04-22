@@ -81,18 +81,21 @@ class TestStoreLsPathValidation:
 
     @pytest.mark.asyncio
     async def test_empty_query_rejected(self):
+        """Empty query rejected."""
         result = await _store_ls("", 500)
         assert "Error" in result
         assert "store path required" in result.lower()
 
     @pytest.mark.asyncio
     async def test_relative_path_rejected(self):
+        """Relative path rejected."""
         result = await _store_ls("nix/store/foo", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_non_store_path_rejected(self):
+        """Non store path rejected."""
         result = await _store_ls("/tmp", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
@@ -100,12 +103,14 @@ class TestStoreLsPathValidation:
 
     @pytest.mark.asyncio
     async def test_etc_passwd_rejected(self):
+        """Etc passwd rejected."""
         result = await _store_ls("/etc/passwd", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_path_traversal_rejected(self):
+        """Path traversal rejected."""
         result = await _store_ls("/nix/store/../etc/passwd", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
@@ -117,6 +122,7 @@ class TestStoreLsRealPath:
 
     @pytest.mark.asyncio
     async def test_ls_real_store_dir(self):
+        """Ls real store dir."""
         store_dir = _pick_real_store_dir()
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
@@ -161,6 +167,7 @@ class TestStoreLsMissing:
 
     @pytest.mark.asyncio
     async def test_nonexistent_path(self):
+        """Nonexistent path."""
         if not os.path.isdir("/nix/store"):
             pytest.skip("/nix/store not available")
 
@@ -176,18 +183,21 @@ class TestStoreReadPathValidation:
 
     @pytest.mark.asyncio
     async def test_empty_query_rejected(self):
+        """Empty query rejected."""
         result = await _store_read("", 20)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_non_store_path_rejected(self):
+        """Non store path rejected."""
         result = await _store_read("/tmp/foo", 20)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_path_traversal_rejected(self):
+        """Path traversal rejected."""
         result = await _store_read("/nix/store/../etc/passwd", 20)
         assert "Error" in result
         assert "INVALID_PATH" in result
@@ -199,6 +209,7 @@ class TestStoreReadNotFound:
 
     @pytest.mark.asyncio
     async def test_missing_file(self):
+        """Missing file."""
         if not os.path.isdir("/nix/store"):
             pytest.skip("/nix/store not available")
 
@@ -214,6 +225,7 @@ class TestStoreReadIsDirectory:
 
     @pytest.mark.asyncio
     async def test_directory_target(self):
+        """Directory target."""
         store_dir = _pick_real_store_dir()
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
@@ -230,6 +242,7 @@ class TestStoreReadTextFile:
 
     @pytest.mark.asyncio
     async def test_read_text_file(self):
+        """Read text file."""
         store_dir = _pick_real_store_dir()
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
@@ -246,6 +259,7 @@ class TestStoreReadTextFile:
     async def test_read_truncates_with_limit(self):
         # Use a tempfile mounted... no — _validate_store_path requires /nix/store/
         # So instead find a real multi-line text file in /nix/store.
+        """Read truncates with limit."""
         store_dir = _pick_real_store_dir()
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
@@ -288,6 +302,7 @@ class TestStoreReadBinaryFile:
 
     @pytest.mark.asyncio
     async def test_read_binary_file(self):
+        """Read binary file."""
         store_dir = _pick_real_store_dir()
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
@@ -309,6 +324,7 @@ class TestStoreRouting:
 
     @pytest.mark.asyncio
     async def test_invalid_type(self):
+        """Invalid type."""
         result = await nix_fn(
             action="store",
             type="invalid",
@@ -323,6 +339,7 @@ class TestStoreRouting:
 
     @pytest.mark.asyncio
     async def test_missing_query_for_ls(self):
+        """Missing query for ls."""
         result = await nix_fn(action="store", type="ls")
         assert "Error" in result
         assert "Query required" in result
@@ -330,12 +347,14 @@ class TestStoreRouting:
 
     @pytest.mark.asyncio
     async def test_missing_query_for_read(self):
+        """Missing query for read."""
         result = await nix_fn(action="store", type="read")
         assert "Error" in result
         assert "Query required" in result
 
     @pytest.mark.asyncio
     async def test_read_limit_validation(self):
+        """Read limit validation."""
         result = await nix_fn(
             action="store",
             type="read",
@@ -347,6 +366,7 @@ class TestStoreRouting:
 
     @pytest.mark.asyncio
     async def test_non_store_path_rejected_through_tool(self):
+        """Non store path rejected through tool."""
         result = await nix_fn(action="store", type="ls", query="/tmp")
         assert "Error" in result
         assert "INVALID_PATH" in result
@@ -358,6 +378,7 @@ class TestStorePlainText:
 
     @pytest.mark.asyncio
     async def test_error_output_is_plain_text(self):
+        """Error output is plain text."""
         result = await _store_ls("/tmp", 500)
         # No JSON braces or XML tags in error output
         assert not result.strip().startswith("{")
@@ -365,6 +386,7 @@ class TestStorePlainText:
 
     @pytest.mark.asyncio
     async def test_read_error_is_plain_text(self):
+        """Read error is plain text."""
         with tempfile.TemporaryDirectory() as tmpdir:
             result = await _store_read(tmpdir, 20)
             assert not result.strip().startswith("{")
