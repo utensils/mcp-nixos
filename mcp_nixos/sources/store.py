@@ -65,8 +65,13 @@ def _scan_directory(target_path: str) -> tuple[list[str], list[tuple[str, int | 
     return dirs, files
 
 
-async def _store_ls(query: str) -> str:
-    """List the contents of a directory inside /nix/store."""
+async def _store_ls(query: str, limit: int) -> str:
+    """List the contents of a directory inside /nix/store.
+
+    `limit` caps how many entries (dirs + files combined, sorted with dirs
+    first) we actually print, so a caller passing `limit=1` against a large
+    store directory doesn't get the entire listing back.
+    """
     ok, target_path, err_msg = _validate_query(query)
     if not ok:
         return error(err_msg, "INVALID_PATH")
@@ -86,15 +91,28 @@ async def _store_ls(query: str) -> str:
     except OSError as exc:
         return error(f"Cannot list directory: {exc}", "OS_ERROR")
 
-    if not dirs and not files:
+    total_dirs = len(dirs)
+    total_files = len(files)
+    total = total_dirs + total_files
+    if total == 0:
         return f"Directory '{target_path}' is empty."
 
-    lines = [f"Contents of {target_path} ({len(dirs)} dirs, {len(files)} files):", ""]
+    # Truncate dirs+files as a single combined list, keeping dirs first
+    # (same display order as the non-truncated case).
+    shown_dirs = dirs[:limit]
+    remaining = max(0, limit - len(shown_dirs))
+    shown_files = files[:remaining]
+    shown_total = len(shown_dirs) + len(shown_files)
 
-    for name in dirs:
+    header = f"Contents of {target_path} ({total_dirs} dirs, {total_files} files):"
+    if shown_total < total:
+        header += f" showing {shown_total} of {total}"
+    lines = [header, ""]
+
+    for name in shown_dirs:
         lines.append(f"  {name}/")
 
-    for name, size in files:
+    for name, size in shown_files:
         size_str = f" ({_format_size(size)})" if size is not None else ""
         lines.append(f"  {name}{size_str}")
 

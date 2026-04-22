@@ -81,32 +81,32 @@ class TestStoreLsPathValidation:
 
     @pytest.mark.asyncio
     async def test_empty_query_rejected(self):
-        result = await _store_ls("")
+        result = await _store_ls("", 500)
         assert "Error" in result
         assert "store path required" in result.lower()
 
     @pytest.mark.asyncio
     async def test_relative_path_rejected(self):
-        result = await _store_ls("nix/store/foo")
+        result = await _store_ls("nix/store/foo", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_non_store_path_rejected(self):
-        result = await _store_ls("/tmp")
+        result = await _store_ls("/tmp", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
         assert "/nix/store/" in result
 
     @pytest.mark.asyncio
     async def test_etc_passwd_rejected(self):
-        result = await _store_ls("/etc/passwd")
+        result = await _store_ls("/etc/passwd", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
     @pytest.mark.asyncio
     async def test_path_traversal_rejected(self):
-        result = await _store_ls("/nix/store/../etc/passwd")
+        result = await _store_ls("/nix/store/../etc/passwd", 500)
         assert "Error" in result
         assert "INVALID_PATH" in result
 
@@ -121,10 +121,38 @@ class TestStoreLsRealPath:
         if store_dir is None:
             pytest.skip("/nix/store not available or empty")
 
-        result = await _store_ls(store_dir)
+        result = await _store_ls(store_dir, 500)
         assert "Error" not in result
         assert store_dir in result
-        assert "dirs" in result and "files" in result
+        # `_pick_real_store_dir` may pick a valid but empty store output
+        # (nixpkgs produces empty directories for some derivations). Accept
+        # either the "Contents of ..." header or the empty-directory message.
+        assert ("dirs" in result and "files" in result) or "is empty" in result
+
+    @pytest.mark.asyncio
+    async def test_ls_honours_limit(self):
+        """limit=1 against a real store dir must not dump the full listing."""
+        if not os.path.isdir("/nix/store"):
+            pytest.skip("/nix/store not available")
+        big_dir = None
+        for entry in sorted(os.listdir("/nix/store"))[:50]:
+            candidate = os.path.join("/nix/store", entry)
+            if os.path.isdir(candidate):
+                try:
+                    if len(os.listdir(candidate)) >= 2:
+                        big_dir = candidate
+                        break
+                except OSError:
+                    continue
+        if big_dir is None:
+            pytest.skip("no /nix/store entry with 2+ children found")
+
+        result = await _store_ls(big_dir, 1)
+        assert "Error" not in result
+        assert "showing 1 of" in result
+        # Exactly one entry line (two-space indent) should follow the header/blank line.
+        entry_lines = [ln for ln in result.splitlines() if ln.startswith("  ")]
+        assert len(entry_lines) == 1, f"expected one entry line, got {entry_lines}"
 
 
 @pytest.mark.unit
@@ -137,7 +165,7 @@ class TestStoreLsMissing:
             pytest.skip("/nix/store not available")
 
         bogus = "/nix/store/0000000000000000000000000000000000000000-does-not-exist"
-        result = await _store_ls(bogus)
+        result = await _store_ls(bogus, 500)
         assert "Error" in result
         assert "NOT_FOUND" in result
 
@@ -330,7 +358,7 @@ class TestStorePlainText:
 
     @pytest.mark.asyncio
     async def test_error_output_is_plain_text(self):
-        result = await _store_ls("/tmp")
+        result = await _store_ls("/tmp", 500)
         # No JSON braces or XML tags in error output
         assert not result.strip().startswith("{")
         assert not result.strip().startswith("<")

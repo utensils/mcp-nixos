@@ -391,7 +391,12 @@ async def nix(
                 'Example: {"action": "store", "type": "ls", "query": "/nix/store/<hash>-<name>"}'
             )
         if type == "ls":
-            return await _store_ls(query)
+            # Match _store_read's default-promotion so a bare call returns a
+            # useful window of entries for large /nix/store directories
+            # instead of only the first 20.
+            ls_limit = limit if limit != 20 else DEFAULT_LINE_LIMIT
+            ls_limit = min(ls_limit, MAX_LINE_LIMIT)
+            return await _store_ls(query, ls_limit)
 
         # type == "read": default limit behavior mirrors flake-inputs read.
         read_limit = limit
