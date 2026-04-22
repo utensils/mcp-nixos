@@ -71,11 +71,7 @@ def test_explicit_fastmcp_env_file_is_preserved(tmp_path: Path) -> None:
     valid_env = tmp_path / "custom.env"
     valid_env.write_text("SOME_FASTMCP_VAR=hello\n", encoding="utf-8")
 
-    result = _run_import_in(tmp_path, env={"FASTMCP_ENV_FILE": str(valid_env)})
-
-    assert result.returncode == 0, f"stderr={result.stderr!r}"
-
-    import_check = subprocess.run(
+    result = subprocess.run(
         [
             sys.executable,
             "-c",
@@ -87,11 +83,11 @@ def test_explicit_fastmcp_env_file_is_preserved(tmp_path: Path) -> None:
         text=True,
         timeout=30,
     )
-    assert import_check.returncode == 0
-    assert import_check.stdout.strip() == str(valid_env)
+    assert result.returncode == 0, f"stderr={result.stderr!r}"
+    assert result.stdout.strip() == str(valid_env)
 
 
-def test_default_fastmcp_env_file_points_to_devnull() -> None:
+def test_default_fastmcp_env_file_points_to_devnull(tmp_path: Path) -> None:
     """Import mcp_nixos with no FASTMCP_ENV_FILE set; it should default to os.devnull."""
     env = {k: v for k, v in os.environ.items() if k != "FASTMCP_ENV_FILE"}
     env["PYTHONPATH"] = str(REPO_ROOT)
@@ -102,6 +98,7 @@ def test_default_fastmcp_env_file_points_to_devnull() -> None:
             "-c",
             "import os; import mcp_nixos; print(os.environ['FASTMCP_ENV_FILE'])",
         ],
+        cwd=str(tmp_path),
         env=env,
         capture_output=True,
         text=True,
