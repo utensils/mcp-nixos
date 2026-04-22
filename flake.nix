@@ -367,7 +367,8 @@
                 help = "nix build .#docker — build the multi-arch Docker image";
                 command = "cd \"$PRJ_ROOT\" && nix build .#docker \"$@\"";
               }
-            ] ++ docsCommands;
+            ]
+            ++ docsCommands;
           };
 
           # Lightweight docs-only dev shell — just Node + VitePress helpers.
