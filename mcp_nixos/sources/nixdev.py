@@ -126,26 +126,42 @@ def _info_nixdev(query: str) -> str:
     url = f"{NIXDEV_BASE_URL}/_sources/{docname}.md"
     canonical_url = f"{NIXDEV_BASE_URL}/{docname}.html"
 
+    # Stream the download and stop once we've read past the cap so a
+    # multi-MB page doesn't materialize in memory before being truncated.
+    # Read one extra byte beyond the cap to detect truncation unambiguously.
     try:
-        resp = requests.get(url, timeout=15)
+        resp = requests.get(url, timeout=15, stream=True)
     except requests.Timeout:
         return error("nix.dev request timed out", "TIMEOUT")
     except requests.RequestException as exc:
         return error(f"nix.dev request failed: {exc}", "API_ERROR")
 
-    if resp.status_code == 404:
-        return error(f"nix.dev page not found: {docname}", "NOT_FOUND")
     try:
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        return error(f"nix.dev request failed: {exc}", "API_ERROR")
+        if resp.status_code == 404:
+            return error(f"nix.dev page not found: {docname}", "NOT_FOUND")
+        try:
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            return error(f"nix.dev request failed: {exc}", "API_ERROR")
 
-    body = resp.text
-    truncated = False
-    if len(body.encode("utf-8")) > _NIXDEV_MAX_MD_BYTES:
-        # Slice by bytes, then decode defensively — rare for ASCII/UTF-8 docs.
-        body = body.encode("utf-8")[:_NIXDEV_MAX_MD_BYTES].decode("utf-8", errors="ignore")
-        truncated = True
+        cap = _NIXDEV_MAX_MD_BYTES
+        buf = bytearray()
+        try:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if not chunk:
+                    continue
+                buf.extend(chunk)
+                if len(buf) > cap:
+                    break
+        except requests.RequestException as exc:
+            return error(f"nix.dev request failed: {exc}", "API_ERROR")
+    finally:
+        resp.close()
+
+    truncated = len(buf) > cap
+    # Decode defensively — nix.dev markdown is ASCII/UTF-8, but truncating
+    # on a byte boundary could split a multi-byte codepoint.
+    body = bytes(buf[:cap] if truncated else buf).decode("utf-8", errors="ignore")
 
     title = _extract_nixdev_title(body, fallback=docname)
 

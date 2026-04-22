@@ -1016,15 +1016,33 @@ class TestInfoNixDev:
         "The Nix language is designed for conveniently creating derivations.\n"
     )
 
+    @staticmethod
+    def _mock_response(status_code: int, body: str) -> Mock:
+        """Build a streaming-aware mock of `requests.Response`.
+
+        `_info_nixdev` uses `stream=True` + `iter_content(chunk_size=...)`,
+        not `.text`. Provide an iter_content that yields the body as 8 KB
+        byte chunks so the size-cap path in the implementation runs as it
+        would against a real response.
+        """
+        body_bytes = body.encode("utf-8")
+        resp = Mock()
+        resp.status_code = status_code
+        resp.raise_for_status = Mock()
+        resp.close = Mock()
+
+        def iter_content(chunk_size: int = 8192):
+            for i in range(0, len(body_bytes), chunk_size):
+                yield body_bytes[i : i + chunk_size]
+
+        resp.iter_content = iter_content
+        return resp
+
     @patch("mcp_nixos.sources.nixdev.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixdev_docname(self, mock_get):
         """Happy path: docname input returns markdown with title header."""
-        mock_resp = Mock()
-        mock_resp.status_code = 200
-        mock_resp.text = self._SAMPLE_MD
-        mock_resp.raise_for_status = Mock()
-        mock_get.return_value = mock_resp
+        mock_get.return_value = self._mock_response(200, self._SAMPLE_MD)
 
         result = await nix_fn(action="info", query="tutorials/nix-language", source="nix-dev")
 
@@ -1041,11 +1059,7 @@ class TestInfoNixDev:
     @pytest.mark.asyncio
     async def test_info_nixdev_full_html_url(self, mock_get):
         """Full .html URL is normalized to the docname before fetching."""
-        mock_resp = Mock()
-        mock_resp.status_code = 200
-        mock_resp.text = self._SAMPLE_MD
-        mock_resp.raise_for_status = Mock()
-        mock_get.return_value = mock_resp
+        mock_get.return_value = self._mock_response(200, self._SAMPLE_MD)
 
         result = await nix_fn(
             action="info",
@@ -1061,11 +1075,7 @@ class TestInfoNixDev:
     @pytest.mark.asyncio
     async def test_info_nixdev_404(self, mock_get):
         """404 returns NOT_FOUND with the normalized docname."""
-        mock_resp = Mock()
-        mock_resp.status_code = 404
-        mock_resp.text = "<html>not found</html>"
-        mock_resp.raise_for_status = Mock()
-        mock_get.return_value = mock_resp
+        mock_get.return_value = self._mock_response(404, "<html>not found</html>")
 
         result = await nix_fn(action="info", query="does/not/exist", source="nix-dev")
         assert "NOT_FOUND" in result
@@ -1096,19 +1106,23 @@ class TestInfoNixDev:
     @patch("mcp_nixos.sources.nixdev.requests.get")
     @pytest.mark.asyncio
     async def test_info_nixdev_truncation(self, mock_get):
-        """Responses above the size cap are truncated with a marker."""
-        # 250KB of body to exceed the 200KB cap
+        """Responses above the size cap are truncated with a marker.
+
+        Also verifies the streaming path: the mock yields bytes via
+        `iter_content`, never `.text`, so the implementation must be
+        reading from the stream rather than materializing the whole
+        response.
+        """
         big_body = "# Big Doc\n\n" + ("x" * (250 * 1024))
-        mock_resp = Mock()
-        mock_resp.status_code = 200
-        mock_resp.text = big_body
-        mock_resp.raise_for_status = Mock()
-        mock_get.return_value = mock_resp
+        resp = self._mock_response(200, big_body)
+        mock_get.return_value = resp
 
         result = await nix_fn(action="info", query="big/doc", source="nix-dev")
         assert "[truncated]" in result
-        # Body bytes after header should be capped
         assert len(result.encode("utf-8")) < len(big_body.encode("utf-8"))
+        # Confirm we used the streaming API, not `.text`.
+        _, kwargs = mock_get.call_args
+        assert kwargs.get("stream") is True
 
     @patch("mcp_nixos.sources.nixdev.requests.get")
     @pytest.mark.asyncio
