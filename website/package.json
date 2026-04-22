@@ -15,7 +15,7 @@
   "dependencies": {
     "@types/react-syntax-highlighter": "^15.5.13",
     "next": "^16.1.6",
-    "react": "^19.0.0",
+    "react": "^19.2.5",
     "react-dom": "^19.0.0",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-pretty-code": "^0.14.1",
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
     "@types/node": "^25.3.5",
-    "@types/react": "^19.2.11",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.29.0",
     "@typescript-eslint/parser": "^8.29.0",
