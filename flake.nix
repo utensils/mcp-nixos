@@ -143,6 +143,37 @@
             overlays = [ self.overlays.fastmcp3 ];
           };
 
+          # One unified Python environment with app runtime deps, dev tools,
+          # and type stubs all sharing a single site-packages. Without this,
+          # each `python3Packages.*` is its own isolated env so `mypy` can't
+          # see `types-requests` and `python -m build` fails with "No module
+          # named build" — which is how the old mkShell + inputsFrom setup
+          # silently passed: the propagated env leaked in. numtide/devshell
+          # is stricter, so we build the env explicitly.
+          pythonEnv = pkgs.python3.withPackages (
+            ps: with ps; [
+              # app runtime
+              fastmcp
+              requests
+              beautifulsoup4
+              # build
+              hatchling
+              build
+              twine
+              # lint / type-check
+              ruff
+              mypy
+              types-requests
+              types-beautifulsoup4
+              # test
+              pytest
+              pytest-asyncio
+              pytest-cov
+              pytest-rerunfailures
+              pytest-xdist
+            ]
+          );
+
           # Shared docs/website commands — available in both the default and
           # `web` devshells so you can pick the right weight class (full Python
           # + docs vs docs-only).
@@ -241,30 +272,13 @@
               $(type menu &>/dev/null && menu)
             '';
 
-            packagesFrom = [ self.packages.${system}.mcp-nixos ];
-
-            packages = with pkgs; [
-              # Python toolchain
-              python3
-              python3Packages.hatchling
-              python3Packages.build
-              python3Packages.pytest
-              python3Packages.pytest-asyncio
-              python3Packages.pytest-cov
-              python3Packages.pytest-rerunfailures
-              python3Packages.pytest-xdist
-              python3Packages.ruff
-              python3Packages.mypy
-              python3Packages.types-requests
-              python3Packages.types-beautifulsoup4
-              python3Packages.twine
-              # Docs toolchain
-              nodejs_20
-              # Misc
-              git
-              gh
-              jq
-              nixfmt-rfc-style
+            packages = [
+              pythonEnv
+              pkgs.nodejs_20
+              pkgs.git
+              pkgs.gh
+              pkgs.jq
+              pkgs.nixfmt-rfc-style
             ];
 
             commands = [
