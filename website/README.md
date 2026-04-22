@@ -15,28 +15,36 @@ CloudFront.
 
 ### Using Nix (recommended)
 
-From the repo root, drop into the website dev shell:
+From the repo root, drop into one of the dev shells:
 
 ```bash
+# Full shell (Python backend + docs toolchain — recommended if you work across both)
+nix develop
+
+# Docs-only shell (Node + VitePress helpers, lighter)
 nix develop .#web
 ```
 
-You'll get Node.js, npm, and a `menu` printout with the common commands. Then:
+Either shell prints a `menu` with categorized helpers. The docs commands are
+the same in both:
+
+```bash
+docs-install      # npm install (first-time setup)
+docs-dev          # VitePress dev server with hot reload
+docs-build        # static build into website/out/
+docs-preview      # serve the built site locally
+docs-check        # type-check Vue components with vue-tsc
+docs-clean        # wipe website/out + .vitepress/cache
+```
+
+Or run the raw npm scripts directly:
 
 ```bash
 npm install       # one-time, installs VitePress + deps
-npm run dev       # local dev server with hot reload (http://localhost:5173)
+npm run dev       # local dev server with hot reload
 npm run build     # static build into website/out/
 npm run preview   # serve the built site locally
-```
-
-Or use the convenience helpers printed by the menu:
-
-```bash
-web-install       # npm install
-web-dev           # npm run dev
-web-build         # npm run build
-web-preview       # npm run preview
+npm run check     # vue-tsc type check
 ```
 
 ### Without Nix

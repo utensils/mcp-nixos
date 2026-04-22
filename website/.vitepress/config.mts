@@ -13,7 +13,7 @@ export default defineConfig({
     hostname: siteUrl,
   },
   outDir: 'out',
-  srcExclude: ['**/README.md', 'public/**'],
+  srcExclude: ['**/README.md', 'public/**', 'out/**', '.vitepress/dist/**'],
 
   head: [
     ['link', { rel: 'icon', href: '/favicon/favicon.ico' }],

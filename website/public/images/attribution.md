@@ -14,6 +14,17 @@ While no explicit license was found for the NixOS snowflake logo, we are using i
 
 If you are the copyright holder of the NixOS snowflake logo and have concerns about its usage in this project, please contact us and we will address your concerns promptly.
 
+## Claude and Anthropic Logos
+
+`claude-logo.png` is the official Claude brand mark, sourced from
+https://claude.ai/apple-touch-icon.png (180×180). It is used here to attribute
+Anthropic's Claude AI assistant in the project's authors section under fair use,
+as a factual identification of the tool credited in the acknowledgments. Claude
+and the Claude logo are trademarks of Anthropic, PBC.
+
+If Anthropic has concerns about usage in this project, please contact us and we
+will address them promptly.
+
 ## Our Project
 
 MCP-NixOS is licensed under the MIT License. See the LICENSE file in the root directory for the full license text.
