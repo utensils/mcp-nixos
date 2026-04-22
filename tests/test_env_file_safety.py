@@ -28,10 +28,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _run_import_in(cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    """Run `from mcp_nixos.server import main` in a fresh Python process rooted at `cwd`."""
+    """Run `import mcp_nixos.server` in a fresh Python process rooted at `cwd`."""
     full_env = os.environ.copy()
     # Let the subprocess find the in-tree mcp_nixos without install.
     full_env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(REPO_ROOT), full_env.get("PYTHONPATH", "")]))
+    # Strip any inherited FASTMCP_ENV_FILE so the regression tests exercise the
+    # *default* path (mcp_nixos/__init__.py's setdefault). If the caller wants
+    # to assert the explicit-override behavior, they pass it via `env`.
+    full_env.pop("FASTMCP_ENV_FILE", None)
     if env:
         full_env.update(env)
 
