@@ -214,7 +214,7 @@
               category = "docs";
               name = "docs-check";
               help = "type-check Vue components with vue-tsc";
-              command = "cd \"$PRJ_ROOT/website\" && npm run check \"$@\"";
+              command = "cd \"$PRJ_ROOT/website\" && npm run check -- \"$@\"";
             }
             {
               category = "docs";

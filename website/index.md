@@ -62,7 +62,7 @@ features:
 ---
 
 <div style="text-align: center; margin-top: 3rem;">
-  <span class="pill">v2.4.1</span>
+  <a href="https://github.com/utensils/mcp-nixos/releases/latest" class="pill" target="_blank" rel="noopener">Latest release ↗</a>
   <span class="pill">2 MCP tools</span>
   <span class="pill">Plain text responses</span>
   <span class="pill">MIT</span>

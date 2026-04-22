@@ -181,8 +181,10 @@ Just two. We consolidated 17 tools into 2 because your AI's context window isn't
 One tool to rule them all:
 
 ```text
-nix(action, query, source, type, channel, limit)
+nix(action, query, source, type, channel, limit, version, system)
 ```
+
+`version` and `system` are only used by `action="cache"`.
 
 | Action | What it does |
 |--------|-------------|

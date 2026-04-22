@@ -58,9 +58,11 @@
   --vp-button-brand-hover-border: var(--nix-secondary);
 }
 
-/* Smooth anchor jumps for deep links */
-html {
-  scroll-behavior: smooth;
+/* Smooth anchor jumps for deep links — gated on reduced-motion preference */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* --- Author cards on /about --- */
@@ -74,13 +76,20 @@ html {
   border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   background: var(--vp-c-bg-soft);
-  transition:
-    border-color 0.2s,
-    transform 0.2s;
+  transition: border-color 0.2s;
 }
 .author-card:hover {
   border-color: var(--nix-primary);
-  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .author-card {
+    transition:
+      border-color 0.2s,
+      transform 0.2s;
+  }
+  .author-card:hover {
+    transform: translateY(-2px);
+  }
 }
 .author-card__avatar {
   width: 160px;
@@ -167,8 +176,17 @@ html {
   font-size: 0.85rem;
   font-weight: 600;
   margin: 0 0.25rem;
+  text-decoration: none;
+}
+a.pill:hover {
+  background: var(--nix-secondary);
+  color: #ffffff;
 }
 .dark .pill {
   background: rgba(126, 186, 228, 0.15);
   color: var(--nix-secondary);
+}
+.dark a.pill:hover {
+  background: var(--nix-primary);
+  color: #ffffff;
 }

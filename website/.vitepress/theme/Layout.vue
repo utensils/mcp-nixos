@@ -34,4 +34,9 @@ const { Layout } = DefaultTheme;
     transform: translateY(-10px);
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .hero-snowflake img {
+    animation: none;
+  }
+}
 </style>

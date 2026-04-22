@@ -39,8 +39,10 @@ and utilities for developers and systems engineers.
 ## Architecture
 
 MCP-NixOS v2.x is a **stateless, async FastMCP 3.x server** with a modular structure
-(Python 3.11+). No caches, no databases, no sacred goat to appease — every query hits
-live APIs.
+(Python 3.11+). No persistent caches, no databases, no sacred goat to appease — live
+APIs are the source of truth, with some in-process caching for discovered channels
+and index-style sources (Nixvim, Noogle, nix.dev) so a single server run doesn't
+re-fetch the same catalog on every query.
 
 - **`nix` tool** — Unified query router for search / info / stats / browse / channels /
   flake-inputs / cache / store across every source.
