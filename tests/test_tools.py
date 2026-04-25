@@ -554,18 +554,19 @@ class TestChannelRevisions:
     """GitHub #146: action=channels surfaces nixpkgs HEAD commit per channel."""
 
     def test_commit_extracted_from_unstable_index_name(self):
-        """When the ES index name embeds a 40-char hex commit, use it directly."""
+        """When the ES index name embeds a 40-char hex commit, it is reported as indexed."""
         from mcp_nixos.sources.base import _channel_revision
 
-        rev = _channel_revision(
+        rev, source = _channel_revision(
             "unstable",
             "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc",
             {"unstable": "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc"},
         )
         assert rev == "b12141ef619e0a9c1c84dc8c684040326f27cdcc"
+        assert source == "indexed"
 
-    def test_list_channels_renders_revision_line(self):
-        """_list_channels output must include a Revision line for channels we can resolve."""
+    def test_list_channels_labels_indexed_revision(self):
+        """When the SHA is embedded in the index, label it as 'Revision (indexed)'."""
         from unittest.mock import patch
 
         from mcp_nixos.sources.base import _list_channels
@@ -583,8 +584,38 @@ class TestChannelRevisions:
             }
             result = _list_channels()
 
-        assert "Revision: b12141ef619e0a9c1c84dc8c684040326f27cdcc" in result
-        assert "nixos-unstable" in result
+        channels_block = result.split("Note:", 1)[0]
+        assert "Revision (indexed): b12141ef619e0a9c1c84dc8c684040326f27cdcc" in channels_block
+        assert "Branch: nixos-unstable" in channels_block
+        # Must NOT mislabel an indexed commit as a branch HEAD in the channel entry.
+        assert "Branch HEAD" not in channels_block
+
+    def test_list_channels_labels_branch_head_when_not_indexed(self):
+        """For release channels we can only look up branch HEAD — label it honestly."""
+        from unittest.mock import patch
+
+        from mcp_nixos.sources.base import _BRANCH_REVS, _list_channels
+
+        _BRANCH_REVS.clear()
+        _BRANCH_REVS["nixos-25.11"] = "abc1234abc1234abc1234abc1234abc1234abcd"
+        fake_channels = {"25.11": "latest-46-nixos-25.11"}
+        try:
+            with (
+                patch("mcp_nixos.sources.base.get_channels", return_value=fake_channels),
+                patch("mcp_nixos.sources.base.channel_cache") as mock_cache,
+            ):
+                mock_cache.using_fallback = False
+                mock_cache.get_available.return_value = {"latest-46-nixos-25.11": "100,000 documents"}
+                result = _list_channels()
+        finally:
+            _BRANCH_REVS.clear()
+
+        channels_block = result.split("Note:", 1)[0]
+        assert "Branch: nixos-25.11" in channels_block
+        assert "Branch HEAD: abc1234abc1234abc1234abc1234abc1234abcd" in channels_block
+        assert "may be ahead of indexed data" in channels_block
+        # Must NOT imply this is the indexed commit in the channel entry.
+        assert "Revision (indexed)" not in channels_block
 
 
 @pytest.mark.unit

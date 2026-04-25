@@ -106,23 +106,29 @@ def _channel_to_branch(name: str, index: str, resolved: dict[str, str]) -> str:
     return ""
 
 
-def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> str:
-    """Resolve the current HEAD commit for a channel.
+def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> tuple[str, str]:
+    """Resolve a commit for a channel along with its provenance.
 
-    When the commit is embedded in the ES index name (older unstable indices),
-    use it directly. Otherwise do a best-effort GitHub API fetch keyed by
-    branch, with a short timeout and graceful degradation on failure or rate
-    limits.
+    Returns ``(sha, source)`` where ``source`` is:
+
+    - ``"indexed"`` — the commit is embedded in the ES index name, so the
+      package/option data returned for this channel was built from exactly
+      this commit. Safe to compare against with ``nix_versions``.
+    - ``"branch_head"`` — best-effort GitHub API fetch of the channel
+      branch's current HEAD. This may be a few commits ahead of the
+      published search index, so it is a *pointer* to the channel, not a
+      claim about the indexed data.
+    - ``""`` (empty) when nothing could be resolved.
     """
     embedded = _COMMIT_IN_INDEX.search(index)
     if embedded:
-        return embedded.group(1)
+        return embedded.group(1), "indexed"
 
     branch = _channel_to_branch(name, index, resolved)
     if not branch:
-        return ""
+        return "", ""
     if branch in _BRANCH_REVS:
-        return _BRANCH_REVS[branch]
+        return _BRANCH_REVS[branch], "branch_head"
 
     try:
         resp = requests.get(
@@ -132,11 +138,12 @@ def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> str:
         )
         if resp.status_code == 200:
             rev = resp.json().get("sha", "") or ""
-            _BRANCH_REVS[branch] = rev
-            return rev
+            if rev:
+                _BRANCH_REVS[branch] = rev
+                return rev, "branch_head"
     except requests.RequestException:
         pass
-    return ""
+    return "", ""
 
 
 def _list_channels() -> str:
@@ -160,17 +167,25 @@ def _list_channels() -> str:
                     label = f"* {name} (current: {parts[3]})"
             results.append(f"{label} -> {index}")
             results.append(f"  Status: {status} ({doc_count})")
-            rev = _channel_revision(name, index, configured)
-            if rev:
-                branch = _channel_to_branch(name, index, configured)
-                branch_note = f" ({branch})" if branch else ""
-                results.append(f"  Revision: {rev}{branch_note}")
+            rev, source = _channel_revision(name, index, configured)
+            branch = _channel_to_branch(name, index, configured)
+            if branch:
+                results.append(f"  Branch: {branch}")
+            if rev and source == "indexed":
+                # Exact commit the search index was built from — safe to
+                # compare package versions against.
+                results.append(f"  Revision (indexed): {rev}")
+            elif rev and source == "branch_head":
+                # Upstream branch HEAD; the search index for this channel
+                # may lag by a handful of commits.
+                results.append(f"  Branch HEAD: {rev} (upstream; may be ahead of indexed data)")
             results.append("")
 
         results.append(
-            "Note: 'stable' always points to current stable release. Revisions show the "
-            "nixpkgs HEAD commit for the channel's branch — use this to compare commit "
-            "hashes against a channel or pass to `nix_versions` for version history."
+            "Note: 'stable' always points to current stable release. "
+            "'Revision (indexed)' is the exact commit the search index was built from "
+            "(safe to compare against `nix_versions`). 'Branch HEAD' is the upstream "
+            "branch tip (useful as a pointer but may be ahead of indexed data)."
         )
         return "\n".join(results).strip()
     except Exception as e:

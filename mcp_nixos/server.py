@@ -239,7 +239,8 @@ async def nix(
       "is package X in channel Y?"        → {"action": "info", "query": "X", "channel": "Y"}
       "search for package X"              → {"action": "search", "query": "X"}
       "which channels are available?"     → {"action": "channels"}
-      "which commit is channel X at?"     → {"action": "channels"}  (revision shown per channel)
+      "which commit did channel X index?" → {"action": "channels"}  (indexed commit shown when known;
+                                                                     branch HEAD otherwise — label matters)
       "search NixOS options for X"        → {"action": "search", "query": "X", "type": "options"}
       "get option details for X"          → {"action": "info", "query": "X", "type": "option"}
       "home-manager option for X"         → {"action": "search", "query": "X", "source": "home-manager"}
