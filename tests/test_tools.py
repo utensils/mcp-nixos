@@ -522,6 +522,10 @@ class TestInfoMatchPriority:
         assert "chickenPackages_5.chickenEggs.srfi-1" in result
         assert "chickenPackages_5.chickenEggs.srfi-2" in result
         assert "disambiguate" in result
+        # The retry hint must be a copy-pasteable JSON object, not a pseudo-call.
+        # The hint picks one of the "other" attrs (not the chosen one) to disambiguate to.
+        assert '"action": "info"' in result
+        assert '"query": "chickenPackages_5.chickenEggs.srfi-2"' in result
 
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")
@@ -592,12 +596,13 @@ class TestChannelRevisions:
 
     def test_list_channels_labels_branch_head_when_not_indexed(self):
         """For release channels we can only look up branch HEAD — label it honestly."""
+        import time
         from unittest.mock import patch
 
         from mcp_nixos.sources.base import _BRANCH_REVS, _list_channels
 
         _BRANCH_REVS.clear()
-        _BRANCH_REVS["nixos-25.11"] = "abc1234abc1234abc1234abc1234abc1234abcd"
+        _BRANCH_REVS["nixos-25.11"] = ("abc1234abc1234abc1234abc1234abc1234abcd", time.monotonic())
         fake_channels = {"25.11": "latest-46-nixos-25.11"}
         try:
             with (
@@ -617,6 +622,50 @@ class TestChannelRevisions:
         # Must NOT imply this is the indexed commit in the channel entry.
         assert "Revision (indexed)" not in channels_block
 
+    def test_branch_rev_cache_respects_ttl(self):
+        """A stale entry past the TTL must trigger a re-fetch (CodeRabbit/Copilot review)."""
+        from unittest.mock import MagicMock, patch
+
+        from mcp_nixos.sources import base as base_mod
+
+        base_mod._BRANCH_REVS.clear()
+        # Seed a stale entry
+        base_mod._BRANCH_REVS["nixos-25.11"] = ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0.0)
+        try:
+            fake_response = MagicMock()
+            fake_response.status_code = 200
+            fake_response.json.return_value = {"sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+            with patch("mcp_nixos.sources.base.requests.get", return_value=fake_response) as mock_get:
+                rev, source = base_mod._channel_revision(
+                    "25.11", "latest-46-nixos-25.11", {"25.11": "latest-46-nixos-25.11"}
+                )
+            assert rev == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            assert source == "branch_head"
+            call_kwargs = mock_get.call_args.kwargs
+            assert call_kwargs["headers"]["User-Agent"].startswith("mcp-nixos/")
+        finally:
+            base_mod._BRANCH_REVS.clear()
+
+    def test_branch_rev_cache_serves_within_ttl(self):
+        """A fresh cached entry must NOT trigger a network call."""
+        import time
+        from unittest.mock import patch
+
+        from mcp_nixos.sources import base as base_mod
+
+        base_mod._BRANCH_REVS.clear()
+        base_mod._BRANCH_REVS["nixos-25.11"] = ("cccccccccccccccccccccccccccccccccccccccc", time.monotonic())
+        try:
+            with patch("mcp_nixos.sources.base.requests.get") as mock_get:
+                rev, source = base_mod._channel_revision(
+                    "25.11", "latest-46-nixos-25.11", {"25.11": "latest-46-nixos-25.11"}
+                )
+            assert rev == "cccccccccccccccccccccccccccccccccccccccc"
+            assert source == "branch_head"
+            mock_get.assert_not_called()
+        finally:
+            base_mod._BRANCH_REVS.clear()
+
 
 @pytest.mark.unit
 class TestServerInstructions:
@@ -628,6 +677,18 @@ class TestServerInstructions:
         instructions = getattr(mcp, "instructions", "") or ""
         assert "nixpkgs" in instructions.lower()
         assert "nix_versions" in instructions
+
+    def test_server_instructions_use_json_call_shapes(self):
+        """Recipe examples must match the JSON-object shape models actually send."""
+        from mcp_nixos.server import mcp
+
+        instructions = getattr(mcp, "instructions", "") or ""
+        # The quoted JSON object form is what hosts serialize — the bare
+        # `nix(action=...)` pseudo-call form would teach models a syntax that
+        # does not work over MCP.
+        assert '{"action":"info","query":"X","channel":"Y"}' in instructions
+        assert '{"action":"channels"}' in instructions
+        assert "action=" not in instructions.replace('"action":', "")
 
 
 class TestNixVersionsValidation:

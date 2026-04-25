@@ -160,14 +160,14 @@ _SERVER_INSTRUCTIONS = (
     "nix.dev, and Noogle. For package version *history* pair with `nix_versions`.\n"
     "- `nix_versions` — commit-accurate history from NixHub (which nixpkgs commit "
     "shipped version X, what attribute path, which platforms).\n\n"
-    "Common intents → calls:\n"
-    '  "is package X in channel Y?"         → nix(action=info, query=X, channel=Y)\n'
-    '  "which channels are available?"      → nix(action=channels)\n'
-    '  "search NixOS options for X"         → nix(action=search, query=X, type=options)\n'
-    '  "home-manager option for X"          → nix(action=search, source=home-manager, query=X)\n'
-    '  "does X have a binary cache?"        → nix(action=cache, query=X)\n'
-    '  "read /nix/store/<path>"             → nix(action=store, type=read, query=<path>)\n'
-    '  "which commit shipped X version Y?"  → nix_versions(package=X, version=Y)\n'
+    "Common intents → calls (copy the JSON shape exactly):\n"
+    '  "is package X in channel Y?"         → nix {"action":"info","query":"X","channel":"Y"}\n'
+    '  "which channels are available?"      → nix {"action":"channels"}\n'
+    '  "search NixOS options for X"         → nix {"action":"search","query":"X","type":"options"}\n'
+    '  "home-manager option for X"          → nix {"action":"search","source":"home-manager","query":"X"}\n'
+    '  "does X have a binary cache?"        → nix {"action":"cache","query":"X"}\n'
+    '  "read /nix/store/<path>"             → nix {"action":"store","type":"read","query":"/nix/store/<path>"}\n'
+    '  "which commit shipped X version Y?"  → nix_versions {"package":"X","version":"Y"}\n'
 )
 
 mcp = FastMCP("mcp-nixos", version=__version__, instructions=_SERVER_INSTRUCTIONS)

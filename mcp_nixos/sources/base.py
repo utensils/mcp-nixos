@@ -1,10 +1,12 @@
 """Base functionality shared across data sources."""
 
 import re
+import time
 from typing import Any
 
 import requests
 
+from .. import __version__
 from ..caches import channel_cache
 from ..config import (
     DARWIN_URL,
@@ -19,11 +21,15 @@ from ..utils import error, parse_html_options
 # e.g. `nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc`.
 _COMMIT_IN_INDEX = re.compile(r"-([0-9a-f]{40})$")
 
-# Per-process cache for GitHub channel HEAD lookups. Persists for the
-# lifetime of the MCP server; populated lazily. Keys are nixpkgs branch names
-# (e.g. "nixos-unstable", "nixos-25.11"), so multiple channel aliases pointing
-# to the same branch share a single lookup.
-_BRANCH_REVS: dict[str, str] = {}
+# Short per-process cache for GitHub branch HEAD lookups, keyed by nixpkgs
+# branch name. Entries expire after ~10 minutes so a long-running MCP
+# process does not keep reporting a stale HEAD after upstream advances
+# (see CodeRabbit review on PR #147). Channel aliases pointing to the
+# same branch share a single lookup.
+_BRANCH_REV_TTL = 600.0
+_BRANCH_REVS: dict[str, tuple[str, float]] = {}
+
+_GITHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 
 # =============================================================================
 # Channel helpers
@@ -127,22 +133,31 @@ def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> tuple[
     branch = _channel_to_branch(name, index, resolved)
     if not branch:
         return "", ""
-    if branch in _BRANCH_REVS:
-        return _BRANCH_REVS[branch], "branch_head"
+    cached = _BRANCH_REVS.get(branch)
+    now = time.monotonic()
+    if cached and (now - cached[1]) < _BRANCH_REV_TTL:
+        return cached[0], "branch_head"
 
     try:
         resp = requests.get(
             f"https://api.github.com/repos/NixOS/nixpkgs/commits/{branch}",
-            headers={"Accept": "application/vnd.github+json"},
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": _GITHUB_USER_AGENT,
+            },
             timeout=4,
         )
         if resp.status_code == 200:
             rev = resp.json().get("sha", "") or ""
             if rev:
-                _BRANCH_REVS[branch] = rev
+                _BRANCH_REVS[branch] = (rev, now)
                 return rev, "branch_head"
     except requests.RequestException:
         pass
+    # Fall back to a stale cached value if the refresh attempt failed —
+    # better to surface last-known HEAD than nothing.
+    if cached:
+        return cached[0], "branch_head"
     return "", ""
 
 
@@ -185,7 +200,9 @@ def _list_channels() -> str:
             "Note: 'stable' always points to current stable release. "
             "'Revision (indexed)' is the exact commit the search index was built from "
             "(safe to compare against `nix_versions`). 'Branch HEAD' is the upstream "
-            "branch tip (useful as a pointer but may be ahead of indexed data)."
+            "branch tip, fetched best-effort from GitHub and cached for up to "
+            "10 minutes per process — it may be a few commits ahead of the "
+            "indexed data or a few minutes stale from the upstream ref."
         )
         return "\n".join(results).strip()
     except Exception as e:

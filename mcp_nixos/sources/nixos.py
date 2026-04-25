@@ -1,5 +1,6 @@
 """NixOS packages and options source."""
 
+import json
 import re
 from typing import Any
 
@@ -183,12 +184,13 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
                         for h in pname_candidates
                     )
                     chosen_label = "the canonical entry" if picked_canonical else "a representative entry"
+                    retry_call = json.dumps({"action": "info", "query": others[0], "channel": channel})
                     info.append("")
                     info.append(
                         f"Note: '{name}' is a pname shared by multiple packages. Returned "
                         f"{chosen_label} ({chosen_attr}). Other attributes with the same "
                         f"pname: {', '.join(others)}. Pass an exact attribute to "
-                        f"disambiguate (e.g. action=info, query={others[0]!r})."
+                        f"disambiguate, e.g. {retry_call}."
                     )
             return "\n".join(info)
         else:
