@@ -530,6 +530,35 @@ class TestInfoMatchPriority:
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")
     @pytest.mark.asyncio
+    async def test_info_ambiguity_tiebreak_is_deterministic(self, mock_channels, mock_es):
+        """When no canonical exists, the chosen attr must be deterministic across ES orderings."""
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+
+        def candidates(order: list[str]) -> list[dict]:
+            return [
+                {"_source": {"package_pname": "chicken-srfi", "package_attr_name": a, "package_pversion": "1"}}
+                for a in order
+            ]
+
+        # ES returns the hits in one order the first time, reversed the second.
+        # The tie-break must select the same attribute regardless.
+        mock_es.side_effect = [
+            [],
+            candidates(["chickenPackages_5.chickenEggs.srfi-2", "chickenPackages_5.chickenEggs.srfi-1"]),
+            [],
+            candidates(["chickenPackages_5.chickenEggs.srfi-1", "chickenPackages_5.chickenEggs.srfi-2"]),
+        ]
+        r1 = _info_nixos("chicken-srfi", "package", "unstable")
+        r2 = _info_nixos("chicken-srfi", "package", "unstable")
+        # Both calls must agree on the chosen attribute (alphabetically first).
+        assert "Attribute: chickenPackages_5.chickenEggs.srfi-1" in r1
+        assert "Attribute: chickenPackages_5.chickenEggs.srfi-1" in r2
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
     async def test_info_no_ambiguity_note_for_single_pname_hit(self, mock_channels, mock_es):
         """A single pname hit with no attr match must not emit the disambiguation note."""
         from mcp_nixos.sources.nixos import _info_nixos
@@ -647,6 +676,33 @@ class TestChannelRevisions:
             assert source == "branch_head"
             call_kwargs = mock_get.call_args.kwargs
             assert call_kwargs["headers"]["User-Agent"].startswith("mcp-nixos/")
+        finally:
+            base_mod._BRANCH_REVS.clear()
+
+    def test_branch_rev_invalid_json_response_falls_back(self):
+        """A 200 with a non-JSON body must be treated as a miss, not crash the listing."""
+        import time
+        from unittest.mock import MagicMock, patch
+
+        from mcp_nixos.sources import base as base_mod
+
+        base_mod._BRANCH_REVS.clear()
+        # Prior stale cache entry — we should return it on the fallback path.
+        base_mod._BRANCH_REVS["nixos-25.11"] = (
+            "ddddddddddddddddddddddddddddddddddddddd0",
+            time.monotonic() - (base_mod._BRANCH_REV_TTL * 10),
+        )
+        try:
+            fake_response = MagicMock()
+            fake_response.status_code = 200
+            fake_response.json.side_effect = ValueError("not json")
+            with patch("mcp_nixos.sources.base.requests.get", return_value=fake_response):
+                rev, source = base_mod._channel_revision(
+                    "25.11", "latest-46-nixos-25.11", {"25.11": "latest-46-nixos-25.11"}
+                )
+            # Must not raise; falls back to stale cached value.
+            assert rev == "ddddddddddddddddddddddddddddddddddddddd0"
+            assert source == "branch_head"
         finally:
             base_mod._BRANCH_REVS.clear()
 

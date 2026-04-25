@@ -148,11 +148,15 @@ def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> tuple[
             timeout=4,
         )
         if resp.status_code == 200:
-            rev = resp.json().get("sha", "") or ""
+            data = resp.json()
+            rev = data.get("sha", "") if isinstance(data, dict) else ""
             if rev:
                 _BRANCH_REVS[branch] = (rev, now)
                 return rev, "branch_head"
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
+        # ValueError covers json decoding failures on a 200 with a non-JSON
+        # body (rare, but e.g. GitHub interstitials). Treat as a miss so the
+        # channels listing can still fall back to a stale cache or empty rev.
         pass
     # Fall back to a stale cached value if the refresh attempt failed —
     # better to surface last-known HEAD than nothing.

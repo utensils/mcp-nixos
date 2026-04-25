@@ -126,13 +126,25 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
                 pname_query = {"bool": {"must": [{"term": {"type": "package"}}, {"term": {"package_pname": name}}]}}
                 pname_candidates = es_query(channels[channel], pname_query, 5)
                 if pname_candidates:
-                    # Prefer the canonical entry (attr == pname) when it exists
+                    # Prefer the canonical entry (attr == pname). When none
+                    # exists, sort by attribute path so the tie-break is
+                    # deterministic across requests — ES does not guarantee
+                    # a stable order for equal-score term matches.
                     canonical = [
                         h
                         for h in pname_candidates
                         if h.get("_source", {}).get("package_attr_name") == h.get("_source", {}).get("package_pname")
                     ]
-                    chosen = canonical[0] if canonical else pname_candidates[0]
+                    if canonical:
+                        chosen = canonical[0]
+                    else:
+                        chosen = sorted(
+                            pname_candidates,
+                            key=lambda h: (
+                                h.get("_source", {}).get("package_attr_name", ""),
+                                h.get("_source", {}).get("package_pname", ""),
+                            ),
+                        )[0]
                     hits = [chosen]
                     matched_via = "pname"
         else:
