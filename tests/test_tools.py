@@ -445,6 +445,160 @@ class TestNixToolChannels:
         mock_list.assert_called_once()
 
 
+@pytest.mark.unit
+class TestInfoMatchPriority:
+    """Regression tests for GitHub #146.
+
+    action=info must prefer exact attribute match over pname match, and must
+    explicitly signal pname-based disambiguation when a query resolves to one
+    of several packages sharing a pname.
+    """
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_info_prefers_attr_match_over_pname(self, mock_channels, mock_es):
+        """Exact attr=firefox must win over the first pname=firefox candidate.
+
+        Before #146, pname matched first with size:1, which meant ES could
+        arbitrarily return firefox-esr for `info firefox`. Attr-first makes
+        the canonical package deterministic.
+        """
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.return_value = [
+            {
+                "_source": {
+                    "package_pname": "firefox",
+                    "package_attr_name": "firefox",
+                    "package_pversion": "149.0.2",
+                    "package_description": "Web browser",
+                }
+            }
+        ]
+
+        result = _info_nixos("firefox", "package", "unstable")
+
+        first_query = mock_es.call_args_list[0][0][1]
+        must_terms = [c for c in first_query["bool"]["must"] if "term" in c]
+        assert any("package_attr_name" in c["term"] for c in must_terms), (
+            "First ES call must be an attribute-path lookup, not a pname lookup"
+        )
+        assert "firefox-esr" not in result
+        assert "Package: firefox" in result
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_info_signals_pname_ambiguity(self, mock_channels, mock_es):
+        """When only a pname match is possible and multiple attrs share it, flag it."""
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.side_effect = [
+            [],  # attr lookup: miss
+            [
+                {
+                    "_source": {
+                        "package_pname": "chicken-srfi",
+                        "package_attr_name": "chickenPackages_5.chickenEggs.srfi-1",
+                        "package_pversion": "1",
+                    }
+                },
+                {
+                    "_source": {
+                        "package_pname": "chicken-srfi",
+                        "package_attr_name": "chickenPackages_5.chickenEggs.srfi-2",
+                        "package_pversion": "2",
+                    }
+                },
+            ],
+        ]
+
+        result = _info_nixos("chicken-srfi", "package", "unstable")
+
+        assert "pname shared by multiple packages" in result
+        assert "chickenPackages_5.chickenEggs.srfi-1" in result
+        assert "chickenPackages_5.chickenEggs.srfi-2" in result
+        assert "disambiguate" in result
+
+    @patch("mcp_nixos.sources.nixos.es_query")
+    @patch("mcp_nixos.sources.nixos.get_channels")
+    @pytest.mark.asyncio
+    async def test_info_no_ambiguity_note_for_single_pname_hit(self, mock_channels, mock_es):
+        """A single pname hit with no attr match must not emit the disambiguation note."""
+        from mcp_nixos.sources.nixos import _info_nixos
+
+        mock_channels.return_value = {"unstable": "nixos-unstable"}
+        mock_es.side_effect = [
+            [],
+            [
+                {
+                    "_source": {
+                        "package_pname": "qt6ct",
+                        "package_attr_name": "kdePackages.qt6ct",
+                        "package_pversion": "0.11",
+                    }
+                }
+            ],
+        ]
+
+        result = _info_nixos("qt6ct", "package", "unstable")
+        assert "pname shared by multiple packages" not in result
+        assert "kdePackages.qt6ct" in result
+
+
+@pytest.mark.unit
+class TestChannelRevisions:
+    """GitHub #146: action=channels surfaces nixpkgs HEAD commit per channel."""
+
+    def test_commit_extracted_from_unstable_index_name(self):
+        """When the ES index name embeds a 40-char hex commit, use it directly."""
+        from mcp_nixos.sources.base import _channel_revision
+
+        rev = _channel_revision(
+            "unstable",
+            "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc",
+            {"unstable": "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc"},
+        )
+        assert rev == "b12141ef619e0a9c1c84dc8c684040326f27cdcc"
+
+    def test_list_channels_renders_revision_line(self):
+        """_list_channels output must include a Revision line for channels we can resolve."""
+        from unittest.mock import patch
+
+        from mcp_nixos.sources.base import _list_channels
+
+        fake_channels = {
+            "unstable": "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc",
+        }
+        with (
+            patch("mcp_nixos.sources.base.get_channels", return_value=fake_channels),
+            patch("mcp_nixos.sources.base.channel_cache") as mock_cache,
+        ):
+            mock_cache.using_fallback = False
+            mock_cache.get_available.return_value = {
+                "nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc": "1,000 documents"
+            }
+            result = _list_channels()
+
+        assert "Revision: b12141ef619e0a9c1c84dc8c684040326f27cdcc" in result
+        assert "nixos-unstable" in result
+
+
+@pytest.mark.unit
+class TestServerInstructions:
+    """GitHub #146: the MCP server must surface instructions prose to clients."""
+
+    def test_server_has_instructions(self):
+        from mcp_nixos.server import mcp
+
+        instructions = getattr(mcp, "instructions", "") or ""
+        assert "nixpkgs" in instructions.lower()
+        assert "nix_versions" in instructions
+
+
 class TestNixVersionsValidation:
     """Test input validation for nix_versions tool."""
 

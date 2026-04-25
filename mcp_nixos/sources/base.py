@@ -1,5 +1,6 @@
 """Base functionality shared across data sources."""
 
+import re
 from typing import Any
 
 import requests
@@ -13,6 +14,16 @@ from ..config import (
     APIError,
 )
 from ..utils import error, parse_html_options
+
+# Match the 40-char hex commit appended to unstable ES indices,
+# e.g. `nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc`.
+_COMMIT_IN_INDEX = re.compile(r"-([0-9a-f]{40})$")
+
+# Per-process cache for GitHub channel HEAD lookups. Persists for the
+# lifetime of the MCP server; populated lazily. Keys are nixpkgs branch names
+# (e.g. "nixos-unstable", "nixos-25.11"), so multiple channel aliases pointing
+# to the same branch share a single lookup.
+_BRANCH_REVS: dict[str, str] = {}
 
 # =============================================================================
 # Channel helpers
@@ -80,8 +91,56 @@ def es_query(index: str, query: dict[str, Any], size: int = 20) -> list[dict[str
 # =============================================================================
 
 
+def _channel_to_branch(name: str, index: str, resolved: dict[str, str]) -> str:
+    """Map a channel name to its nixpkgs branch for commit lookups."""
+    if "unstable" in name or "unstable" in index:
+        return "nixos-unstable"
+    if name in {"stable", "beta"}:
+        # Resolve to the release version indirectly via the ES index name.
+        parts = index.split("-")
+        if len(parts) >= 4 and re.match(r"^\d+\.\d+$", parts[3]):
+            return f"nixos-{parts[3]}"
+        return ""
+    if re.match(r"^\d+\.\d+$", name):
+        return f"nixos-{name}"
+    return ""
+
+
+def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> str:
+    """Resolve the current HEAD commit for a channel.
+
+    When the commit is embedded in the ES index name (older unstable indices),
+    use it directly. Otherwise do a best-effort GitHub API fetch keyed by
+    branch, with a short timeout and graceful degradation on failure or rate
+    limits.
+    """
+    embedded = _COMMIT_IN_INDEX.search(index)
+    if embedded:
+        return embedded.group(1)
+
+    branch = _channel_to_branch(name, index, resolved)
+    if not branch:
+        return ""
+    if branch in _BRANCH_REVS:
+        return _BRANCH_REVS[branch]
+
+    try:
+        resp = requests.get(
+            f"https://api.github.com/repos/NixOS/nixpkgs/commits/{branch}",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=4,
+        )
+        if resp.status_code == 200:
+            rev = resp.json().get("sha", "") or ""
+            _BRANCH_REVS[branch] = rev
+            return rev
+    except requests.RequestException:
+        pass
+    return ""
+
+
 def _list_channels() -> str:
-    """List available NixOS channels with status and document counts."""
+    """List available NixOS channels with status, document counts, and HEAD commit."""
     try:
         configured = get_channels()
         available = channel_cache.get_available()
@@ -101,9 +160,18 @@ def _list_channels() -> str:
                     label = f"* {name} (current: {parts[3]})"
             results.append(f"{label} -> {index}")
             results.append(f"  Status: {status} ({doc_count})")
+            rev = _channel_revision(name, index, configured)
+            if rev:
+                branch = _channel_to_branch(name, index, configured)
+                branch_note = f" ({branch})" if branch else ""
+                results.append(f"  Revision: {rev}{branch_note}")
             results.append("")
 
-        results.append("Note: 'stable' always points to current stable release.")
+        results.append(
+            "Note: 'stable' always points to current stable release. Revisions show the "
+            "nixpkgs HEAD commit for the channel's branch — use this to compare commit "
+            "hashes against a channel or pass to `nix_versions` for version history."
+        )
         return "\n".join(results).strip()
     except Exception as e:
         return error(str(e))

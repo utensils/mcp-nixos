@@ -139,7 +139,38 @@ from .utils import (
 )
 
 # Create MCP server instance
-mcp = FastMCP("mcp-nixos", version=__version__)
+#
+# The `instructions` string is surfaced to clients via the MCP
+# InitializeResult and is how hosts prime the model on when to
+# reach for this server versus Bash/web search. Keep it short,
+# intent-focused, and explicit about triggers; see GH #146.
+_SERVER_INSTRUCTIONS = (
+    "Use this server for any question about nixpkgs packages, NixOS / home-manager / "
+    "nix-darwin / nixvim options, flakes, FlakeHub, channels, the binary cache, store "
+    "paths, or the NixOS wiki and nix.dev docs. It queries live APIs (search.nixos.org, "
+    "NixHub, FlakeHub, cache.nixos.org) and is faster and more current than `nix search`, "
+    "scraping search.nixos.org by hand, or running `gh api` against NixOS/nixpkgs.\n\n"
+    "Trigger on any mention of a Nix package name, attribute path, NixOS / "
+    "home-manager / darwin option, channel name (unstable, 25.05, ...), flake input, "
+    "or `/nix/store/` path. Use even when you think you know the answer — your training "
+    "data lags nixpkgs by months.\n\n"
+    "Two tools are exposed:\n"
+    "- `nix` — unified search/info/stats/browse/channels/flake-inputs/cache/store across "
+    "NixOS, Home Manager, nix-darwin, Nixvim, flakes, FlakeHub, NixHub, the NixOS wiki, "
+    "nix.dev, and Noogle. For package version *history* pair with `nix_versions`.\n"
+    "- `nix_versions` — commit-accurate history from NixHub (which nixpkgs commit "
+    "shipped version X, what attribute path, which platforms).\n\n"
+    "Common intents → calls:\n"
+    '  "is package X in channel Y?"         → nix(action=info, query=X, channel=Y)\n'
+    '  "which channels are available?"      → nix(action=channels)\n'
+    '  "search NixOS options for X"         → nix(action=search, query=X, type=options)\n'
+    '  "home-manager option for X"          → nix(action=search, source=home-manager, query=X)\n'
+    '  "does X have a binary cache?"        → nix(action=cache, query=X)\n'
+    '  "read /nix/store/<path>"             → nix(action=store, type=read, query=<path>)\n'
+    '  "which commit shipped X version Y?"  → nix_versions(package=X, version=Y)\n'
+)
+
+mcp = FastMCP("mcp-nixos", version=__version__, instructions=_SERVER_INSTRUCTIONS)
 
 
 _TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
@@ -199,20 +230,35 @@ async def nix(
 ) -> str:
     """Query NixOS, Home Manager, Darwin, FlakeHub, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub.
 
-    Examples (the JSON shape matters — copy exactly):
-      Search NixOS packages:    {"action": "search", "query": "firefox"}
-      Search NixOS options:     {"action": "search", "query": "nginx", "type": "options"}
-      Get a package's details:  {"action": "info", "query": "firefox"}
-      Get an option's details:  {"action": "info", "query": "services.nginx.enable", "type": "option"}
-      Search Home Manager:      {"action": "search", "query": "git", "source": "home-manager"}
-      Browse HM option tree:    {"action": "browse", "query": "programs", "source": "home-manager"}
-      Search the NixOS wiki:    {"action": "search", "query": "zfs", "source": "wiki"}
-      Search nix.dev docs:      {"action": "search", "query": "flakes", "source": "nix-dev"}
-      Read a nix.dev page:      {"action": "info", "query": "tutorials/nix-language", "source": "nix-dev"}
-      List channels:            {"action": "channels"}
-      Check binary cache:       {"action": "cache", "query": "firefox"}
-      List a store directory:   {"action": "store", "type": "ls", "query": "/nix/store/abc...-foo"}
-      Read a store file:        {"action": "store", "type": "read", "query": "/nix/store/abc...-foo/bin/foo"}
+    Use this tool for anything touching nixpkgs, Nix channels, flakes, NixOS / home-manager /
+    darwin options, the binary cache, or /nix/store paths — even when you think you know the
+    answer. Your training data lags nixpkgs by months. Prefer this over `nix search`, scraping
+    search.nixos.org, or running `gh api` against NixOS/nixpkgs.
+
+    INTENTS → CALLS (copy the JSON shape exactly):
+      "is package X in channel Y?"        → {"action": "info", "query": "X", "channel": "Y"}
+      "search for package X"              → {"action": "search", "query": "X"}
+      "which channels are available?"     → {"action": "channels"}
+      "which commit is channel X at?"     → {"action": "channels"}  (revision shown per channel)
+      "search NixOS options for X"        → {"action": "search", "query": "X", "type": "options"}
+      "get option details for X"          → {"action": "info", "query": "X", "type": "option"}
+      "home-manager option for X"         → {"action": "search", "query": "X", "source": "home-manager"}
+      "darwin option for X"               → {"action": "search", "query": "X", "source": "darwin"}
+      "nixvim option for X"               → {"action": "search", "query": "X", "source": "nixvim"}
+      "what programs does pkg X provide?" → {"action": "search", "query": "X", "type": "programs"}
+      "count packages/options"            → {"action": "stats"}
+      "browse hm option tree under P"     → {"action": "browse", "query": "P", "source": "home-manager"}
+      "does X have a binary cache?"       → {"action": "cache", "query": "X"}
+      "search the NixOS wiki for X"       → {"action": "search", "query": "X", "source": "wiki"}
+      "search nix.dev docs"               → {"action": "search", "query": "X", "source": "nix-dev"}
+      "read a nix.dev page"               → {"action": "info", "query": "tutorials/nix-language", "source": "nix-dev"}
+      "list inputs of current flake"      → {"action": "flake-inputs"}
+      "ls inside flake input X"           → {"action": "flake-inputs", "type": "ls", "query": "X"}
+      "read /nix/store/... file"          → {"action": "store", "type": "read", "query": "/nix/store/..."}
+      "ls /nix/store/... dir"             → {"action": "store", "type": "ls",   "query": "/nix/store/..."}
+
+    For package version *history* ("which commit shipped firefox 150?", "when was node 18 added?"),
+    use the separate `nix_versions` tool — it returns commit hashes, attribute paths, and dates.
 
     Notes:
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
@@ -221,8 +267,10 @@ async def nix(
       - For source=nix-dev, action=info returns the page markdown. The query may be a bare
         docname like "tutorials/nix-language", the URL printed by nix-dev search
         ("https://nix.dev/tutorials/nix-language"), or a rendered ".html" URL.
+      - action=info for packages matches on the exact attribute path first, then the exact pname.
+        If multiple packages share a pname (e.g. firefox / firefox-esr / firefox-mobile), the
+        canonical attribute wins and the response flags the disambiguation explicitly.
       - Omit parameters you don't need; do not pass empty strings for optional args.
-      - For package version history use the separate `nix_versions` tool.
     """
     # Limit validation: flake-inputs/store read allow up to 2000, others limited to 100
     if action == "flake-inputs" and type == "read":

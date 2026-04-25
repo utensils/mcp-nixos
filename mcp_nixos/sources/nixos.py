@@ -1,6 +1,7 @@
 """NixOS packages and options source."""
 
 import re
+from typing import Any
 
 from ..utils import error
 from .base import es_query, get_channel_suggestions, get_channels
@@ -108,14 +109,36 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
         return error(f"Invalid channel '{channel}'. {get_channel_suggestions(channel)}")
 
     try:
-        field = "package_pname" if info_type == "package" else "option_name"
-        query = {"bool": {"must": [{"term": {"type": info_type}}, {"term": {field: name}}]}}
-        hits = es_query(channels[channel], query, 1)
-
-        # For packages, fall back to searching by attribute name (e.g. kdePackages.qt6ct)
-        if not hits and info_type == "package":
+        if info_type == "package":
+            # Priority 1: exact attribute path match — one attr maps to one package, so
+            # this is deterministic. Handles dotted names (kdePackages.qt6ct) and
+            # disambiguates between packages that share a pname (firefox, firefox-esr,
+            # firefox-mobile all have pname="firefox"). See GH #146.
             attr_query = {"bool": {"must": [{"term": {"type": "package"}}, {"term": {"package_attr_name": name}}]}}
             hits = es_query(channels[channel], attr_query, 1)
+            matched_via = "attribute" if hits else ""
+
+            pname_candidates: list[dict[str, Any]] = []
+            if not hits:
+                # Priority 2: pname match. Fetch up to 5 so we can detect ambiguity
+                # (multiple attrs sharing the same pname) and pick the canonical one.
+                pname_query = {"bool": {"must": [{"term": {"type": "package"}}, {"term": {"package_pname": name}}]}}
+                pname_candidates = es_query(channels[channel], pname_query, 5)
+                if pname_candidates:
+                    # Prefer the canonical entry (attr == pname) when it exists
+                    canonical = [
+                        h
+                        for h in pname_candidates
+                        if h.get("_source", {}).get("package_attr_name") == h.get("_source", {}).get("package_pname")
+                    ]
+                    chosen = canonical[0] if canonical else pname_candidates[0]
+                    hits = [chosen]
+                    matched_via = "pname"
+        else:
+            query = {"bool": {"must": [{"term": {"type": "option"}}, {"term": {"option_name": name}}]}}
+            hits = es_query(channels[channel], query, 1)
+            matched_via = "exact" if hits else ""
+            pname_candidates = []
 
         if not hits:
             return error(f"{info_type.capitalize()} '{name}' not found", "NOT_FOUND")
@@ -139,6 +162,34 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
             licenses = src.get("package_license_set", [])
             if licenses:
                 info.append(f"License: {', '.join(licenses)}")
+            if matched_via == "pname" and len(pname_candidates) > 1:
+                # Flag ambiguity explicitly so callers don't silently act on the wrong
+                # package. Name the alternatives so the caller can retry with the exact
+                # attribute path.
+                alternatives = sorted(
+                    {
+                        h.get("_source", {}).get("package_attr_name", "")
+                        for h in pname_candidates
+                        if h.get("_source", {}).get("package_attr_name")
+                    }
+                )
+                chosen_attr = attr_name or pname
+                others = [a for a in alternatives if a != chosen_attr]
+                if others:
+                    picked_canonical = any(
+                        h.get("_source", {}).get("package_attr_name")
+                        == h.get("_source", {}).get("package_pname")
+                        == name
+                        for h in pname_candidates
+                    )
+                    chosen_label = "the canonical entry" if picked_canonical else "a representative entry"
+                    info.append("")
+                    info.append(
+                        f"Note: '{name}' is a pname shared by multiple packages. Returned "
+                        f"{chosen_label} ({chosen_attr}). Other attributes with the same "
+                        f"pname: {', '.join(others)}. Pass an exact attribute to "
+                        f"disambiguate (e.g. action=info, query={others[0]!r})."
+                    )
             return "\n".join(info)
         else:
             info = [f"Option: {src.get('option_name', '')}"]
