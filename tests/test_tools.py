@@ -624,13 +624,17 @@ class TestChannelRevisions:
 
     def test_branch_rev_cache_respects_ttl(self):
         """A stale entry past the TTL must trigger a re-fetch (CodeRabbit/Copilot review)."""
+        import time
         from unittest.mock import MagicMock, patch
 
         from mcp_nixos.sources import base as base_mod
 
         base_mod._BRANCH_REVS.clear()
-        # Seed a stale entry
-        base_mod._BRANCH_REVS["nixos-25.11"] = ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0.0)
+        # Seed a stale entry: timestamp is well past the TTL relative to now.
+        # Using a large negative offset rather than 0.0 so the test works in
+        # fresh processes where time.monotonic() starts near zero.
+        stale_ts = time.monotonic() - (base_mod._BRANCH_REV_TTL * 10)
+        base_mod._BRANCH_REVS["nixos-25.11"] = ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", stale_ts)
         try:
             fake_response = MagicMock()
             fake_response.status_code = 200
