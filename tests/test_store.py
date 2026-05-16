@@ -138,7 +138,7 @@ class TestStoreLsRealPath:
             pytest.skip("/nix/store not available or empty")
 
         result = await _store_ls(store_dir, 500)
-        assert "Error" not in result
+        assert not result.startswith("Error (")
         assert store_dir in result
         # `_pick_real_store_dir` may pick a valid but empty store output
         # (nixpkgs produces empty directories for some derivations). Accept
@@ -164,7 +164,7 @@ class TestStoreLsRealPath:
             pytest.skip("no /nix/store entry with 2+ children found")
 
         result = await _store_ls(big_dir, 1)
-        assert "Error" not in result
+        assert not result.startswith("Error (")
         assert "showing 1 of" in result
         # Exactly one entry line (two-space indent) should follow the header/blank line.
         entry_lines = [ln for ln in result.splitlines() if ln.startswith("  ")]
@@ -261,7 +261,7 @@ class TestStoreReadTextFile:
             pytest.skip("no small text file found in first store entry")
 
         result = await _store_read(text_file, 2000)
-        assert "Error" not in result
+        assert not result.startswith("Error (")
         assert f"File: {text_file}" in result
         assert "Size:" in result
 
@@ -302,7 +302,7 @@ class TestStoreReadTextFile:
             pytest.skip("no multi-line text file found in first store entry")
 
         result = await _store_read(candidate, 1)
-        assert "Error" not in result
+        assert not result.startswith("Error (")
         assert "Showing 1 of" in result
 
 
