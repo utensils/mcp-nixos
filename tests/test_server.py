@@ -169,16 +169,127 @@ class TestChannelCache:
         assert "unstable" in result
 
     @patch("mcp_nixos.sources.base.requests.post")
-    def test_discover_channels(self, mock_post):
-        mock_resp = Mock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"count": 100000}
-        mock_post.return_value = mock_resp
+    @patch("mcp_nixos.sources.base.requests.get")
+    def test_discover_channels(self, mock_get, mock_post):
+        # _cat/aliases returns the list of `latest-*-nixos-*` aliases live on
+        # the backend; each one then gets a per-alias _count probe.
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"},
+            {"alias": "latest-46-nixos-25.11", "index": "nixos-46-25.11-cafebabe"},
+            {"alias": ".kibana", "index": ".kibana_1"},  # noise the discovery must skip
+        ]
+        mock_get.return_value = aliases_resp
+
+        count_resp = Mock()
+        count_resp.status_code = 200
+        count_resp.json.return_value = {"count": 100000}
+        mock_post.return_value = count_resp
 
         cache = ChannelCache()
         cache.available_channels = None
         result = cache.get_available()
-        assert isinstance(result, dict)
+        assert set(result) == {"latest-48-nixos-unstable", "latest-46-nixos-25.11"}
+
+    @patch("mcp_nixos.sources.base.requests.post")
+    @patch("mcp_nixos.sources.base.requests.get")
+    def test_discover_skips_zero_count_aliases(self, mock_get, mock_post):
+        """An alias that responds with count=0 must not appear in available."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"},
+            {"alias": "latest-99-nixos-99.99", "index": "nixos-99-99.99-empty"},
+        ]
+        mock_get.return_value = aliases_resp
+
+        responses = {
+            "latest-48-nixos-unstable": (200, {"count": 100000}),
+            "latest-99-nixos-99.99": (200, {"count": 0}),
+        }
+
+        def fake_post(url, **_kwargs):
+            for alias, (status, body) in responses.items():
+                if alias in url:
+                    resp = Mock()
+                    resp.status_code = status
+                    resp.json.return_value = body
+                    return resp
+            raise AssertionError(f"unexpected POST: {url}")
+
+        mock_post.side_effect = fake_post
+
+        cache = ChannelCache()
+        cache.available_channels = None
+        assert cache.get_available() == {"latest-48-nixos-unstable": "100,000 documents"}
+
+    @patch("mcp_nixos.sources.base.requests.get")
+    def test_discover_returns_empty_on_api_error(self, mock_get):
+        """Non-200 from _cat/aliases must short-circuit to {} so the caller
+        falls back to FALLBACK_CHANNELS instead of crashing."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 503
+        mock_get.return_value = aliases_resp
+
+        cache = ChannelCache()
+        cache.available_channels = None
+        assert cache.get_available() == {}
+
+    def test_resolve_picks_highest_generation_for_unstable(self):
+        """Regression: previously `_resolve_channels` picked the first unstable
+        match in dict-insertion order, which yielded the lowest generation. The
+        freshest data lives on the highest generation, so the resolver must
+        prefer that even when older generations are still live."""
+        cache = ChannelCache()
+        cache.available_channels = {
+            "latest-45-nixos-unstable": "400,000 documents",
+            "latest-46-nixos-unstable": "410,000 documents",
+            "latest-48-nixos-unstable": "450,000 documents",
+            "latest-47-nixos-unstable": "440,000 documents",
+        }
+        resolved = cache.get_resolved()
+        assert resolved["unstable"] == "latest-48-nixos-unstable"
+
+    def test_resolve_picks_highest_generation_per_release(self):
+        """Same logic for release channels: when multiple generations of the
+        same release version are live during a rollover window, pick the max."""
+        cache = ChannelCache()
+        cache.available_channels = {
+            "latest-46-nixos-25.11": "400,000 documents",
+            "latest-48-nixos-25.11": "414,000 documents",
+            "latest-47-nixos-25.11": "414,000 documents",
+        }
+        resolved = cache.get_resolved()
+        assert resolved["25.11"] == "latest-48-nixos-25.11"
+        assert resolved["stable"] == "latest-48-nixos-25.11"
+        assert resolved["beta"] == "latest-48-nixos-25.11"
+
+    def test_resolve_picks_highest_release_version_for_stable(self):
+        """`stable` aliases to the newest release version (not the newest
+        generation across versions)."""
+        cache = ChannelCache()
+        cache.available_channels = {
+            "latest-48-nixos-25.05": "350,000 documents",
+            "latest-48-nixos-25.11": "410,000 documents",
+            "latest-48-nixos-26.05": "420,000 documents",
+        }
+        resolved = cache.get_resolved()
+        assert resolved["stable"] == "latest-48-nixos-26.05"
+        assert resolved["beta"] == "latest-48-nixos-26.05"
+        assert resolved["25.05"] == "latest-48-nixos-25.05"
+        assert resolved["25.11"] == "latest-48-nixos-25.11"
+        assert resolved["26.05"] == "latest-48-nixos-26.05"
+
+    def test_resolve_unstable_without_stable_releases(self):
+        """Only unstable is live — resolver must still produce a usable map
+        and must not synthesize a fake `stable` / `beta` entry."""
+        cache = ChannelCache()
+        cache.available_channels = {
+            "latest-48-nixos-unstable": "450,000 documents",
+        }
+        resolved = cache.get_resolved()
+        assert resolved == {"unstable": "latest-48-nixos-unstable"}
 
 
 @pytest.mark.unit
