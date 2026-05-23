@@ -168,8 +168,8 @@ class TestChannelCache:
         assert cache.using_fallback is True
         assert "unstable" in result
 
-    @patch("mcp_nixos.sources.base.requests.post")
-    @patch("mcp_nixos.sources.base.requests.get")
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
     def test_discover_channels(self, mock_get, mock_post):
         # _cat/aliases returns the list of `latest-*-nixos-*` aliases live on
         # the backend; each one then gets a per-alias _count probe.
@@ -192,8 +192,8 @@ class TestChannelCache:
         result = cache.get_available()
         assert set(result) == {"latest-48-nixos-unstable", "latest-46-nixos-25.11"}
 
-    @patch("mcp_nixos.sources.base.requests.post")
-    @patch("mcp_nixos.sources.base.requests.get")
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
     def test_discover_skips_zero_count_aliases(self, mock_get, mock_post):
         """An alias that responds with count=0 must not appear in available."""
         aliases_resp = Mock()
@@ -224,7 +224,7 @@ class TestChannelCache:
         cache.available_channels = None
         assert cache.get_available() == {"latest-48-nixos-unstable": "100,000 documents"}
 
-    @patch("mcp_nixos.sources.base.requests.get")
+    @patch("mcp_nixos.caches.requests.get")
     def test_discover_returns_empty_on_api_error(self, mock_get):
         """Non-200 from _cat/aliases must short-circuit to {} so the caller
         falls back to FALLBACK_CHANNELS instead of crashing."""

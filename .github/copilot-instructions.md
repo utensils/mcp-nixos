@@ -57,7 +57,7 @@ return json.dumps({"name": name, "version": version})
 
 Channels are dynamically discovered on startup via Elasticsearch's `_cat/aliases` endpoint, which lists every `latest-<gen>-nixos-<channel>` alias currently live on search.nixos.org. The `ChannelCache` class picks the highest generation per channel (so `unstable` always resolves to the freshest index, even mid-rollover) and maintains this state.
 
-- `"stable"` always maps to current stable release (e.g., "latest-48-nixos-25.11")
+- `"stable"` always maps to current stable release (e.g., `latest-<gen>-nixos-<version>`)
 - `FALLBACK_CHANNELS` dict used when API discovery fails
 - Override via `ELASTICSEARCH_URL` environment variable for local testing
 
