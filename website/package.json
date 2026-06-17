@@ -12,7 +12,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "vitepress": "^1.6.4",
-    "vue": "^3.5.33",
+    "vue": "^3.5.38",
     "vue-tsc": "^2.2.0"
   }
 }
