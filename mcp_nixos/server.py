@@ -23,10 +23,12 @@ from . import __version__
 # Import from our modules
 from .caches import (
     ChannelCache,
+    DenCache,
     NixDevCache,
     NixvimCache,
     NoogleCache,
     channel_cache,
+    den_cache,
     nixdev_cache,
     nixvim_cache,
     noogle_cache,
@@ -36,6 +38,8 @@ from .config import (
     CACHE_NIXOS_ORG,
     DARWIN_URL,
     DEFAULT_LINE_LIMIT,
+    DEN_BASE_URL,
+    DEN_OVERVIEW_URL,
     FALLBACK_CHANNELS,
     FLAKE_INDEX,
     FLAKEHUB_API,
@@ -56,6 +60,8 @@ from .config import (
     DocumentParseError,
 )
 from .sources import (
+    # Den
+    _browse_den,
     # Nixvim
     _browse_nixvim_options,
     # Noogle
@@ -83,6 +89,7 @@ from .sources import (
     _get_noogle_type_signature,
     # Darwin
     _info_darwin,
+    _info_den,
     # FlakeHub
     _info_flakehub,
     # Home Manager
@@ -99,6 +106,7 @@ from .sources import (
     _list_channels,
     _run_nix_command,
     _search_darwin,
+    _search_den,
     _search_flakehub,
     # Flakes
     _search_flakes,
@@ -111,6 +119,7 @@ from .sources import (
     _search_noogle,
     _search_wiki,
     _stats_darwin,
+    _stats_den,
     _stats_flakehub,
     _stats_flakes,
     _stats_home_manager,
@@ -147,17 +156,18 @@ from .utils import (
 _SERVER_INSTRUCTIONS = (
     "Use this server for any question about nixpkgs packages, NixOS / home-manager / "
     "nix-darwin / nixvim options, flakes, FlakeHub, channels, the binary cache, store "
-    "paths, or the NixOS wiki and nix.dev docs. It queries live APIs (search.nixos.org, "
-    "NixHub, FlakeHub, cache.nixos.org) and is faster and more current than `nix search`, "
-    "scraping search.nixos.org by hand, or running `gh api` against NixOS/nixpkgs.\n\n"
+    "paths, the NixOS wiki, nix.dev docs, or Den framework docs. It queries live APIs "
+    "(search.nixos.org, NixHub, FlakeHub, cache.nixos.org) and is faster and more current "
+    "than `nix search`, scraping search.nixos.org by hand, or running `gh api` against "
+    "NixOS/nixpkgs.\n\n"
     "Trigger on any mention of a Nix package name, attribute path, NixOS / "
     "home-manager / darwin option, channel name (unstable, 25.05, ...), flake input, "
-    "or `/nix/store/` path. Use even when you think you know the answer — your training "
-    "data lags nixpkgs by months.\n\n"
+    "`/nix/store/` path, or the Den framework. Use even when you think you know the "
+    "answer — your training data lags nixpkgs by months.\n\n"
     "Two tools are exposed:\n"
     "- `nix` — unified search/info/stats/browse/channels/flake-inputs/cache/store across "
     "NixOS, Home Manager, nix-darwin, Nixvim, flakes, FlakeHub, NixHub, the NixOS wiki, "
-    "nix.dev, and Noogle. For package version *history* pair with `nix_versions`.\n"
+    "nix.dev, Noogle, and Den. For package version *history* pair with `nix_versions`.\n"
     "- `nix_versions` — commit-accurate history from NixHub (which nixpkgs commit "
     "shipped version X, what attribute path, which platforms).\n\n"
     "Common intents → calls (copy the JSON shape exactly):\n"
@@ -167,6 +177,7 @@ _SERVER_INSTRUCTIONS = (
     '  "home-manager option for X"          → nix {"action":"search","source":"home-manager","query":"X"}\n'
     '  "does X have a binary cache?"        → nix {"action":"cache","query":"X"}\n'
     '  "read /nix/store/<path>"             → nix {"action":"store","type":"read","query":"/nix/store/<path>"}\n'
+    '  "search Den docs for X"              → nix {"action":"search","source":"den","query":"X"}\n'
     '  "which commit shipped X version Y?"  → nix_versions {"package":"X","version":"Y"}\n'
 )
 
@@ -212,7 +223,7 @@ async def nix(
     source: Annotated[
         str,
         "Data source for search/info/stats/browse/cache. One of: nixos (default), "
-        "home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. "
+        "home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub, den. "
         "For action=flake-inputs, this may instead be a path to a flake directory; "
         "omit/default to use the current project. Ignored by action=store.",
     ] = "nixos",
@@ -253,6 +264,8 @@ async def nix(
       "search the NixOS wiki for X"       → {"action": "search", "query": "X", "source": "wiki"}
       "search nix.dev docs"               → {"action": "search", "query": "X", "source": "nix-dev"}
       "read a nix.dev page"               → {"action": "info", "query": "tutorials/nix-language", "source": "nix-dev"}
+      "search Den framework docs for X"   → {"action": "search", "query": "X", "source": "den"}
+      "read a Den doc page"               → {"action": "info", "query": "guides/from-zero-to-den", "source": "den"}
       "list inputs of current flake"      → {"action": "flake-inputs"}
       "ls inside flake input X"           → {"action": "flake-inputs", "type": "ls", "query": "X"}
       "read /nix/store/... file"          → {"action": "store", "type": "read", "query": "/nix/store/..."}
@@ -316,10 +329,12 @@ async def nix(
             return await asyncio.to_thread(_search_noogle, query, limit)
         elif source == "nixhub":
             return await _search_nixhub(query, limit)
+        elif source == "den":
+            return await asyncio.to_thread(_search_den, query, limit)
         else:
             return error(
                 f"Unknown source: {source!r}. Must be one of: "
-                "nixos, home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub."
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub, den."
             )
 
     elif action == "info":
@@ -354,10 +369,12 @@ async def nix(
             return await asyncio.to_thread(_info_noogle, query)
         elif source == "nixhub":
             return await _info_nixhub(query)
+        elif source == "den":
+            return await asyncio.to_thread(_info_den, query)
         else:
             return error(
                 f"Unknown source: {source!r}. For action=info, must be one of: "
-                "nixos, home-manager, darwin, flakehub, nixvim, wiki, nix-dev, noogle, nixhub."
+                "nixos, home-manager, darwin, flakehub, nixvim, wiki, nix-dev, noogle, nixhub, den."
             )
 
     elif action == "stats":
@@ -375,12 +392,14 @@ async def nix(
             return await asyncio.to_thread(_stats_nixvim)
         elif source == "noogle":
             return await asyncio.to_thread(_stats_noogle)
+        elif source == "den":
+            return await asyncio.to_thread(_stats_den)
         elif source in ["wiki", "nix-dev", "nixhub"]:
             return error(f"Stats not available for source={source}.")
         else:
             return error(
                 f"Unknown source: {source!r}. For action=stats, must be one of: "
-                "nixos, home-manager, darwin, flakes, flakehub, nixvim, noogle."
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, noogle, den."
             )
 
     elif action == "browse":
@@ -391,15 +410,17 @@ async def nix(
                 "To get a specific option's details, use: "
                 '{"action": "info", "query": "services.nginx.enable", "type": "option"}.'
             )
-        if source not in ["home-manager", "darwin", "nixvim", "noogle"]:
+        if source not in ["home-manager", "darwin", "nixvim", "noogle", "den"]:
             return error(
-                "action=browse only supports source in: home-manager, darwin, nixvim, noogle. "
+                "action=browse only supports source in: home-manager, darwin, nixvim, noogle, den. "
                 'Example: {"action": "browse", "query": "programs", "source": "home-manager"}'
             )
         if source == "nixvim":
             return await asyncio.to_thread(_browse_nixvim_options, query)
         if source == "noogle":
             return await asyncio.to_thread(_browse_noogle_options, query)
+        if source == "den":
+            return await asyncio.to_thread(_browse_den, query)
         return await asyncio.to_thread(_browse_options, source, query)
 
     elif action == "channels":
@@ -644,6 +665,8 @@ __all__ = [
     "NOOGLE_API",
     "NIXHUB_API",
     "CACHE_NIXOS_ORG",
+    "DEN_BASE_URL",
+    "DEN_OVERVIEW_URL",
     "MAX_FILE_SIZE",
     "DEFAULT_LINE_LIMIT",
     "MAX_LINE_LIMIT",
@@ -653,10 +676,12 @@ __all__ = [
     "NixvimCache",
     "NixDevCache",
     "NoogleCache",
+    "DenCache",
     "channel_cache",
     "nixvim_cache",
     "nixdev_cache",
     "noogle_cache",
+    "den_cache",
     # Utility functions
     "strip_html",
     "error",
@@ -697,6 +722,11 @@ __all__ = [
     # Wiki functions
     "_search_wiki",
     "_info_wiki",
+    # Den functions
+    "_search_den",
+    "_info_den",
+    "_stats_den",
+    "_browse_den",
     # nix.dev functions
     "_search_nixdev",
     "_info_nixdev",

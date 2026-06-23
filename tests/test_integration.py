@@ -395,6 +395,41 @@ class TestNixDevIntegration:
         assert_plain_text(result)
 
 
+class TestDenIntegration:
+    """Integration tests for Den framework docs (issue #156)."""
+
+    @pytest.mark.asyncio
+    async def test_search_den_aspects(self):
+        """A search for "aspects" surfaces the Aspects & Functors explanation."""
+        from mcp_nixos.server import den_cache
+
+        den_cache.pages = None  # Reset cache for fresh fetch
+
+        result = await nix_fn(action="search", query="aspects", source="den", limit=5)
+        assert isinstance(result, str)
+        assert "Found" in result, result
+        assert "/explanation/aspects/" in result or "/reference/aspects/" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_den_from_zero_to_den(self):
+        """info returns a real Den page with title + body for a stable guide."""
+        from mcp_nixos.server import den_cache
+
+        den_cache.pages = None
+
+        result = await nix_fn(
+            action="info",
+            query="guides/from-zero-to-den",
+            source="den",
+        )
+        assert isinstance(result, str)
+        assert not result.startswith("Error"), result
+        assert "Title:" in result
+        assert "Source: https://den.denful.dev/guides/from-zero-to-den/" in result
+        assert_plain_text(result)
+
+
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestFlakeInputsIntegration:

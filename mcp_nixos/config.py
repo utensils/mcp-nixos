@@ -57,6 +57,13 @@ NOOGLE_API = "https://noogle.dev/api/v1/data"
 NIXHUB_API = "https://search.devbox.sh"
 CACHE_NIXOS_ORG = "https://cache.nixos.org"
 
+# Den framework docs (https://den.denful.dev) — Starlight-rendered Astro site.
+# The `/overview/` page doubles as a sitemap (its sidebar links to every doc
+# page); we use it to discover all doc paths before fetching bodies in
+# parallel. See `DenCache` for the full walk strategy.
+DEN_BASE_URL = "https://den.denful.dev"
+DEN_OVERVIEW_URL = f"{DEN_BASE_URL}/overview/"
+
 # Flake inputs constants
 # Maximum file size for reading (1MB)
 MAX_FILE_SIZE = 1024 * 1024
@@ -75,4 +82,5 @@ KNOWN_SOURCES = {
     "nix-dev",
     "noogle",
     "nixhub",
+    "den",
 }

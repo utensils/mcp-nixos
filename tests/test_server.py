@@ -849,3 +849,387 @@ class TestNooglePlainTextOutput:
         assert "<error>" not in result
         assert "</error>" not in result
         assert not result.strip().startswith("{")
+
+
+@pytest.mark.unit
+class TestDenCache:
+    """Test DenCache (issue #156)."""
+
+    def _fresh_cache(self):
+        """Reset the module-level den_cache singleton."""
+        from mcp_nixos import caches
+
+        caches.den_cache = caches.DenCache()
+        return caches.den_cache
+
+    def _overview_html(self, links: list[str]) -> str:
+        """Build a /overview/ page containing the given internal doc links."""
+        anchors = "".join(f'<a href="{href}">{href}</a>' for href in links)
+        return f"<html><body><main>{anchors}</main></body></html>"
+
+    def _page_html(self, title: str, body_html: str):
+        """Build a Mock response carrying a Starlight-shaped page body."""
+        html = (
+            f"<html><body><main data-pagefind-body>"
+            f'<h1 id="_top">{title}</h1>'
+            f'<div class="sl-markdown-content">{body_html}</div>'
+            f"</main></body></html>"
+        )
+        return self._http(html)
+
+    def _http(self, html: str, status: int = 200):
+        """Build a Mock response carrying the given HTML body."""
+        resp = Mock(status_code=status, raise_for_status=Mock())
+        resp.content = html.encode("utf-8")
+        resp.ok = status < 400
+        return resp
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_discover_paths_filters_to_doc_prefixes(self, mock_get):
+        """Only paths under doc prefixes are kept; nav, community, etc. are dropped."""
+
+        mock_get.return_value = self._http(
+            self._overview_html(
+                [
+                    "/explanation/aspects/",  # kept
+                    "/guides/from-zero-to-den",  # kept (normalised to trailing /)
+                    "/reference/aspects/",  # kept
+                    "/tutorials/microvm",  # kept
+                    "/community",  # dropped
+                    "/contributing/",  # dropped
+                    "/releases#bleeding-edge-den",  # dropped (anchor)
+                    "https://github.com/denful/den",  # dropped (external)
+                    "/",  # dropped
+                ]
+            )
+        )
+
+        cache = self._fresh_cache()
+        paths = cache._discover_paths()
+        # Normalise: every path should have a trailing slash and a leading slash.
+        assert all(p.startswith("/") and p.endswith("/") for p in paths)
+        assert "/explanation/aspects/" in paths
+        assert "/guides/from-zero-to-den/" in paths
+        assert "/reference/aspects/" in paths
+        assert "/tutorials/microvm/" in paths
+        for dropped in ("/community", "/contributing", "/releases", "/"):
+            assert not any(p == dropped or p == dropped + "/" for p in paths)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_discover_paths_dedups(self, mock_get):
+        """The same link appearing twice in the overview is returned once."""
+
+        mock_get.return_value = self._http(
+            self._overview_html(
+                [
+                    "/guides/from-zero-to-den/",
+                    "/guides/from-zero-to-den",  # dup (normalised)
+                    "/guides/from-zero-to-den/#section",  # dup (anchor stripped)
+                ]
+            )
+        )
+
+        cache = self._fresh_cache()
+        paths = cache._discover_paths()
+        assert paths.count("/guides/from-zero-to-den/") == 1
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_discover_paths_overview_failure_raises(self, mock_get):
+        """A 5xx response from /overview/ raises APIError."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.return_value = self._http("", status=502)
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache._discover_paths()
+        assert "HTTP 502" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_discover_paths_request_error_raises(self, mock_get):
+        """A network error during overview fetch surfaces as APIError."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.side_effect = requests.RequestException("connection reset")
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache._discover_paths()
+        assert "Failed to fetch Den overview" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_pages_empty_overview_raises(self, mock_get):
+        """If the overview has no doc links, get_pages raises APIError."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.return_value = self._http(self._overview_html(["/community", "/contributing"]))
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_pages()
+        assert "No Den docs paths discovered" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_pages_uses_thread_pool(self, mock_get):
+        """get_pages fans out per-page fetches via the thread pool."""
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/overview/"):
+                return self._http(
+                    self._overview_html(
+                        [
+                            "/guides/from-zero-to-den/",
+                            "/explanation/aspects/",
+                        ]
+                    )
+                )
+            if url.endswith("/guides/from-zero-to-den/"):
+                return self._page_html("From Zero to Den", "<p>Intro body.</p>")
+            if url.endswith("/explanation/aspects/"):
+                return self._page_html("Aspects & Functors", "<p>Aspects body.</p>")
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        pages = cache.get_pages()
+        assert len(pages) == 2
+        names = {p["title"] for p in pages}
+        assert names == {"From Zero to Den", "Aspects & Functors"}
+        # First call is the overview, the rest are the two page fetches.
+        assert mock_get.call_count == 3
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_pages_skips_404_page(self, mock_get):
+        """A page that 404s is silently skipped, not surfaced as an error."""
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/overview/"):
+                return self._http(
+                    self._overview_html(
+                        [
+                            "/guides/from-zero-to-den/",
+                            "/explanation/aspects/",
+                        ]
+                    )
+                )
+            if url.endswith("/guides/from-zero-to-den/"):
+                return self._http("", status=404)
+            if url.endswith("/explanation/aspects/"):
+                return self._page_html("Aspects", "<p>Body.</p>")
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        pages = cache.get_pages()
+        assert len(pages) == 1
+        assert pages[0]["title"] == "Aspects"
+
+    def test_normalize_path(self):
+        """Path normalization handles bare slugs, full URLs, and edge cases."""
+        from mcp_nixos.caches import DenCache
+
+        assert DenCache._normalize_path("/guides/from-zero-to-den/") == "/guides/from-zero-to-den/"
+        assert DenCache._normalize_path("guides/from-zero-to-den") == "/guides/from-zero-to-den/"
+        assert DenCache._normalize_path("https://den.denful.dev/explanation/aspects/") == "/explanation/aspects/"
+        assert DenCache._normalize_path("/explanation/aspects/#anchor") == "/explanation/aspects/"
+        # URL-encoded slashes / etc. are decoded.
+        assert DenCache._normalize_path("/explanation/aspects%2Fother/") == "/explanation/aspects/other/"
+
+
+@pytest.mark.unit
+class TestDenFunctions:
+    """Test _search_den / _info_den / _stats_den / _browse_den (issue #156)."""
+
+    def _page(self, path, title, body):
+        return {
+            "path": path,
+            "url": f"https://den.denful.dev{path}",
+            "title": title,
+            "body": body,
+        }
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_basic(self, mock_cache):
+        """A title hit ranks above a body hit, and a prefix bonus pushes it higher."""
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/explanation/aspects/", "Aspects & Functors", "Body about aspects."),
+            self._page("/reference/lib/", "Library Reference", "Some mention of aspects here."),
+        ]
+
+        result = _search_den("aspects", 5)
+        # Title hit should come first.
+        assert result.index("Aspects & Functors") < result.index("Library Reference")
+        assert "Found 2 Den docs" in result
+        assert "https://den.denful.dev/explanation/aspects/" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_no_results(self, mock_cache):
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.return_value = [self._page("/explanation/aspects/", "Aspects", "x")]
+        result = _search_den("nonexistentterm", 5)
+        assert "No Den docs found" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_case_insensitive(self, mock_cache):
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/explanation/aspects/", "Aspects & Functors", "Body about aspects.")
+        ]
+        # Uppercase query still matches a lowercase title.
+        result = _search_den("ASPECTS", 5)
+        assert "Aspects & Functors" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_empty_query_reports_error(self, mock_cache):
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.return_value = []
+        result = _search_den("", 5)
+        assert "Error" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_multi_term_accumulates_score(self, mock_cache):
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/x/a/", "A", "alpha"),
+            self._page("/x/b/", "B", "alpha alpha beta"),
+        ]
+        result = _search_den("alpha beta", 5)
+        # The page that has both terms should rank first.
+        assert result.index("* B") < result.index("* A")
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_path_match(self, mock_cache):
+        from mcp_nixos.server import _info_den
+
+        mock_cache.get_pages.return_value = []
+        mock_cache.get_by_path.return_value = self._page("/explanation/aspects/", "Aspects & Functors", "Body content.")
+
+        result = _info_den("/explanation/aspects/")
+        assert "Title: Aspects & Functors" in result
+        assert "https://den.denful.dev/explanation/aspects/" in result
+        assert "Path: /explanation/aspects/" in result
+        assert "Body content." in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_url_match(self, mock_cache):
+        from mcp_nixos.server import _info_den
+
+        mock_cache.get_pages.return_value = []
+        mock_cache.get_by_path.return_value = self._page("/explanation/aspects/", "Aspects & Functors", "Body content.")
+        result = _info_den("https://den.denful.dev/explanation/aspects/")
+        assert "Title: Aspects & Functors" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_slug_fallback(self, mock_cache):
+        from mcp_nixos.server import _info_den
+
+        aspect_page = self._page("/explanation/aspects/", "Aspects & Functors", "Body content.")
+        # First call to get_by_path returns None (no match for "aspects" as a path)
+        # so the slug-fallback kicks in via get_pages().
+        mock_cache.get_by_path.return_value = None
+        mock_cache.get_pages.return_value = [aspect_page]
+
+        result = _info_den("aspects")
+        assert "Title: Aspects & Functors" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_not_found(self, mock_cache):
+        from mcp_nixos.server import _info_den
+
+        mock_cache.get_by_path.return_value = None
+        mock_cache.get_pages.return_value = [self._page("/explanation/aspects/", "Aspects", "Body content.")]
+        result = _info_den("nonexistent-slug")
+        assert "Error" in result
+        assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_empty_query(self, mock_cache):
+        from mcp_nixos.server import _info_den
+
+        result = _info_den("")
+        assert "Error" in result
+        assert "Query required" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_truncates_long_body(self, mock_cache):
+        from mcp_nixos.server import _info_den
+        from mcp_nixos.sources.den import _DEN_MAX_BODY_CHARS
+
+        long_body = "x" * (_DEN_MAX_BODY_CHARS + 5000)
+        mock_cache.get_pages.return_value = []
+        mock_cache.get_by_path.return_value = self._page("/explanation/aspects/", "Aspects", long_body)
+        result = _info_den("/explanation/aspects/")
+        assert "[truncated]" in result
+        # The full body should not appear in the result.
+        assert long_body not in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_stats_basic(self, mock_cache):
+        from mcp_nixos.server import _stats_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/explanation/aspects/", "A1", "x"),
+            self._page("/explanation/policies/", "A2", "x"),
+            self._page("/guides/from-zero-to-den/", "G1", "x"),
+            self._page("/reference/lib/", "R1", "x"),
+        ]
+        result = _stats_den()
+        assert "Total pages: 4" in result
+        assert "explanation: 2" in result
+        assert "guides: 1" in result
+        assert "reference: 1" in result
+        assert "Sections: 3" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_no_prefix_lists_sections(self, mock_cache):
+        from mcp_nixos.server import _browse_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/explanation/aspects/", "A1", "x"),
+            self._page("/guides/from-zero-to-den/", "G1", "x"),
+        ]
+        result = _browse_den("")
+        assert "Den doc sections" in result
+        assert "explanation (1 pages)" in result
+        assert "guides (1 pages)" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_with_prefix(self, mock_cache):
+        from mcp_nixos.server import _browse_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/guides/from-zero-to-den/", "From Zero to Den", "x"),
+            self._page("/guides/from-flake-to-den/", "From Flake to Den", "x"),
+            self._page("/explanation/aspects/", "Aspects", "x"),
+        ]
+        result = _browse_den("guides")
+        assert "Den pages with prefix 'guides' (2 found)" in result
+        assert "/guides/from-zero-to-den/ — From Zero to Den" in result
+        assert "/guides/from-flake-to-den/ — From Flake to Den" in result
+        # Explanation page must not appear under /guides/.
+        assert "Aspects" not in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_no_matches(self, mock_cache):
+        from mcp_nixos.server import _browse_den
+
+        mock_cache.get_pages.return_value = [self._page("/explanation/aspects/", "Aspects", "x")]
+        result = _browse_den("nonexistent-section")
+        assert "No Den pages found" in result
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_search_handles_cache_error(self, mock_cache):
+        from mcp_nixos.caches import APIError
+        from mcp_nixos.server import _search_den
+
+        mock_cache.get_pages.side_effect = APIError("boom")
+        with pytest.raises(APIError):
+            _search_den("anything", 5)

@@ -2,11 +2,15 @@
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import requests
+from bs4 import BeautifulSoup
 
 from .config import (
+    DEN_BASE_URL,
+    DEN_OVERVIEW_URL,
     FALLBACK_CHANNELS,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
@@ -229,3 +233,168 @@ class NoogleCache:
 
 
 noogle_cache = NoogleCache()
+
+
+class DenCache:
+    """Cache for Den framework docs (https://den.denful.dev).
+
+    The Den site is built with Starlight (Astro 5). The site exposes no
+    `sitemap.xml` and no Pagefind JSON metadata (the Pagefind index is a
+    bincode binary that needs WASM to read), so the loader does its own
+    walk:
+
+    1. **Discovery** — fetch the `/overview/` page once. Its sidebar links
+       to every doc page; we extract the `/explanation/|/guides/|/reference/
+       |/tutorials/|/motivation/|/maintainers/` paths.
+    2. **Parallel fetch** — fetch each page in a bounded thread pool
+       (10 workers), parse the title (`<h1 id="_top">`) and the
+       `<main data-pagefind-body>` body, strip HTML to plain text.
+    3. **Index** — hold a flat in-memory `pages: list[dict]` plus a
+       `by_path: dict[str, dict]` for exact lookups by `/path/`.
+
+    Total payload is small (≈50 pages × a few KB each) so the in-memory
+    copy is cheap. The full walk happens once per process; subsequent
+    search/info/browse calls are O(n) over the cached list.
+    """
+
+    # Path prefixes we consider "doc pages" (vs. meta pages like
+    # `/community/`, `/contributing/`, `/releases/`, `/`, etc.).
+    _DOC_PATH_PREFIXES = (
+        "/explanation/",
+        "/guides/",
+        "/reference/",
+        "/tutorials/",
+        "/motivation/",
+        "/maintainers/",
+        "/overview/",
+    )
+
+    _MAX_WORKERS = 10
+
+    def __init__(self) -> None:
+        self.pages: list[dict[str, Any]] | None = None
+        self._by_path: dict[str, dict[str, Any]] | None = None
+
+    def get_pages(self) -> list[dict[str, Any]]:
+        """Fetch and cache all Den doc pages."""
+        if self.pages is not None:
+            return self.pages
+
+        paths = self._discover_paths()
+        if not paths:
+            raise APIError("No Den docs paths discovered from /overview/")
+
+        all_pages: list[dict[str, Any]] = []
+        try:
+            with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
+                futures = {pool.submit(self._fetch_page, path): path for path in paths}
+                for future in as_completed(futures):
+                    path = futures[future]
+                    try:
+                        page = future.result()
+                    except requests.RequestException as exc:
+                        raise APIError(f"Failed to fetch Den page {path}: {exc}") from exc
+                    except Exception as exc:
+                        raise APIError(f"Failed to parse Den page {path}: {exc}") from exc
+                    if page is not None:
+                        all_pages.append(page)
+        except requests.Timeout as exc:
+            raise APIError("Timeout fetching Den docs") from exc
+        except requests.RequestException as exc:
+            raise APIError(f"Failed to fetch Den docs: {exc}") from exc
+
+        # Sort by path for deterministic output.
+        all_pages.sort(key=lambda p: p.get("path", ""))
+        self.pages = all_pages
+        self._by_path = {p["path"]: p for p in all_pages if p.get("path")}
+        return self.pages
+
+    def get_by_path(self, path: str) -> dict[str, Any] | None:
+        """Look up a page by its canonical `/path/` (with trailing slash)."""
+        if self._by_path is None:
+            self.get_pages()
+        return self._by_path.get(self._normalize_path(path)) if self._by_path else None
+
+    def _discover_paths(self) -> list[str]:
+        """Read `/overview/` and return unique doc paths in document order."""
+        try:
+            resp = requests.get(DEN_OVERVIEW_URL, timeout=15)
+        except requests.RequestException as exc:
+            raise APIError(f"Failed to fetch Den overview: {exc}") from exc
+        if resp.status_code != 200:
+            raise APIError(f"Den overview returned HTTP {resp.status_code} (expected 200)")
+
+        soup = BeautifulSoup(resp.content, "html.parser")
+        seen: set[str] = set()
+        paths: list[str] = []
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
+            # Skip anchors, external links, and trailing-slash-only links.
+            if not href.startswith("/"):
+                continue
+            # Normalize: strip fragments, ensure trailing slash.
+            href = href.split("#", 1)[0]
+            if not href.endswith("/"):
+                href = href + "/"
+            if not any(href.startswith(p) for p in self._DOC_PATH_PREFIXES):
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            paths.append(href)
+        return paths
+
+    @staticmethod
+    def _fetch_page(path: str) -> dict[str, Any] | None:
+        """Fetch a single Den page and extract title + body.
+
+        Returns None for non-2xx responses (e.g., a path the overview linked
+        to that no longer exists). Skips silently so a single broken page
+        doesn't take the whole cache down.
+        """
+        url = f"{DEN_BASE_URL}{path}"
+        resp = requests.get(url, timeout=15)
+        if not resp.ok:
+            return None
+        soup = BeautifulSoup(resp.content, "html.parser")
+
+        # Title: <h1 id="_top"> on every Starlight page.
+        h1 = soup.find("h1", id="_top")
+        title = h1.get_text(strip=True) if h1 else path.strip("/").replace("-", " ").title()
+
+        # Body: <main data-pagefind-body> ... <div class="sl-markdown-content">.
+        body = ""
+        for elem in soup.find_all("main"):
+            if elem.attrs.get("data-pagefind-body") is not None or True:
+                # Starlight pages have a single <main data-pagefind-body>;
+                # fall back to the first <main> if the attribute is missing.
+                main_div = elem.find("div", class_="sl-markdown-content")
+                body = (main_div if main_div is not None else elem).get_text("\n", strip=True)
+                break
+
+        return {"path": path, "url": url, "title": title, "body": body}
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Canonicalize a path to `/foo/bar/` form for by-path lookup."""
+        from urllib.parse import unquote
+
+        path = unquote(path.strip())
+        # Strip a leading base URL if present.
+        if path.startswith(DEN_BASE_URL):
+            path = path[len(DEN_BASE_URL) :]
+        # Drop query/fragment.
+        for sep in ("?", "#"):
+            if sep in path:
+                path = path.split(sep, 1)[0]
+        if not path.startswith("/"):
+            path = "/" + path
+        if not path.endswith("/"):
+            path = path + "/"
+        # Strip duplicate slashes (defensive).
+        while "//" in path:
+            path = path.replace("//", "/")
+        return path
+
+
+den_cache = DenCache()

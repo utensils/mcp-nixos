@@ -21,6 +21,14 @@ from .darwin import (
     _stats_darwin,
 )
 
+# Den framework documentation
+from .den import (
+    _browse_den,
+    _info_den,
+    _search_den,
+    _stats_den,
+)
+
 # Flake inputs (local nix store)
 from .flake_inputs import (
     _check_nix_available,
@@ -140,6 +148,11 @@ __all__ = [
     # Wiki
     "_search_wiki",
     "_info_wiki",
+    # Den
+    "_search_den",
+    "_info_den",
+    "_stats_den",
+    "_browse_den",
     # nix.dev
     "_search_nixdev",
     "_info_nixdev",
