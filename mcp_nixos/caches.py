@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
@@ -158,56 +159,68 @@ class NixvimCache:
 
     This loader walks chunks sequentially until it sees a 404, flattens them
     into a single in-memory list, and serves subsequent calls from cache. The
-    full set is small enough (a few MB) to hold in memory and re-scan for
-    keyword matching, avoiding the WASM dependency entirely.
+    full set currently runs to ~60 chunks / ~17k options / a few MB and fits
+    comfortably in memory; we re-scan in Python for keyword matching, avoiding
+    the WASM dependency entirely.
     """
 
     def __init__(self) -> None:
         self.options: list[dict[str, Any]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_options(self) -> list[dict[str, Any]]:
         """Fetch and cache all Nixvim options from NuschtOS chunk JSON."""
         if self.options is not None:
             return self.options
 
-        all_options: list[dict[str, Any]] = []
-        chunk_id = 0
-        try:
-            while True:
-                url = f"{NIXVIM_OPTIONS_CHUNKS_BASE}/{chunk_id}.json"
-                resp = requests.get(url, timeout=30)
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-                if resp.status_code == 404:
-                    # Treat as end-of-pagination — but a 404 on the *first*
-                    # chunk almost always means a config error (wrong base URL
-                    # or layout change), so surface that distinctly.
-                    if chunk_id == 0:
+            all_options: list[dict[str, Any]] = []
+            chunk_id = 0
+            try:
+                while True:
+                    url = f"{NIXVIM_OPTIONS_CHUNKS_BASE}/{chunk_id}.json"
+                    resp = requests.get(url, timeout=30)
+
+                    if resp.status_code == 404:
+                        # Treat as end-of-pagination — but a 404 on the *first*
+                        # chunk almost always means a config error (wrong base URL
+                        # or layout change), so surface that distinctly.
+                        if chunk_id == 0:
+                            raise APIError(
+                                f"First Nixvim options chunk returned 404 at {url}; "
+                                "the NuschtOS data layout may have changed again."
+                            )
+                        break
+
+                    resp.raise_for_status()
+                    chunk_data = resp.json()
+
+                    if isinstance(chunk_data, list):
+                        all_options.extend(chunk_data)
+                    else:
+                        # Unexpected payload: a layout/format change in the
+                        # middle of the chunk sequence. Fail loud so we don't
+                        # silently cache a partial option set.
                         raise APIError(
-                            f"First Nixvim options chunk returned 404 at {url}; "
-                            "the NuschtOS data layout may have changed again."
+                            f"Unexpected Nixvim options payload at {url}: "
+                            f"expected JSON list, got {type(chunk_data).__name__}."
                         )
-                    break
 
-                resp.raise_for_status()
-                chunk_data = resp.json()
+                    chunk_id += 1
 
-                if isinstance(chunk_data, list):
-                    all_options.extend(chunk_data)
-                else:
-                    break  # Unexpected format; stop rather than loop forever
-
-                chunk_id += 1
-
-            self.options = all_options
-            return self.options
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching Nixvim options") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch Nixvim options: {exc}") from exc
-        except APIError:
-            raise
-        except Exception as exc:
-            raise APIError(f"Failed to parse Nixvim options: {exc}") from exc
+                self.options = all_options
+                return self.options
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching Nixvim options") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch Nixvim options: {exc}") from exc
+            except APIError:
+                raise
+            except Exception as exc:
+                raise APIError(f"Failed to parse Nixvim options: {exc}") from exc
 
 
 nixvim_cache = NixvimCache()

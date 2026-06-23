@@ -777,8 +777,10 @@ class TestNixvimCache:
         assert mock_get.call_count == 2
 
     @patch("mcp_nixos.caches.requests.get")
-    def test_unexpected_payload_breaks_loop(self, mock_get):
-        """A non-list response stops the walk without raising."""
+    def test_unexpected_payload_raises(self, mock_get):
+        """A non-list payload mid-walk raises APIError so a layout change
+        doesn't silently cache a partial option set."""
+        from mcp_nixos.server import APIError
 
         unexpected_resp = Mock(status_code=200, raise_for_status=Mock())
         unexpected_resp.json = lambda: {"not": "a list"}
@@ -789,8 +791,30 @@ class TestNixvimCache:
         ]
 
         cache = self._fresh_cache()
-        options = cache.get_options()
-        assert len(options) == 1
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "Unexpected Nixvim options payload" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_concurrent_first_call_only_fetches_once(self, mock_get):
+        """Double-checked locking: N concurrent first calls perform the
+        walk exactly once, not N times."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        # 1 listing-style "first chunk" + 1 trailing 404 = 2 calls per walk.
+        # The lock must collapse N concurrent callers into a single walk.
+        chunk = [{"name": "a"}]
+        mock_get.side_effect = [
+            self._chunk_resp(chunk),
+            Mock(status_code=404),
+        ] * 50  # plenty of responses for any number of concurrent walks
+
+        cache = self._fresh_cache()
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda _: cache.get_options(), range(20)))
+
+        # Exactly one walk happened, so exactly 2 network calls.
+        assert mock_get.call_count == 2
 
 
 @pytest.mark.unit
