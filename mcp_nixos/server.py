@@ -23,10 +23,12 @@ from . import __version__
 # Import from our modules
 from .caches import (
     ChannelCache,
+    HomeManagerCache,
     NixDevCache,
     NixvimCache,
     NoogleCache,
     channel_cache,
+    home_manager_cache,
     nixdev_cache,
     nixvim_cache,
     noogle_cache,
@@ -653,10 +655,12 @@ __all__ = [
     "NixvimCache",
     "NixDevCache",
     "NoogleCache",
+    "HomeManagerCache",
     "channel_cache",
     "nixvim_cache",
     "nixdev_cache",
     "noogle_cache",
+    "home_manager_cache",
     # Utility functions
     "strip_html",
     "error",

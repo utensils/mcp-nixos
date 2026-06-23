@@ -849,3 +849,218 @@ class TestNooglePlainTextOutput:
         assert "<error>" not in result
         assert "</error>" not in result
         assert not result.strip().startswith("{")
+
+
+@pytest.mark.unit
+class TestHomeManagerCache:
+    """Test HomeManagerCache (issue #172)."""
+
+    def _fresh_cache(self):
+        """Reset the module-level home_manager_cache singleton."""
+        from mcp_nixos import caches
+
+        caches.home_manager_cache = caches.HomeManagerCache()
+        return caches.home_manager_cache
+
+    def _page_resp(self, html: str):
+        """Build a Mock response carrying the given HTML body."""
+        resp = Mock(status_code=200, raise_for_status=Mock())
+        resp.content = html.encode("utf-8")
+        return resp
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_options_via_mock(self, mock_get):
+        """Mocked HTTP: parse a single page with full option block."""
+        from mcp_nixos.caches import HomeManagerCache
+
+        html = """
+        <html><body><main>
+            <h2 id="opt-programs.git.enable"><a href="#opt-programs.git.enable">programs.git.enable</a></h2>
+            <p>Whether to enable Git.</p>
+            <p><em>Type:</em> boolean</p>
+            <p><em>Default:</em></p>
+            <pre><code>false</code></pre>
+            <p><em>Example:</em></p>
+            <pre><code>true</code></pre>
+            <h2 id="opt-programs.git.package"><a href="#opt-programs.git.package">programs.git.package</a></h2>
+            <p>The git package to use.</p>
+            <p><em>Type:</em> null or package</p>
+        </main></body></html>
+        """
+        mock_get.return_value = self._page_resp(html)
+
+        options = HomeManagerCache._fetch_page_options("http://stub/page.html")
+        assert len(options) == 2
+
+        enable = options[0]
+        assert enable["name"] == "programs.git.enable"
+        assert enable["type"] == "boolean"
+        assert enable["description"] == "Whether to enable Git."
+        assert enable["default"] == "false"
+        assert enable["example"] == "true"
+
+        package = options[1]
+        assert package["name"] == "programs.git.package"
+        assert package["type"] == "null or package"
+        assert package["default"] == ""  # no Default: block
+        assert package["example"] == ""
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_options_skips_non_option_h2(self, mock_get):
+        """A non opt- h2 is ignored; multi-paragraph description is joined."""
+        from mcp_nixos.caches import HomeManagerCache
+
+        html = """
+        <html><body><main>
+            <h2 id="not-an-option">Section heading</h2>
+            <p>Should be ignored.</p>
+            <h2 id="opt-services.foo.bar"><a href="#opt-services.foo.bar">services.foo.bar</a></h2>
+            <p>First paragraph.</p>
+            <p>Second paragraph.</p>
+            <p><em>Type:</em> string</p>
+        </main></body></html>
+        """
+        mock_get.return_value = self._page_resp(html)
+
+        options = HomeManagerCache._fetch_page_options("http://stub/page.html")
+        assert len(options) == 1
+        assert options[0]["name"] == "services.foo.bar"
+        assert options[0]["type"] == "string"
+        assert "First paragraph." in options[0]["description"]
+        assert "Second paragraph." in options[0]["description"]
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_options_skips_h2_without_dot(self, mock_get):
+        """Anchor ids without a dot are not valid option names; skip them."""
+        from mcp_nixos.caches import HomeManagerCache
+
+        html = """
+        <html><body><main>
+            <h2 id="opt-badname"><a>badname</a></h2>
+            <p>Should be skipped.</p>
+            <h2 id="opt-good.name"><a>good.name</a></h2>
+            <p>Should be kept.</p>
+        </main></body></html>
+        """
+        mock_get.return_value = self._page_resp(html)
+
+        options = HomeManagerCache._fetch_page_options("http://stub/page.html")
+        assert [o["name"] for o in options] == ["good.name"]
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_by_name_after_load(self, mock_get):
+        """get_by_name returns the matching option after the cache is loaded."""
+        # The cache makes 3 listing requests (top-level, programs/, services/)
+        # plus one fetch per discovered page. The first listing returns a link
+        # to git.html; the rest are empty; the page is fetched last.
+        listing_html = '<html><body><a href="git.html">git</a></body></html>'
+        empty_listing = "<html><body></body></html>"
+        page_html = """
+        <html><body><main>
+            <h2 id="opt-programs.git.enable"><a>programs.git.enable</a></h2>
+            <p>Enable git.</p>
+            <p><em>Type:</em> boolean</p>
+        </main></body></html>
+        """
+
+        # First three responses are the three listings; the fourth is the page
+        # fetch. The fetch order is deterministic (listings are sequential),
+        # but we use side_effect as a callable so we can match by URL.
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("git.html"):
+                return self._page_resp(page_html)
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        cache.get_options()
+        opt = cache.get_by_name("programs.git.enable")
+        assert opt is not None
+        assert opt["type"] == "boolean"
+        assert opt["description"] == "Enable git."
+
+        # Second lookup is cached (no extra HTTP call).
+        calls_after_first_load = mock_get.call_count
+        cache.get_by_name("programs.git.enable")
+        assert mock_get.call_count == calls_after_first_load
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_by_name_unknown_returns_none(self, mock_get):
+        """get_by_name returns None for a name not in the cache (after load)."""
+        # One page discovered, containing a single option; lookups for any
+        # other name should return None.
+        listing_html = '<html><body><a href="a.html">a</a></body></html>'
+        empty_listing = "<html><body></body></html>"
+        page_a = '<html><body><main><h2 id="opt-a.b"><a>a.b</a></h2><p>desc</p></main></body></html>'
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("a.html"):
+                return self._page_resp(page_a)
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        cache.get_options()
+        assert cache.get_by_name("a.b") is not None
+        assert cache.get_by_name("does.not.exist") is None
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_options_empty_listing_raises(self, mock_get):
+        """If no pages are discovered, get_options raises APIError."""
+        from mcp_nixos.caches import APIError
+
+        # All three listings return empty bodies — no links to follow.
+        empty_listing = "<html><body></body></html>"
+
+        def fake_get(url, **_kwargs):
+            return self._page_resp(empty_listing)
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "No Home Manager option pages" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_options_uses_thread_pool(self, mock_get):
+        """get_options fans out fetches across the thread pool."""
+        listing_html = """
+        <html><body>
+            <a href="a.html">a</a>
+            <a href="b.html">b</a>
+        </body></html>
+        """
+        empty_listing = "<html><body></body></html>"
+        page_a = '<html><body><main><h2 id="opt-a.b"><a>a.b</a></h2><p>desc</p></main></body></html>'
+        page_b = '<html><body><main><h2 id="opt-c.d"><a>c.d</a></h2><p>desc</p></main></body></html>'
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("a.html"):
+                return self._page_resp(page_a)
+            if url.endswith("b.html"):
+                return self._page_resp(page_b)
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+        names = sorted(o["name"] for o in options)
+        assert names == ["a.b", "c.d"]
+        # 3 listings + 2 page fetches = 5 calls (other listings empty).
+        assert mock_get.call_count == 5

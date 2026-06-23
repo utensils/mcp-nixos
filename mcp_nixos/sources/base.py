@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from .. import __version__
-from ..caches import channel_cache
+from ..caches import channel_cache, home_manager_cache
 from ..config import (
     DARWIN_URL,
     HOME_MANAGER_URL,
@@ -215,23 +215,38 @@ def _list_channels() -> str:
 
 def _browse_options(source: str, prefix: str) -> str:
     """Browse Home Manager or nix-darwin options by prefix, or list categories."""
-    url = HOME_MANAGER_URL if source == "home-manager" else DARWIN_URL
     source_name = "Home Manager" if source == "home-manager" else "nix-darwin"
 
     try:
+        if source == "home-manager":
+            # Home Manager uses a multi-page mdBook site; read from the cache
+            # populated by HomeManagerCache instead of a single HTML page.
+            try:
+                options_raw = home_manager_cache.get_options()
+            except APIError:
+                raise
+            options = [
+                {"name": o["name"], "description": o.get("description", "")} for o in options_raw if o.get("name")
+            ]
+        else:
+            url = HOME_MANAGER_URL if source == "home-manager" else DARWIN_URL
+            options = parse_html_options(url, limit=5000)
+            options = [{"name": o["name"], "description": o.get("description", "")} for o in options if o.get("name")]
+
         if prefix:
-            options = parse_html_options(url, "", prefix)
-            if not options:
+            matches = [o for o in options if o["name"].startswith(prefix + ".") or o["name"] == prefix]
+            if not matches:
                 return f"No {source_name} options found with prefix '{prefix}'"
-            results = [f"{source_name} options with prefix '{prefix}' ({len(options)} found):\n"]
-            for opt in sorted(options, key=lambda x: x["name"]):
+            results = [f"{source_name} options with prefix '{prefix}' ({len(matches)} found):\n"]
+            for opt in sorted(matches, key=lambda x: x["name"])[:100]:
                 results.append(f"* {opt['name']}")
-                if opt["description"]:
+                if opt.get("description"):
                     results.append(f"  {opt['description']}")
                 results.append("")
+            if len(matches) > 100:
+                results.append(f"... and {len(matches) - 100} more options")
             return "\n".join(results).strip()
         else:
-            options = parse_html_options(url, limit=5000)
             categories: dict[str, int] = {}
             for opt in options:
                 name = opt["name"]

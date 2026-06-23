@@ -31,7 +31,16 @@ FALLBACK_CHANNELS = {
     "beta": "latest-44-nixos-25.11",
 }
 
-HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
+# Home Manager options are published as mdBook-rendered HTML split across
+# ~600 per-page files. The legacy single-page `options.xhtml` is now just a
+# 1.4 KB redirect stub. We discover pages from three directory listings
+# (top-level + programs/ + services/) and then fetch each page on demand to
+# extract its options. See HomeManagerCache for the full load strategy.
+HOME_MANAGER_BASE_URL = "https://nix-community.github.io/home-manager"
+HOME_MANAGER_OPTIONS_DIR = f"{HOME_MANAGER_BASE_URL}/options/home-manager"
+# Kept for backward compatibility — points at the new top-level options page
+# (which is itself a redirect, but tests + old imports may still reference it).
+HOME_MANAGER_URL = f"{HOME_MANAGER_OPTIONS_DIR}/index.html"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 FLAKE_INDEX = "latest-44-group-manual"
 
