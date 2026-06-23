@@ -168,6 +168,14 @@ class TestChannelCache:
         assert cache.using_fallback is True
         assert "unstable" in result
 
+    def test_resolved_channels_fallback_includes_26_05(self):
+        """The 26.05 channel (current stable) must be reachable via the fallback
+        path — see issue #166."""
+        from mcp_nixos.config import FALLBACK_CHANNELS
+
+        assert "26.05" in FALLBACK_CHANNELS
+        assert FALLBACK_CHANNELS["stable"] == FALLBACK_CHANNELS["26.05"]
+
     @patch("mcp_nixos.sources.base.requests.post")
     def test_discover_channels(self, mock_post):
         mock_resp = Mock()

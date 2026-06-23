@@ -36,7 +36,11 @@ class ChannelCache:
         return self.resolved_channels if self.resolved_channels is not None else {}
 
     def _discover_available_channels(self) -> dict[str, str]:
-        generations = [43, 44, 45, 46]
+        # Generations 43-48 cover the 25.05 → 26.05 window. Bump this list
+        # when Hydra publishes a new generation; the better fix is the
+        # `_cat/aliases` discovery in PR #159, but this hardcoded probe
+        # remains the fallback for the index path.
+        generations = [43, 44, 45, 46, 47, 48]
         versions = ["unstable", "25.05", "25.11", "26.05", "26.11"]
         available = {}
         for gen in generations:

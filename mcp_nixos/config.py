@@ -20,15 +20,19 @@ BASE_CHANNELS = {
     "unstable": "nixos-unstable",
     "25.05": "nixos-25.05",
     "25.11": "nixos-25.11",
+    "26.05": "nixos-26.05",
 }
 
-# Fallback channels when API discovery fails (static mappings based on recent patterns)
+# Fallback channels when API discovery fails (static mappings based on recent patterns).
+# `stable` always aliases to the most recent release — bump this on each new
+# NixOS release so users on the fallback path still hit a live index.
 FALLBACK_CHANNELS = {
     "unstable": "latest-44-nixos-unstable",
-    "stable": "latest-44-nixos-25.11",
+    "stable": "latest-44-nixos-26.05",
     "25.05": "latest-44-nixos-25.05",
     "25.11": "latest-44-nixos-25.11",
-    "beta": "latest-44-nixos-25.11",
+    "26.05": "latest-44-nixos-26.05",
+    "beta": "latest-44-nixos-26.05",
 }
 
 HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
