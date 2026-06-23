@@ -2,6 +2,7 @@
 
 import json
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -264,37 +265,50 @@ class HomeManagerCache:
     def __init__(self) -> None:
         self.options: list[dict[str, Any]] | None = None
         self._by_name: dict[str, dict[str, Any]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_options(self) -> list[dict[str, Any]]:
-        """Fetch and cache all Home Manager options."""
+        """Fetch and cache all Home Manager options.
+
+        Concurrency-safe via double-checked locking: N concurrent first
+        callers all see the cold cache, but only one performs the walk;
+        the rest wait and consume the cached list.
+        """
         if self.options is not None:
             return self.options
 
-        page_urls = self._discover_page_urls()
-        if not page_urls:
-            raise APIError("No Home Manager option pages discovered")
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-        all_options: list[dict[str, Any]] = []
-        try:
-            with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
-                futures = {pool.submit(self._fetch_page_options, url): url for url in page_urls}
-                for future in as_completed(futures):
-                    url = futures[future]
-                    try:
-                        page_options = future.result()
-                    except requests.RequestException as exc:
-                        raise APIError(f"Failed to fetch {url}: {exc}") from exc
-                    except Exception as exc:
-                        raise APIError(f"Failed to parse {url}: {exc}") from exc
-                    all_options.extend(page_options)
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching Home Manager options") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch Home Manager options: {exc}") from exc
+            page_urls = self._discover_page_urls()
+            if not page_urls:
+                raise APIError("No Home Manager option pages discovered")
 
-        self.options = all_options
-        self._by_name = {opt["name"]: opt for opt in all_options if opt.get("name")}
-        return self.options
+            all_options: list[dict[str, Any]] = []
+            try:
+                with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
+                    futures = {pool.submit(self._fetch_page_options, url): url for url in page_urls}
+                    for future in as_completed(futures):
+                        url = futures[future]
+                        try:
+                            page_options = future.result()
+                        except requests.RequestException as exc:
+                            raise APIError(f"Failed to fetch {url}: {exc}") from exc
+                        except Exception as exc:
+                            raise APIError(f"Failed to parse {url}: {exc}") from exc
+                        all_options.extend(page_options)
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching Home Manager options") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch Home Manager options: {exc}") from exc
+
+            # Sort by name for deterministic downstream output (search, info,
+            # browse) — `as_completed()` yields in completion order.
+            all_options.sort(key=lambda opt: opt.get("name", ""))
+            self.options = all_options
+            self._by_name = {opt["name"]: opt for opt in all_options if opt.get("name")}
+            return self.options
 
     def get_by_name(self, name: str) -> dict[str, Any] | None:
         """Look up a single option by its exact name. Lazy-loads the cache."""
@@ -305,35 +319,57 @@ class HomeManagerCache:
     def _discover_page_urls(self) -> list[str]:
         """Enumerate option-page URLs by reading three directory listings.
 
-        Falls back to an empty list on any failure; the caller raises APIError
-        so the user sees a clear error rather than a silent 0-options result.
+        Returns unique URLs in the order the listings declared them. If any
+        individual listing fetch fails (network error or non-2xx), the
+        failure is collected and raised as a single `APIError` so a partial
+        index isn't silently cached — a missing listings means the user is
+        about to see "0 options" for whatever section didn't load.
         """
+        from urllib.parse import urljoin, urlparse
+
+        allowed = urlparse(HOME_MANAGER_OPTIONS_DIR)
         urls: list[str] = []
+        failed: list[str] = []
         for sub in self._PAGE_LISTINGS:
             listing_url = f"{HOME_MANAGER_OPTIONS_DIR}/{sub}" if sub else f"{HOME_MANAGER_OPTIONS_DIR}/"
             try:
                 resp = requests.get(listing_url, timeout=15)
                 if resp.status_code != 200:
+                    failed.append(f"{listing_url} (HTTP {resp.status_code})")
                     continue
-                soup = BeautifulSoup(resp.content, "html.parser")
-                for link in soup.find_all("a", href=True):
-                    href = link["href"]
-                    # Skip the print.html / parent-directory links emitted by
-                    # GitHub Pages' directory listing.
-                    if not href.endswith(".html") or href.startswith("..") or href.startswith("?"):
-                        continue
-                    if sub == "":
-                        # Top-level: only accept "<name>.html" with no slashes
-                        # (e.g. "accounts.html", "fonts.html"). Subdirectory
-                        # entries ("programs/", "services/") and any nested
-                        # links are ignored.
-                        if "/" in href:
-                            continue
-                    # Subdir hrefs are bare filenames like "abaddon.html" —
-                    # the listing URL already provides the "programs/" prefix.
-                    urls.append(f"{listing_url}{href}")
-            except requests.RequestException:
+            except requests.RequestException as exc:
+                failed.append(f"{listing_url} ({exc})")
                 continue
+
+            soup = BeautifulSoup(resp.content, "html.parser")
+            for link in soup.find_all("a", href=True):
+                href = link["href"]
+                # Skip the print.html / parent-directory links emitted by
+                # GitHub Pages' directory listing.
+                if not href.endswith(".html") or href.startswith("..") or href.startswith("?"):
+                    continue
+                if sub == "":
+                    # Top-level: only accept "<name>.html" with no slashes
+                    # (e.g. "accounts.html", "fonts.html"). Subdirectory
+                    # entries ("programs/", "services/") and any nested
+                    # links are ignored.
+                    if "/" in href:
+                        continue
+                # SSRF guard: only follow links that resolve to the same
+                # scheme+host+path-prefix as HOME_MANAGER_OPTIONS_DIR. A
+                # compromised listing page can't pivot us into fetching
+                # arbitrary hosts.
+                candidate = urljoin(listing_url, href)
+                parsed = urlparse(candidate)
+                if parsed.scheme != "https" or parsed.netloc != allowed.netloc:
+                    continue
+                if not parsed.path.startswith(allowed.path):
+                    continue
+                urls.append(candidate)
+
+        if failed:
+            raise APIError("Failed to fetch Home Manager option listings: " + "; ".join(failed))
+
         # De-dup while preserving order.
         seen: set[str] = set()
         unique: list[str] = []
@@ -405,8 +441,18 @@ class HomeManagerCache:
                 if label in ("type", "default", "example"):
                     last_label = label
                     if label == "type":
-                        # The full <p> text is "Type: value" — strip the label.
-                        option["type"] = sibling.get_text(" ", strip=True)[len("Type:") :].strip()
+                        # The full <p> text is "Type: value" (or "Type
+                        # value" if the site drops the colon). Strip the label
+                        # text from the start and any leading colon so both
+                        # renderings produce the same value.
+                        em_text = em.get_text(strip=True)  # original case
+                        full = sibling.get_text(" ", strip=True)
+                        after = full
+                        for prefix in (f"{em_text}:", em_text, f"{em_text}:"):
+                            if after.startswith(prefix):
+                                after = after[len(prefix) :]
+                                break
+                        option["type"] = after.strip()
                     # default / example values are emitted in a *following*
                     # <pre><code>, so we don't set them here; we set them
                     # in the loop below when we see a <pre> right after a

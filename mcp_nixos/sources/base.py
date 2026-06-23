@@ -10,7 +10,6 @@ from .. import __version__
 from ..caches import channel_cache, home_manager_cache
 from ..config import (
     DARWIN_URL,
-    HOME_MANAGER_URL,
     NIXOS_API,
     NIXOS_AUTH,
     APIError,
@@ -229,8 +228,10 @@ def _browse_options(source: str, prefix: str) -> str:
                 {"name": o["name"], "description": o.get("description", "")} for o in options_raw if o.get("name")
             ]
         else:
-            url = HOME_MANAGER_URL if source == "home-manager" else DARWIN_URL
-            options = parse_html_options(url, limit=5000)
+            # source is "darwin" (the only other value permitted by the
+            # server's action=browse allow-list). The dead `if source == ...`
+            # is gone — the URL is unambiguously DARWIN_URL.
+            options = parse_html_options(DARWIN_URL, limit=5000)
             options = [{"name": o["name"], "description": o.get("description", "")} for o in options if o.get("name")]
 
         if prefix:

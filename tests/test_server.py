@@ -855,16 +855,31 @@ class TestNooglePlainTextOutput:
 class TestHomeManagerCache:
     """Test HomeManagerCache (issue #172)."""
 
+    @pytest.fixture
+    def fresh_cache(self, monkeypatch):
+        """Reset the module-level home_manager_cache singleton and restore it
+        after the test so we don't leak state into other tests."""
+        from mcp_nixos import caches
+
+        original = caches.home_manager_cache
+        cache = caches.HomeManagerCache()
+        monkeypatch.setattr(caches, "home_manager_cache", cache)
+        yield cache
+        monkeypatch.setattr(caches, "home_manager_cache", original)
+
     def _fresh_cache(self):
-        """Reset the module-level home_manager_cache singleton."""
+        """Convenience wrapper: build a fresh cache without using monkeypatch.
+        Use the `fresh_cache` fixture in new tests so the module-level
+        singleton is restored on teardown.
+        """
         from mcp_nixos import caches
 
         caches.home_manager_cache = caches.HomeManagerCache()
         return caches.home_manager_cache
 
-    def _page_resp(self, html: str):
+    def _page_resp(self, html: str, status: int = 200):
         """Build a Mock response carrying the given HTML body."""
-        resp = Mock(status_code=200, raise_for_status=Mock())
+        resp = Mock(status_code=status, raise_for_status=Mock())
         resp.content = html.encode("utf-8")
         return resp
 
@@ -1064,3 +1079,153 @@ class TestHomeManagerCache:
         assert names == ["a.b", "c.d"]
         # 3 listings + 2 page fetches = 5 calls (other listings empty).
         assert mock_get.call_count == 5
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_options_listing_failure_raises(self, mock_get):
+        """A non-2xx response from a listing raises APIError, not silent
+        partial-best-effort. (Review feedback on PR #174.)"""
+        from mcp_nixos.caches import APIError
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp('<html><body><a href="a.html">a</a></body></html>')
+            if url.endswith("/programs/"):
+                # Simulate transient upstream issue.
+                return self._page_resp("", status=502)
+            if url.endswith("/services/"):
+                return self._page_resp("<html><body></body></html>")
+            if url.endswith("a.html"):
+                return self._page_resp(
+                    '<html><body><main><h2 id="opt-a.b"><a>a.b</a></h2><p>desc</p></main></body></html>'
+                )
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "Failed to fetch Home Manager option listings" in str(exc_info.value)
+        assert "HTTP 502" in str(exc_info.value)
+        # Nothing should be cached on failure.
+        assert cache.options is None
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_get_options_rejects_off_host_href(self, mock_get):
+        """An href that resolves to a different host is ignored (SSRF guard)."""
+        # Top-level listing contains one safe link and one cross-origin link.
+        listing_html = (
+            "<html><body>"
+            '<a href="good.html">good</a>'
+            '<a href="https://evil.example.com/steal.html">evil</a>'
+            "</body></html>"
+        )
+        empty_listing = "<html><body></body></html>"
+        page_good = '<html><body><main><h2 id="opt-good.name"><a>good.name</a></h2><p>desc</p></main></body></html>'
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("good.html"):
+                return self._page_resp(page_good)
+            raise AssertionError(f"Cross-origin URL slipped past SSRF guard: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+        names = [o["name"] for o in options]
+        assert names == ["good.name"]
+        # The evil URL must not have been requested.
+        assert mock_get.call_count == 4  # 3 listings + 1 page (not 5)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_concurrent_first_call_only_fetches_once(self, mock_get):
+        """Double-checked locking: N concurrent first calls run the walk
+        exactly once, not N times."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        listing_html = '<html><body><a href="a.html">a</a></body></html>'
+        empty_listing = "<html><body></body></html>"
+        page_a = '<html><body><main><h2 id="opt-a.b"><a>a.b</a></h2><p>desc</p></main></body></html>'
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("a.html"):
+                return self._page_resp(page_a)
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        # Provide enough responses for any number of walks.
+        mock_get.side_effect = [
+            self._page_resp(listing_html),
+            self._page_resp(empty_listing),
+            self._page_resp(empty_listing),
+            self._page_resp(page_a),
+        ] * 50
+
+        cache = self._fresh_cache()
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda _: cache.get_options(), range(20)))
+
+        # Exactly one walk: 3 listings + 1 page = 4 network calls.
+        assert mock_get.call_count == 4
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_options_are_sorted_by_name(self, mock_get):
+        """`all_options` is sorted by name for deterministic downstream
+        output (review feedback on PR #174)."""
+        listing_html = """
+        <html><body>
+            <a href="z.html">z</a>
+            <a href="a.html">a</a>
+        </body></html>
+        """
+        empty_listing = "<html><body></body></html>"
+        page_z = '<html><body><main><h2 id="opt-z.last"><a>z.last</a></h2><p>z</p></main></body></html>'
+        page_a = (
+            "<html><body><main>"
+            '<h2 id="opt-a.first"><a>a.first</a></h2><p>a</p>'
+            '<h2 id="opt-a.second"><a>a.second</a></h2><p>a</p>'
+            "</main></body></html>"
+        )
+
+        def fake_get(url, **_kwargs):
+            if url.endswith("/options/home-manager/"):
+                return self._page_resp(listing_html)
+            if url.endswith("/programs/") or url.endswith("/services/"):
+                return self._page_resp(empty_listing)
+            if url.endswith("z.html"):
+                return self._page_resp(page_z)
+            if url.endswith("a.html"):
+                return self._page_resp(page_a)
+            raise AssertionError(f"Unexpected URL in test: {url}")
+
+        mock_get.side_effect = fake_get
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+        names = [o["name"] for o in options]
+        assert names == ["a.first", "a.second", "z.last"]
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_type_label_without_colon(self, mock_get):
+        """The Type label can be parsed even if the trailing colon is missing
+        (review feedback on PR #174)."""
+        from mcp_nixos.caches import HomeManagerCache
+
+        html = """
+        <html><body><main>
+            <h2 id="opt-services.foo.bar"><a>services.foo.bar</a></h2>
+            <p>desc</p>
+            <p><em>Type</em> string (no colon after the label)</p>
+        </main></body></html>
+        """
+        mock_get.return_value = self._page_resp(html)
+
+        options = HomeManagerCache._fetch_page_options("http://stub/page.html")
+        assert options[0]["type"] == "string (no colon after the label)"
