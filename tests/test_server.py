@@ -168,6 +168,7 @@ class TestChannelCache:
         assert cache.using_fallback is True
         assert "unstable" in result
 
+    @pytest.mark.unit
     def test_resolved_channels_fallback_includes_26_05(self):
         """The 26.05 channel (current stable) must be reachable via the fallback
         path — see issue #166."""
