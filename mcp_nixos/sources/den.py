@@ -51,8 +51,8 @@ def _search_den(query: str, limit: int) -> str:
     """Search Den docs by case-insensitive substring on title + body."""
     try:
         pages = den_cache.get_pages()
-    except APIError:
-        raise
+    except APIError as exc:
+        return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
 
@@ -89,8 +89,8 @@ def _info_den(query: str) -> str:
 
     try:
         page = den_cache.get_by_path(query)
-    except APIError:
-        raise
+    except APIError as exc:
+        return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
 
@@ -100,8 +100,8 @@ def _info_den(query: str) -> str:
         slug = query.strip().strip("/").rsplit("/", 1)[-1]
         try:
             pages = den_cache.get_pages()
-        except APIError:
-            raise
+        except APIError as exc:
+            return error(str(exc), "API_ERROR")
         except Exception as e:
             return error(str(e))
         matches = [p for p in pages if p.get("path", "").strip("/").rsplit("/", 1)[-1] == slug]
@@ -137,8 +137,8 @@ def _stats_den() -> str:
     """Total Den pages + per-section page count."""
     try:
         pages = den_cache.get_pages()
-    except APIError:
-        raise
+    except APIError as exc:
+        return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
 
@@ -170,8 +170,8 @@ def _browse_den(prefix: str) -> str:
     """Browse Den pages by path prefix; with no prefix, list top-level sections."""
     try:
         pages = den_cache.get_pages()
-    except APIError:
-        raise
+    except APIError as exc:
+        return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
 

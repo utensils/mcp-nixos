@@ -1227,9 +1227,129 @@ class TestDenFunctions:
 
     @patch("mcp_nixos.sources.den.den_cache")
     def test_search_handles_cache_error(self, mock_cache):
+        """APIError from the cache is converted to a plain-text `Error (...)`
+        response (mirrors nix-dev / noogle)."""
         from mcp_nixos.caches import APIError
         from mcp_nixos.server import _search_den
 
         mock_cache.get_pages.side_effect = APIError("boom")
-        with pytest.raises(APIError):
-            _search_den("anything", 5)
+        result = _search_den("anything", 5)
+        assert result == "Error (API_ERROR): boom"
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_info_handles_cache_error(self, mock_cache):
+        from mcp_nixos.caches import APIError
+        from mcp_nixos.server import _info_den
+
+        mock_cache.get_by_path.side_effect = APIError("boom")
+        result = _info_den("/anything/")
+        assert result == "Error (API_ERROR): boom"
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_stats_handles_cache_error(self, mock_cache):
+        from mcp_nixos.caches import APIError
+        from mcp_nixos.server import _stats_den
+
+        mock_cache.get_pages.side_effect = APIError("boom")
+        result = _stats_den()
+        assert result == "Error (API_ERROR): boom"
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_handles_cache_error(self, mock_cache):
+        from mcp_nixos.caches import APIError
+        from mcp_nixos.server import _browse_den
+
+        mock_cache.get_pages.side_effect = APIError("boom")
+        result = _browse_den("anything")
+        assert result == "Error (API_ERROR): boom"
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_5xx_propagates(self, mock_get):
+        """A 5xx from a Den page lets the exception propagate up to the
+        ThreadPoolExecutor future in get_pages(), where it's wrapped as
+        APIError('Failed to fetch Den page ...')."""
+        from mcp_nixos import caches
+        from mcp_nixos.caches import APIError
+
+        listing_html = '<html><body><a href="/explanation/aspects/">a</a></body></html>'
+
+        resp_5xx = Mock(status_code=502)
+        resp_5xx.raise_for_status = Mock(side_effect=requests.HTTPError("502 Bad Gateway"))
+
+        overview = Mock(status_code=200, raise_for_status=Mock())
+        overview.content = listing_html.encode("utf-8")
+        overview.ok = True
+
+        mock_get.side_effect = [overview, resp_5xx]
+
+        original = caches.den_cache
+        cache = caches.DenCache()
+        caches.den_cache = cache
+        try:
+            with pytest.raises(APIError) as exc_info:
+                cache.get_pages()
+            assert "Failed to fetch Den page" in str(exc_info.value)
+        finally:
+            caches.den_cache = original
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_404_returns_none(self, mock_get):
+        """A 404 means the overview linked to a page that no longer exists;
+        skip silently so a stale link doesn't take the whole cache down."""
+        from mcp_nixos.caches import DenCache
+
+        resp = Mock(status_code=404)
+        mock_get.return_value = resp
+
+        assert DenCache._fetch_page("/nonexistent/") is None
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_concurrent_first_call_only_fetches_once(self, mock_get):
+        """Double-checked locking: N concurrent first calls run the walk
+        exactly once, not N times."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        from mcp_nixos import caches
+
+        # The _fresh_cache helper lives on TestDenCache; build a fresh
+        # singleton here directly. Restore in finally so we don't leak
+        # state into other tests.
+        original = caches.den_cache
+        cache = caches.DenCache()
+        caches.den_cache = cache
+        try:
+            listing_html = '<html><body><a href="/explanation/aspects/">a</a></body></html>'
+            page_html = (
+                "<html><body><main data-pagefind-body>"
+                '<h1 id="_top">Aspects</h1>'
+                '<div class="sl-markdown-content"><p>Body.</p></div>'
+                "</main></body></html>"
+            )
+
+            def _resp(html: str, status: int = 200):
+                r = Mock(status_code=status, raise_for_status=Mock())
+                r.content = html.encode("utf-8")
+                r.ok = status < 400
+                return r
+
+            def fake_get(url, **_kwargs):
+                if url.endswith("/overview/"):
+                    return _resp(listing_html)
+                if url.endswith("/explanation/aspects/"):
+                    return _resp(page_html)
+                return _resp("", status=404)
+
+            # Provide enough responses for any number of walks.
+            mock_get.side_effect = [
+                _resp(listing_html),
+                _resp(page_html),
+                _resp("", status=404),
+            ] * 50
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                list(pool.map(lambda _: cache.get_pages(), range(20)))
+
+            # Exactly one walk: 1 overview + 1 page = 2 calls.
+            assert mock_get.call_count == 2
+        finally:
+            caches.den_cache = original

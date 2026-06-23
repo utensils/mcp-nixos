@@ -2,6 +2,7 @@
 
 import json
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -274,40 +275,51 @@ class DenCache:
     def __init__(self) -> None:
         self.pages: list[dict[str, Any]] | None = None
         self._by_path: dict[str, dict[str, Any]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_pages(self) -> list[dict[str, Any]]:
-        """Fetch and cache all Den doc pages."""
+        """Fetch and cache all Den doc pages.
+
+        Concurrency-safe via double-checked locking: N concurrent first
+        callers all see the cold cache, but only one performs the walk;
+        the rest wait and consume the cached list.
+        """
         if self.pages is not None:
             return self.pages
 
-        paths = self._discover_paths()
-        if not paths:
-            raise APIError("No Den docs paths discovered from /overview/")
+        with self._init_lock:
+            if self.pages is not None:
+                return self.pages
 
-        all_pages: list[dict[str, Any]] = []
-        try:
-            with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
-                futures = {pool.submit(self._fetch_page, path): path for path in paths}
-                for future in as_completed(futures):
-                    path = futures[future]
-                    try:
-                        page = future.result()
-                    except requests.RequestException as exc:
-                        raise APIError(f"Failed to fetch Den page {path}: {exc}") from exc
-                    except Exception as exc:
-                        raise APIError(f"Failed to parse Den page {path}: {exc}") from exc
-                    if page is not None:
-                        all_pages.append(page)
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching Den docs") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch Den docs: {exc}") from exc
+            paths = self._discover_paths()
+            if not paths:
+                raise APIError("No Den docs paths discovered from /overview/")
 
-        # Sort by path for deterministic output.
-        all_pages.sort(key=lambda p: p.get("path", ""))
-        self.pages = all_pages
-        self._by_path = {p["path"]: p for p in all_pages if p.get("path")}
-        return self.pages
+            all_pages: list[dict[str, Any]] = []
+            try:
+                with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
+                    futures = {pool.submit(self._fetch_page, path): path for path in paths}
+                    for future in as_completed(futures):
+                        path = futures[future]
+                        try:
+                            page = future.result()
+                        except requests.RequestException as exc:
+                            raise APIError(f"Failed to fetch Den page {path}: {exc}") from exc
+                        except Exception as exc:
+                            raise APIError(f"Failed to parse Den page {path}: {exc}") from exc
+                        if page is not None:
+                            all_pages.append(page)
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching Den docs") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch Den docs: {exc}") from exc
+
+            # Sort by path for deterministic downstream output (search, info,
+            # browse) — `as_completed()` yields in completion order.
+            all_pages.sort(key=lambda p: p.get("path", ""))
+            self.pages = all_pages
+            self._by_path = {p["path"]: p for p in all_pages if p.get("path")}
+            return self.pages
 
     def get_by_path(self, path: str) -> dict[str, Any] | None:
         """Look up a page by its canonical `/path/` (with trailing slash)."""
@@ -348,28 +360,32 @@ class DenCache:
     def _fetch_page(path: str) -> dict[str, Any] | None:
         """Fetch a single Den page and extract title + body.
 
-        Returns None for non-2xx responses (e.g., a path the overview linked
-        to that no longer exists). Skips silently so a single broken page
-        doesn't take the whole cache down.
+        Returns None only for 404 / 410 (the linked page no longer exists).
+        Any other non-2xx response (5xx, 429, etc.) raises so a transient
+        upstream incident doesn't silently produce a partial index.
         """
         url = f"{DEN_BASE_URL}{path}"
         resp = requests.get(url, timeout=15)
-        if not resp.ok:
+        if resp.status_code in (404, 410):
             return None
+        resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "html.parser")
 
         # Title: <h1 id="_top"> on every Starlight page.
         h1 = soup.find("h1", id="_top")
         title = h1.get_text(strip=True) if h1 else path.strip("/").replace("-", " ").title()
 
-        # Body: <main data-pagefind-body> ... <div class="sl-markdown-content">.
+        # Body: prefer the <main data-pagefind-body> element Starlight emits
+        # for Pagefind; fall back to the first <main> if the attribute is
+        # missing (older Starlight, or a future redesign). We use a CSS
+        # selector for the inner div because the BeautifulSoup stubs narrow
+        # `select_one`'s return type to `Tag | None`, which avoids the
+        # `Tag | NavigableString | int` union mypy complains about.
         body = ""
-        for elem in soup.find_all("main"):
-            if elem.attrs.get("data-pagefind-body") is not None or True:
-                # Starlight pages have a single <main data-pagefind-body>;
-                # fall back to the first <main> if the attribute is missing.
-                main_div = elem.find("div", class_="sl-markdown-content")
-                body = (main_div if main_div is not None else elem).get_text("\n", strip=True)
+        for main in soup.find_all("main"):
+            if main.attrs.get("data-pagefind-body") is not None or True:
+                main_div = main.select_one("div.sl-markdown-content")
+                body = main_div.get_text("\n", strip=True) if main_div is not None else main.get_text("\n", strip=True)
                 break
 
         return {"path": path, "url": url, "title": title, "body": body}

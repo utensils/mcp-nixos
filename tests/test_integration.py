@@ -395,15 +395,22 @@ class TestNixDevIntegration:
         assert_plain_text(result)
 
 
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestDenIntegration:
     """Integration tests for Den framework docs (issue #156)."""
+
+    def _reset_den_cache(self):
+        """Reset both stores so `action=info` can't resolve from stale state."""
+        from mcp_nixos.server import den_cache
+
+        den_cache.pages = None
+        den_cache._by_path = None
 
     @pytest.mark.asyncio
     async def test_search_den_aspects(self):
         """A search for "aspects" surfaces the Aspects & Functors explanation."""
-        from mcp_nixos.server import den_cache
-
-        den_cache.pages = None  # Reset cache for fresh fetch
+        self._reset_den_cache()
 
         result = await nix_fn(action="search", query="aspects", source="den", limit=5)
         assert isinstance(result, str)
@@ -414,9 +421,7 @@ class TestDenIntegration:
     @pytest.mark.asyncio
     async def test_info_den_from_zero_to_den(self):
         """info returns a real Den page with title + body for a stable guide."""
-        from mcp_nixos.server import den_cache
-
-        den_cache.pages = None
+        self._reset_den_cache()
 
         result = await nix_fn(
             action="info",
