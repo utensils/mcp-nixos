@@ -667,6 +667,133 @@ class TestNixDevFunctions:
 
 
 @pytest.mark.unit
+class TestNixvimCache:
+    """Test NixvimCache chunked loader (issue #167)."""
+
+    def _fresh_cache(self):
+        """Reset the module-level nixvim_cache singleton so each test gets a clean slate."""
+        from mcp_nixos import caches
+
+        caches.nixvim_cache = caches.NixvimCache()
+        return caches.nixvim_cache
+
+    def _chunk_resp(self, chunk):
+        """Build a Mock response that returns `chunk` from .json() once."""
+        resp = Mock(status_code=200, raise_for_status=Mock())
+
+        def _json():
+            return chunk
+
+        resp.json = _json
+        return resp
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_loads_chunks_until_404(self, mock_get):
+        """Walks chunks 0,1,2 and stops at the first 404."""
+        chunk0 = [{"name": "opt0", "type": "boolean", "description": ""}]
+        chunk1 = [{"name": "opt1", "type": "boolean", "description": ""}]
+        chunk2 = [{"name": "opt2", "type": "boolean", "description": ""}]
+
+        mock_get.side_effect = [
+            self._chunk_resp(chunk0),
+            self._chunk_resp(chunk1),
+            self._chunk_resp(chunk2),
+            Mock(status_code=404),
+        ]
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+
+        assert len(options) == 3
+        assert [o["name"] for o in options] == ["opt0", "opt1", "opt2"]
+        assert mock_get.call_count == 4  # 3 chunks + 1 probe that 404'd
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_empty_first_chunk_still_stops(self, mock_get):
+        """An empty first chunk is not an error — just means zero options."""
+        mock_get.side_effect = [
+            self._chunk_resp([]),
+            Mock(status_code=404),
+        ]
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+
+        assert options == []
+        assert mock_get.call_count == 2  # chunk 0 + 404 probe
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_404_on_first_chunk_raises(self, mock_get):
+        """A 404 on chunk 0 raises APIError so a wrong URL doesn't masquerade as 'no options'."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.return_value = Mock(status_code=404)
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "First Nixvim options chunk" in str(exc_info.value)
+        assert mock_get.call_count == 1
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_request_exception_raises(self, mock_get):
+        """A network error during fetch surfaces as APIError."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.side_effect = requests.RequestException("connection reset")
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "Failed to fetch" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_timeout_raises(self, mock_get):
+        """A timeout surfaces as APIError with a Timeout message."""
+        from mcp_nixos.caches import APIError
+
+        mock_get.side_effect = requests.Timeout()
+
+        cache = self._fresh_cache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_options()
+        assert "Timeout" in str(exc_info.value)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_cache_reused_on_subsequent_calls(self, mock_get):
+        """A second call returns the cached list without re-fetching."""
+        chunk = [{"name": "opt0", "type": "boolean", "description": ""}]
+        mock_get.side_effect = [
+            self._chunk_resp(chunk),
+            Mock(status_code=404),
+        ]
+
+        cache = self._fresh_cache()
+        first = cache.get_options()
+        second = cache.get_options()
+
+        assert first is second
+        # 1 chunk + 1 404 probe on the first call; zero network calls on the second.
+        assert mock_get.call_count == 2
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_unexpected_payload_breaks_loop(self, mock_get):
+        """A non-list response stops the walk without raising."""
+
+        unexpected_resp = Mock(status_code=200, raise_for_status=Mock())
+        unexpected_resp.json = lambda: {"not": "a list"}
+
+        mock_get.side_effect = [
+            self._chunk_resp([{"name": "a"}]),
+            unexpected_resp,
+        ]
+
+        cache = self._fresh_cache()
+        options = cache.get_options()
+        assert len(options) == 1
+
+
+@pytest.mark.unit
 class TestPlainTextOutputDocs:
     """Verify wiki/nix-dev outputs are plain text."""
 

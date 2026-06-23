@@ -41,9 +41,17 @@ FLAKE_INDEX = "latest-44-group-manual"
 FLAKEHUB_API = "https://api.flakehub.com"
 FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 
-# Nixvim options via NuschtOS search infrastructure (paginated, ~300 options per chunk)
+# Nixvim options via NuschtOS search infrastructure.
+# Layout (reorganized mid-2026; old `…/search/meta/N.json` path was removed):
+#   data/options/chunks/N.json  →  ~300 options per chunk, JSON array of Option objects
+#   data/options/meta.json      →  scope metadata (licenses/maintainers/teams)
+#   data/options/index.ixx      →  binary search index (WASM-backed; not used here)
+# We walk chunks until 404 and search in Python. The full set fits in memory
+# (~20 chunks × 300 options × small payload ≈ a few MB).
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
-NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/meta"
+NIXVIM_OPTIONS_CHUNKS_BASE = "https://nix-community.github.io/nixvim/search/data/options/chunks"
+# Kept for backward compatibility / potential scope lookups; not used by the chunked loader.
+NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/data"
 
 # NVF options from the latest published (unstable) documentation.
 NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"
