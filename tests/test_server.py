@@ -856,11 +856,10 @@ class TestDenCache:
     """Test DenCache (issue #156)."""
 
     def _fresh_cache(self):
-        """Reset the module-level den_cache singleton."""
-        from mcp_nixos import caches
+        """Return an isolated DenCache instance (no global state touched)."""
+        from mcp_nixos.caches import DenCache
 
-        caches.den_cache = caches.DenCache()
-        return caches.den_cache
+        return DenCache()
 
     def _overview_html(self, links: list[str]) -> str:
         """Build a /overview/ page containing the given internal doc links."""
@@ -1294,8 +1293,7 @@ class TestDenFunctions:
         """A 5xx from a Den page lets the exception propagate up to the
         ThreadPoolExecutor future in get_pages(), where it's wrapped as
         APIError('Failed to fetch Den page ...')."""
-        from mcp_nixos import caches
-        from mcp_nixos.caches import APIError
+        from mcp_nixos.caches import APIError, DenCache
 
         listing_html = '<html><body><a href="/explanation/aspects/">a</a></body></html>'
 
@@ -1308,15 +1306,11 @@ class TestDenFunctions:
 
         mock_get.side_effect = [overview, resp_5xx]
 
-        original = caches.den_cache
-        cache = caches.DenCache()
-        caches.den_cache = cache
-        try:
-            with pytest.raises(APIError) as exc_info:
-                cache.get_pages()
-            assert "Failed to fetch Den page" in str(exc_info.value)
-        finally:
-            caches.den_cache = original
+        # Isolated instance; nothing reads the module-level singleton here.
+        cache = DenCache()
+        with pytest.raises(APIError) as exc_info:
+            cache.get_pages()
+        assert "Failed to fetch Den page" in str(exc_info.value)
 
     @patch("mcp_nixos.caches.requests.get")
     def test_fetch_page_404_returns_none(self, mock_get):
@@ -1335,40 +1329,35 @@ class TestDenFunctions:
         exactly once, not N times."""
         from concurrent.futures import ThreadPoolExecutor
 
-        from mcp_nixos import caches
+        from mcp_nixos.caches import DenCache
 
-        # The _fresh_cache helper lives on TestDenCache; build a fresh
-        # singleton here directly. Restore in finally so we don't leak
-        # state into other tests.
-        original = caches.den_cache
-        cache = caches.DenCache()
-        caches.den_cache = cache
-        try:
-            listing_html = '<html><body><a href="/explanation/aspects/">a</a></body></html>'
-            page_html = (
-                "<html><body><main data-pagefind-body>"
-                '<h1 id="_top">Aspects</h1>'
-                '<div class="sl-markdown-content"><p>Body.</p></div>'
-                "</main></body></html>"
-            )
+        # Isolated instance per test; nothing here reads the module-level
+        # singleton, so there's no global state to swap or restore.
+        cache = DenCache()
 
-            def _resp(html: str, status: int = 200):
-                r = Mock(status_code=status, raise_for_status=Mock())
-                r.content = html.encode("utf-8")
-                r.ok = status < 400
-                return r
+        listing_html = '<html><body><a href="/explanation/aspects/">a</a></body></html>'
+        page_html = (
+            "<html><body><main data-pagefind-body>"
+            '<h1 id="_top">Aspects</h1>'
+            '<div class="sl-markdown-content"><p>Body.</p></div>'
+            "</main></body></html>"
+        )
 
-            # Provide enough responses for any number of walks.
-            mock_get.side_effect = [
-                _resp(listing_html),
-                _resp(page_html),
-                _resp("", status=404),
-            ] * 50
+        def _resp(html: str, status: int = 200):
+            r = Mock(status_code=status, raise_for_status=Mock())
+            r.content = html.encode("utf-8")
+            r.ok = status < 400
+            return r
 
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                list(pool.map(lambda _: cache.get_pages(), range(20)))
+        # Provide enough responses for any number of walks.
+        mock_get.side_effect = [
+            _resp(listing_html),
+            _resp(page_html),
+            _resp("", status=404),
+        ] * 50
 
-            # Exactly one walk: 1 overview + 1 page = 2 calls.
-            assert mock_get.call_count == 2
-        finally:
-            caches.den_cache = original
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda _: cache.get_pages(), range(20)))
+
+        # Exactly one walk: 1 overview + 1 page = 2 calls.
+        assert mock_get.call_count == 2
