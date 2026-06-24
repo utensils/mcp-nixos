@@ -246,7 +246,7 @@ class DenCache:
 
     1. **Discovery** — fetch the `/overview/` page once. Its sidebar links
        to every doc page; we extract the `/explanation/|/guides/|/reference/
-       |/tutorials/|/motivation/|/maintainers/` paths.
+       |/tutorials/|/motivation/|/maintainers/|/overview/` paths.
     2. **Parallel fetch** — fetch each page in a bounded thread pool
        (10 workers), parse the title (`<h1 id="_top">`) and the
        `<main data-pagefind-body>` body, strip HTML to plain text.
@@ -296,23 +296,22 @@ class DenCache:
                 raise APIError("No Den docs paths discovered from /overview/")
 
             all_pages: list[dict[str, Any]] = []
-            try:
-                with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
-                    futures = {pool.submit(self._fetch_page, path): path for path in paths}
-                    for future in as_completed(futures):
-                        path = futures[future]
-                        try:
-                            page = future.result()
-                        except requests.RequestException as exc:
-                            raise APIError(f"Failed to fetch Den page {path}: {exc}") from exc
-                        except Exception as exc:
-                            raise APIError(f"Failed to parse Den page {path}: {exc}") from exc
-                        if page is not None:
-                            all_pages.append(page)
-            except requests.Timeout as exc:
-                raise APIError("Timeout fetching Den docs") from exc
-            except requests.RequestException as exc:
-                raise APIError(f"Failed to fetch Den docs: {exc}") from exc
+            # `future.result()` re-raises whatever `_fetch_page` raised in its
+            # worker thread; we wrap those per-page (a Timeout is a
+            # RequestException, so it's covered too). Nothing else inside the
+            # pool block raises a `requests` error, so no outer handler is needed.
+            with ThreadPoolExecutor(max_workers=self._MAX_WORKERS) as pool:
+                futures = {pool.submit(self._fetch_page, path): path for path in paths}
+                for future in as_completed(futures):
+                    path = futures[future]
+                    try:
+                        page = future.result()
+                    except requests.RequestException as exc:
+                        raise APIError(f"Failed to fetch Den page {path}: {exc}") from exc
+                    except Exception as exc:
+                        raise APIError(f"Failed to parse Den page {path}: {exc}") from exc
+                    if page is not None:
+                        all_pages.append(page)
 
             # Sort by path for deterministic downstream output (search, info,
             # browse) — `as_completed()` yields in completion order.
@@ -344,7 +343,8 @@ class DenCache:
             # Skip anchors, external links, and trailing-slash-only links.
             if not href.startswith("/"):
                 continue
-            # Normalize to a canonical `/foo/bar/` path (drops query/fragment, unquotes, collapses `//`, ensures trailing slash).
+            # Normalize to a canonical `/foo/bar/` path (drops query/fragment,
+            # unquotes, collapses `//`, ensures trailing slash).
             href = self._normalize_path(href)
             if not any(href.startswith(p) for p in self._DOC_PATH_PREFIXES):
                 continue

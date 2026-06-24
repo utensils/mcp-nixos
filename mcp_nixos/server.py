@@ -211,7 +211,8 @@ async def nix(
         str,
         "One of: search, info, stats, browse, channels, flake-inputs, cache, store. "
         "Use 'search' for keyword lookup, 'info' for details about a specific name, "
-        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only). "
+        "'browse' to list entries under a prefix (home-manager/darwin/nixvim/noogle option trees, "
+        "or den doc pages). "
         "'store' reads files or lists directories at an explicit /nix/store/ path.",
     ],
     query: Annotated[
@@ -239,7 +240,7 @@ async def nix(
     version: Annotated[str, "Only used by action=cache. Package version (default: latest)."] = "latest",
     system: Annotated[str, "Only used by action=cache. System arch e.g. x86_64-linux. Empty for all."] = "",
 ) -> str:
-    """Query NixOS, Home Manager, Darwin, FlakeHub, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub.
+    """Query NixOS, Home Manager, Darwin, FlakeHub, flakes, Nixvim, Wiki, nix.dev, Noogle, NixHub, Den.
 
     Use this tool for anything touching nixpkgs, Nix channels, flakes, NixOS / home-manager /
     darwin options, the binary cache, or /nix/store paths — even when you think you know the
@@ -276,8 +277,8 @@ async def nix(
 
     Notes:
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
-        for source=nixos — browse is for walking a pre-indexed option tree and only works with
-        home-manager, darwin, nixvim, or noogle.
+        for source=nixos — browse walks a pre-indexed hierarchy by prefix: option trees for
+        home-manager, darwin, nixvim, and noogle, or doc-page paths for den.
       - For source=nix-dev, action=info returns the page markdown. The query may be a bare
         docname like "tutorials/nix-language", the URL printed by nix-dev search
         ("https://nix.dev/tutorials/nix-language"), or a rendered ".html" URL.
