@@ -49,17 +49,16 @@ def _score_page(page: dict[str, Any], query_lower: str) -> int:
 
 def _search_den(query: str, limit: int) -> str:
     """Search Den docs by case-insensitive substring on title + body."""
+    query_lower = query.lower().strip()
+    if not query_lower:
+        return error("Query required for den search")
+
     try:
         pages = den_cache.get_pages()
     except APIError as exc:
         return error(str(exc), "API_ERROR")
     except Exception as e:
         return error(str(e))
-
-    query_lower = query.lower().strip()
-    if not query_lower:
-        return error("Query required for den search")
-
     scored: list[tuple[int, dict[str, Any]]] = []
     for page in pages:
         s = _score_page(page, query_lower)
