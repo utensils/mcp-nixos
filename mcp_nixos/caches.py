@@ -344,10 +344,8 @@ class DenCache:
             # Skip anchors, external links, and trailing-slash-only links.
             if not href.startswith("/"):
                 continue
-            # Normalize: strip fragments, ensure trailing slash.
-            href = href.split("#", 1)[0]
-            if not href.endswith("/"):
-                href = href + "/"
+            # Normalize to a canonical `/foo/bar/` path (drops query/fragment, unquotes, collapses `//`, ensures trailing slash).
+            href = self._normalize_path(href)
             if not any(href.startswith(p) for p in self._DOC_PATH_PREFIXES):
                 continue
             if href in seen:
