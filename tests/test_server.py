@@ -1251,6 +1251,39 @@ class TestDenFunctions:
         assert "No Den pages found" in result
 
     @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_whitespace_prefix_lists_sections(self, mock_cache):
+        """A whitespace-only (or bare-slash) prefix behaves like no prefix:
+        it lists sections instead of normalizing to '/' and dumping every page.
+        Regression for Copilot's PR #176 finding."""
+        from mcp_nixos.server import _browse_den
+
+        mock_cache.get_pages.return_value = [
+            self._page("/explanation/aspects/", "A1", "x"),
+            self._page("/guides/from-zero-to-den/", "G1", "x"),
+        ]
+        for blank in ("   ", "/", "  /  "):
+            result = _browse_den(blank)
+            assert "Den doc sections" in result, (blank, result)
+            # Must NOT fall through to the "(N found)" all-pages listing.
+            assert "found)" not in result, (blank, result)
+
+    @patch("mcp_nixos.sources.den.den_cache")
+    def test_browse_header_count_is_total_not_truncated(self, mock_cache):
+        """When matches exceed the browse cap, the header reports the *total*
+        count and a trailing note shows how many were elided (mirrors nixvim /
+        noogle). Regression for Copilot's PR #176 finding."""
+        from mcp_nixos.server import _browse_den
+        from mcp_nixos.sources.den import _DEN_BROWSE_LIMIT
+
+        total = _DEN_BROWSE_LIMIT + 5
+        mock_cache.get_pages.return_value = [
+            self._page(f"/guides/page-{i:03d}/", f"Page {i}", "x") for i in range(total)
+        ]
+        result = _browse_den("guides")
+        assert f"({total} found)" in result, result
+        assert f"... and {total - _DEN_BROWSE_LIMIT} more pages" in result, result
+
+    @patch("mcp_nixos.sources.den.den_cache")
     def test_search_handles_cache_error(self, mock_cache):
         """APIError from the cache is converted to a plain-text `Error (...)`
         response (mirrors nix-dev / noogle)."""

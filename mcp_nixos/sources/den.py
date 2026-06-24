@@ -174,7 +174,12 @@ def _browse_den(prefix: str) -> str:
     except Exception as e:
         return error(str(e))
 
-    if not prefix:
+    # A blank or slash-only prefix carries no path component; treat it like an
+    # omitted prefix and show the section summary. This collapses whitespace-
+    # only input ("   ") and a bare "/" to the no-prefix case, rather than
+    # normalizing to "/" and matching every page.
+    core = prefix.strip().strip("/")
+    if not core:
         # Top-level section summary (mirrors `_browse_options` for hm/darwin).
         section_counts: dict[str, int] = {}
         for page in pages:
@@ -192,28 +197,23 @@ def _browse_den(prefix: str) -> str:
         return "\n".join(results)
 
     # Normalize the prefix to a `/section/.../` shape.
-    norm = prefix.strip().strip("/")
-    if norm:
-        norm = "/" + norm
-    if not norm.endswith("/"):
-        norm = norm + "/"
+    norm = f"/{core}/"
 
     matches = [p for p in pages if p.get("path", "").startswith(norm)]
     if not matches:
-        return f"No Den pages found with prefix '{prefix}'"
+        return f"No Den pages found with prefix '{core}'"
 
     matches.sort(key=lambda p: p.get("path", ""))
-    matches = matches[:_DEN_BROWSE_LIMIT]
 
-    results = [f"Den pages with prefix '{prefix}' ({len(matches)} found):\n"]
-    for page in matches:
+    # Header reports the *total* match count; the listing is capped at
+    # _DEN_BROWSE_LIMIT with a trailing "... and N more" note (mirrors the
+    # nixvim / noogle browse helpers, which count before truncating).
+    results = [f"Den pages with prefix '{core}' ({len(matches)} found):\n"]
+    for page in matches[:_DEN_BROWSE_LIMIT]:
         path = page.get("path", "")
         title = page.get("title", "")
         results.append(f"* {path} — {title}")
-    if len(matches) == _DEN_BROWSE_LIMIT:
-        # We truncated; check if there are more.
-        total = sum(1 for p in pages if p.get("path", "").startswith(norm))
-        if total > _DEN_BROWSE_LIMIT:
-            results.append("")
-            results.append(f"... and {total - _DEN_BROWSE_LIMIT} more pages")
+    if len(matches) > _DEN_BROWSE_LIMIT:
+        results.append("")
+        results.append(f"... and {len(matches) - _DEN_BROWSE_LIMIT} more pages")
     return "\n".join(results)
