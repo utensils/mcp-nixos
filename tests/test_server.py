@@ -1037,6 +1037,32 @@ class TestDenCache:
         # URL-encoded slashes / etc. are decoded.
         assert DenCache._normalize_path("/explanation/aspects%2Fother/") == "/explanation/aspects/other/"
 
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fetch_page_prefers_main_with_data_pagefind_body(self, mock_get):
+        """When a page has both a plain <main> and a <main data-pagefind-body>,
+        the data-pagefind-body one wins. Defends against the `or True`
+        tautology regression flagged by Copilot and CodeRabbit on PR #176."""
+        from mcp_nixos.caches import DenCache
+
+        # The first <main> is decoration / navigation chrome; the second is
+        # the actual article body. Without the data-pagefind-body filter the
+        # wrong one would be picked.
+        html = (
+            "<html><body>"
+            "<main><h1>navigation chrome</h1></main>"
+            "<main data-pagefind-body>"
+            '<h1 id="_top">Aspects</h1>'
+            '<div class="sl-markdown-content"><p>real body</p></div>'
+            "</main></body></html>"
+        )
+        mock_get.return_value = self._http(html)
+
+        page = DenCache._fetch_page("/explanation/aspects/")
+        assert page is not None
+        assert page["title"] == "Aspects"
+        assert "real body" in page["body"]
+        assert "navigation chrome" not in page["body"]
+
 
 @pytest.mark.unit
 class TestDenFunctions:

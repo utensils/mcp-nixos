@@ -377,16 +377,15 @@ class DenCache:
 
         # Body: prefer the <main data-pagefind-body> element Starlight emits
         # for Pagefind; fall back to the first <main> if the attribute is
-        # missing (older Starlight, or a future redesign). We use a CSS
-        # selector for the inner div because the BeautifulSoup stubs narrow
-        # `select_one`'s return type to `Tag | None`, which avoids the
-        # `Tag | NavigableString | int` union mypy complains about.
+        # missing (older Starlight, or a future redesign). We use CSS
+        # selectors throughout so the BeautifulSoup stubs narrow the return
+        # types to `Tag | None`, which avoids the `Tag | NavigableString | int`
+        # union mypy complains about.
         body = ""
-        for main in soup.find_all("main"):
-            if main.attrs.get("data-pagefind-body") is not None or True:
-                main_div = main.select_one("div.sl-markdown-content")
-                body = main_div.get_text("\n", strip=True) if main_div is not None else main.get_text("\n", strip=True)
-                break
+        main = soup.select_one("main[data-pagefind-body]") or soup.select_one("main")
+        if main is not None:
+            main_div = main.select_one("div.sl-markdown-content")
+            body = main_div.get_text("\n", strip=True) if main_div is not None else main.get_text("\n", strip=True)
 
         return {"path": path, "url": url, "title": title, "body": body}
 
