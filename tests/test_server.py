@@ -1358,13 +1358,6 @@ class TestDenFunctions:
                 r.ok = status < 400
                 return r
 
-            def fake_get(url, **_kwargs):
-                if url.endswith("/overview/"):
-                    return _resp(listing_html)
-                if url.endswith("/explanation/aspects/"):
-                    return _resp(page_html)
-                return _resp("", status=404)
-
             # Provide enough responses for any number of walks.
             mock_get.side_effect = [
                 _resp(listing_html),
