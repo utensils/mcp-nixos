@@ -1,0 +1,14 @@
+{
+  "beacon_manifest": "0.1",
+  "id": "utensils/mcp-nixos",
+  "name": "MCP-NixOS",
+  "description": "MCP server for accurate NixOS package and option lookups — no hallucinated package names.",
+  "capabilities": ["mcp-server", "nixos", "devops", "package-management", "claude"],
+  "interfaces": [
+    { "type": "python", "endpoint": "pip install mcp-nixos" },
+    { "type": "mcp", "endpoint": "https://github.com/utensils/mcp-nixos" }
+  ],
+  "source": "https://github.com/utensils/mcp-nixos",
+  "homepage": "https://github.com/utensils/mcp-nixos",
+  "license": "MIT"
+}

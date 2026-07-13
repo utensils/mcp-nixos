@@ -1,5 +1,7 @@
 # MCP-NixOS - Because Your AI Shouldn't Hallucinate Package Names
 
+[![Beacon Verified](https://registry-ruby.vercel.app/api/v1/agents/utensils%2Fmcp-nixos/badge.svg)](https://portal-five-phi-54.vercel.app/?q=nixos+mcp)
+
 [![CI](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml/badge.svg)](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/utensils/mcp-nixos/graph/badge.svg?token=kdcbgvq4Bh)](https://codecov.io/gh/utensils/mcp-nixos)
 [![PyPI](https://img.shields.io/pypi/v/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
