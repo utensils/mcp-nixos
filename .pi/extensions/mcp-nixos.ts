@@ -219,7 +219,7 @@ const nixToolDescription = [
 	"Notes:",
 	"  - To search NixOS options, use action=search with type=options. Do NOT use action=browse for source=nixos.",
 	"  - action=browse walks a pre-indexed option tree and only supports home-manager, darwin, nixvim, nvf, or noogle.",
-	"  - NVF's canonical option paths are vim.*; programs.nvf.vim.* and programs.nvf.settings.vim.* are accepted aliases.",
+	"  - NVF's canonical paths are vim.*; programs.nvf.vim.* is shorthand and programs.nvf.settings.vim.* is the module-path alias.",
 	"  - For source=nix-dev, action=info returns the page markdown. Query accepts a bare docname ('tutorials/nix-language'), the URL printed by nix-dev search ('https://nix.dev/tutorials/nix-language'), or a rendered '.html' URL.",
 	"  - Omit optional parameters; don't pass empty strings.",
 	"  - For package version history use the separate nix_versions tool.",

@@ -277,8 +277,8 @@ async def nix(
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
         for source=nixos — browse is for walking a pre-indexed option tree and only works with
         home-manager, darwin, nixvim, nvf, or noogle.
-      - For source=nvf, canonical option paths are vim.*. The NixOS/Home Manager wrapper paths
-        programs.nvf.vim.* and programs.nvf.settings.vim.* are normalized automatically.
+      - For source=nvf, canonical option paths are vim.*. The shorthand programs.nvf.vim.* and
+        NixOS/Home Manager module path programs.nvf.settings.vim.* are normalized automatically.
       - For source=nix-dev, action=info returns the page markdown. The query may be a bare
         docname like "tutorials/nix-language", the URL printed by nix-dev search
         ("https://nix.dev/tutorials/nix-language"), or a rendered ".html" URL.
