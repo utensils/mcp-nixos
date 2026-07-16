@@ -134,6 +134,72 @@ class TestParseHtmlOptions:
         assert len(result) >= 1
 
     @patch("mcp_nixos.utils.requests.get")
+    def test_home_manager_mdbook_format(self, mock_get):
+        html = b"""
+        <html><body>
+        <h2 id="opt-programs.git.enable">
+          <a class="header" href="#opt-programs.git.enable">programs.git.enable</a>
+        </h2>
+        <p>Whether to enable Git.</p>
+        <p><em>Type:</em> boolean</p>
+        <p><em>Default:</em></p>
+        <pre><code>false</code></pre>
+        <p><em>Declared by:</em></p>
+        <ul><li>modules/programs/git.nix</li></ul>
+        <h2 id="opt-accounts.email.accounts._name_.primary">
+          <a class="header" href="#opt-accounts.email.accounts._name_.primary">
+            accounts.email.accounts.&lt;name&gt;.primary
+          </a>
+        </h2>
+        <p>Whether this is the primary account.</p>
+        <p><em>Type:</em> boolean</p>
+        <h2 id="nixos-opt-services.test.enable">
+          <a class="header">services.test.enable</a>
+        </h2>
+        <p>This belongs to the NixOS option catalogue.</p>
+        <p><em>Type:</em> boolean</p>
+        </body></html>
+        """
+        mock_resp = Mock()
+        mock_resp.content = html
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = parse_html_options(HOME_MANAGER_URL, limit=None)
+
+        assert result == [
+            {
+                "name": "programs.git.enable",
+                "description": "Whether to enable Git.",
+                "type": "boolean",
+            },
+            {
+                "name": "accounts.email.accounts.<name>.primary",
+                "description": "Whether this is the primary account.",
+                "type": "boolean",
+            },
+        ]
+
+    @patch("mcp_nixos.utils.requests.get")
+    def test_home_manager_mdbook_query_and_prefix(self, mock_get):
+        html = b"""
+        <html><body>
+        <h2 id="opt-programs.git.enable"><a class="header">programs.git.enable</a></h2>
+        <p>Whether to enable Git.</p><p><em>Type:</em> boolean</p>
+        <h2 id="opt-services.syncthing.enable"><a class="header">services.syncthing.enable</a></h2>
+        <p>Whether to enable Syncthing.</p><p><em>Type:</em> boolean</p>
+        </body></html>
+        """
+        mock_resp = Mock()
+        mock_resp.content = html
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = parse_html_options(HOME_MANAGER_URL, query="git", prefix="programs")
+
+        assert [option["name"] for option in result] == ["programs.git.enable"]
+
+    @patch("mcp_nixos.utils.requests.get")
     def test_timeout(self, mock_get):
         from mcp_nixos.server import DocumentParseError
 

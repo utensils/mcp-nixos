@@ -44,7 +44,8 @@ class TestNixSearchIntegration:
     @pytest.mark.asyncio
     async def test_search_home_manager(self):
         result = await nix_fn(action="search", query="git", source="home-manager", limit=3)
-        assert "git" in result.lower() or "No Home Manager" in result
+        assert "Found" in result
+        assert "git" in result.lower()
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -105,7 +106,7 @@ class TestNixInfoIntegration:
     @pytest.mark.asyncio
     async def test_info_home_manager(self):
         result = await nix_fn(action="info", query="programs.git.enable", source="home-manager")
-        assert "Option: programs.git.enable" in result or "not found" in result
+        assert "Option: programs.git.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -246,7 +247,8 @@ class TestNixOptionsIntegration:
     @pytest.mark.asyncio
     async def test_browse_home_manager(self):
         result = await nix_fn(action="options", source="home-manager")
-        assert "Home Manager" in result or "categories" in result.lower()
+        assert "Home Manager categories" in result
+        assert "programs" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -258,6 +260,8 @@ class TestNixOptionsIntegration:
     @pytest.mark.asyncio
     async def test_browse_with_prefix(self):
         result = await nix_fn(action="options", source="home-manager", query="programs")
+        assert "Home Manager options with prefix 'programs'" in result
+        assert "programs." in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio

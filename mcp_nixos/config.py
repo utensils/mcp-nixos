@@ -31,7 +31,9 @@ FALLBACK_CHANNELS = {
     "beta": "latest-44-nixos-25.11",
 }
 
-HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
+# Home Manager's option docs are split across mdBook pages. The print view keeps
+# the complete option catalogue in one document for search, info, browse, and stats.
+HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/print.html"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 FLAKE_INDEX = "latest-44-group-manual"
 
