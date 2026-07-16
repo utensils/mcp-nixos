@@ -65,6 +65,17 @@ class TestNixSearchIntegration:
         assert_plain_text(result)
 
     @pytest.mark.asyncio
+    async def test_search_nvf_with_wrapped_option_path(self):
+        result = await nix_fn(
+            action="search",
+            query="programs.nvf.vim.languages.nix.enable",
+            source="nvf",
+            limit=3,
+        )
+        assert "vim.languages.nix.enable" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
     async def test_search_flakehub(self):
         result = await nix_fn(action="search", query="nixpkgs", source="flakehub", limit=3)
         assert "flakehub" in result.lower() or "nixpkgs" in result.lower() or "No flakes" in result
@@ -107,6 +118,17 @@ class TestNixInfoIntegration:
     async def test_info_nixvim(self):
         result = await nix_fn(action="info", query="plugins.telescope.enable", source="nixvim")
         assert "Nixvim Option:" in result or "not found" in result or "NOT_FOUND" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_info_nvf_with_module_wrapper(self):
+        result = await nix_fn(
+            action="info",
+            query="programs.nvf.settings.vim.languages.nix.enable",
+            source="nvf",
+        )
+        assert "NVF Option: vim.languages.nix.enable" in result
+        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -201,6 +223,14 @@ class TestNixStatsIntegration:
         assert_plain_text(result)
 
     @pytest.mark.asyncio
+    async def test_stats_nvf(self):
+        result = await nix_fn(action="stats", source="nvf")
+        assert "NVF Statistics" in result
+        assert "Documentation track: unstable" in result
+        assert "Total options:" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
     async def test_stats_flakehub(self):
         result = await nix_fn(action="stats", source="flakehub")
         assert "FlakeHub Statistics" in result
@@ -240,6 +270,24 @@ class TestNixOptionsIntegration:
     async def test_browse_nixvim_with_prefix(self):
         result = await nix_fn(action="options", source="nixvim", query="plugins")
         assert "plugins" in result.lower()
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_browse_nvf_categories(self):
+        result = await nix_fn(action="browse", source="nvf")
+        assert "NVF option categories" in result
+        assert "vim.languages" in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_browse_nvf_with_wrapped_prefix(self):
+        result = await nix_fn(
+            action="browse",
+            source="nvf",
+            query="programs.nvf.vim.languages.nix",
+        )
+        assert "NVF options with prefix 'vim.languages.nix'" in result
+        assert "vim.languages.nix.enable" in result
         assert_plain_text(result)
 
 

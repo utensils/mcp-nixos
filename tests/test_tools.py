@@ -87,11 +87,11 @@ class TestNixToolValidation:
         assert '"type": "options"' in result
 
     @pytest.mark.asyncio
-    async def test_browse_only_for_hm_darwin_nixvim_noogle(self):
+    async def test_browse_error_lists_every_supported_option_source(self):
         result = await nix_fn(action="browse", source="flakes")
         assert "Error" in result
         assert "home-manager" in result and "darwin" in result
-        assert "nixvim" in result and "noogle" in result
+        assert "nixvim" in result and "nvf" in result and "noogle" in result
 
     @pytest.mark.asyncio
     async def test_limit_too_low(self):
@@ -737,6 +737,7 @@ class TestServerInstructions:
         instructions = getattr(mcp, "instructions", "") or ""
         assert "nixpkgs" in instructions.lower()
         assert "nix_versions" in instructions
+        assert "NVF" in instructions
 
     def test_server_instructions_use_json_call_shapes(self):
         """Recipe examples must match the JSON-object shape models actually send."""
@@ -748,6 +749,7 @@ class TestServerInstructions:
         # does not work over MCP.
         assert '{"action":"info","query":"X","channel":"Y"}' in instructions
         assert '{"action":"channels"}' in instructions
+        assert '{"action":"search","source":"nvf","query":"X"}' in instructions
         assert "action=" not in instructions.replace('"action":', "")
 
 
@@ -985,6 +987,63 @@ class TestNixvimOptions:
         result = await nix_fn(action="options", source="nixvim", query="plugins")
         assert result == "Nixvim options with prefix 'plugins'"
         mock_browse.assert_called_once_with("plugins")
+
+
+@pytest.mark.unit
+class TestNvfRouting:
+    """Test every unified nix action routed to the NVF source."""
+
+    @patch("mcp_nixos.server._search_nvf")
+    @pytest.mark.asyncio
+    async def test_search_nvf_forwards_query_and_limit(self, mock_search):
+        mock_search.return_value = "Found NVF options"
+
+        result = await nix_fn(action="search", query="languages.nix", source="nvf", limit=7)
+
+        assert result == "Found NVF options"
+        mock_search.assert_called_once_with("languages.nix", 7)
+
+    @patch("mcp_nixos.server._info_nvf")
+    @pytest.mark.asyncio
+    async def test_info_nvf_forwards_wrapped_option_path(self, mock_info):
+        name = "programs.nvf.vim.languages.nix.enable"
+        mock_info.return_value = "NVF Option: vim.languages.nix.enable"
+
+        result = await nix_fn(action="info", query=name, source="nvf")
+
+        assert result == "NVF Option: vim.languages.nix.enable"
+        mock_info.assert_called_once_with(name)
+
+    @patch("mcp_nixos.server._stats_nvf")
+    @pytest.mark.asyncio
+    async def test_stats_nvf(self, mock_stats):
+        mock_stats.return_value = "NVF Statistics:\n* Total options: 2,494"
+
+        result = await nix_fn(action="stats", source="nvf")
+
+        assert result == "NVF Statistics:\n* Total options: 2,494"
+        mock_stats.assert_called_once_with()
+
+    @patch("mcp_nixos.server._browse_nvf_options")
+    @pytest.mark.asyncio
+    async def test_browse_nvf_forwards_wrapped_prefix(self, mock_browse):
+        prefix = "programs.nvf.settings.vim.languages.nix"
+        mock_browse.return_value = "NVF options with prefix 'vim.languages.nix'"
+
+        result = await nix_fn(action="browse", query=prefix, source="nvf")
+
+        assert result == "NVF options with prefix 'vim.languages.nix'"
+        mock_browse.assert_called_once_with(prefix)
+
+    @patch("mcp_nixos.server._browse_nvf_options")
+    @pytest.mark.asyncio
+    async def test_legacy_options_action_routes_to_nvf_browse(self, mock_browse):
+        mock_browse.return_value = "NVF option categories"
+
+        result = await nix_fn(action="options", source="nvf")
+
+        assert result == "NVF option categories"
+        mock_browse.assert_called_once_with("")
 
 
 @pytest.mark.unit
