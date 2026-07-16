@@ -148,7 +148,7 @@ const nixToolParams = Type.Object({
 		description:
 			"One of: search, info, stats, browse, channels, flake-inputs, cache, store. " +
 			"search = keyword lookup; info = details for a specific name; " +
-			"browse = walk an option hierarchy by prefix (home-manager/darwin/nixvim/noogle only); " +
+			"browse = walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only); " +
 			"store = read files or list directories at an explicit /nix/store/ path.",
 	}),
 	query: Type.Optional(
@@ -163,7 +163,7 @@ const nixToolParams = Type.Object({
 		Type.String({
 			description:
 				"Data source for search/info/stats/browse/cache. One of: nixos (default), " +
-				"home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub. " +
+				"home-manager, darwin, flakes, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub. " +
 				"For action=flake-inputs, this may instead be a path to a flake directory; " +
 				"omit/default to use the current project. Ignored by action=store.",
 		}),
@@ -196,7 +196,7 @@ const nixToolParams = Type.Object({
 type NixToolParams = Static<typeof nixToolParams>;
 
 const nixToolDescription = [
-	"Query live NixOS data (packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, Noogle, NixHub, binary cache).",
+	"Query live NixOS data (packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, NixHub, binary cache).",
 	"",
 	"Examples (copy the JSON shape exactly):",
 	'  Search NixOS packages:    {"action": "search", "query": "firefox"}',
@@ -205,6 +205,9 @@ const nixToolDescription = [
 	'  Get an option:            {"action": "info", "query": "services.nginx.enable", "type": "option"}',
 	'  Search Home Manager:      {"action": "search", "query": "git", "source": "home-manager"}',
 	'  Browse HM option tree:    {"action": "browse", "query": "programs", "source": "home-manager"}',
+	'  Search NVF options:       {"action": "search", "query": "languages.nix", "source": "nvf"}',
+	'  Inspect an NVF option:    {"action": "info", "query": "programs.nvf.vim.languages.nix.enable", "source": "nvf"}',
+	'  Browse NVF options:       {"action": "browse", "query": "vim.languages.nix", "source": "nvf"}',
 	'  Search the wiki:          {"action": "search", "query": "zfs", "source": "wiki"}',
 	'  Search nix.dev docs:      {"action": "search", "query": "flakes", "source": "nix-dev"}',
 	'  Read a nix.dev page:      {"action": "info", "query": "tutorials/nix-language", "source": "nix-dev"}',
@@ -215,7 +218,8 @@ const nixToolDescription = [
 	"",
 	"Notes:",
 	"  - To search NixOS options, use action=search with type=options. Do NOT use action=browse for source=nixos.",
-	"  - action=browse walks a pre-indexed option tree and only supports home-manager, darwin, nixvim, or noogle.",
+	"  - action=browse walks a pre-indexed option tree and only supports home-manager, darwin, nixvim, nvf, or noogle.",
+	"  - NVF's canonical option paths are vim.*; programs.nvf.vim.* and programs.nvf.settings.vim.* are accepted aliases.",
 	"  - For source=nix-dev, action=info returns the page markdown. Query accepts a bare docname ('tutorials/nix-language'), the URL printed by nix-dev search ('https://nix.dev/tutorials/nix-language'), or a rendered '.html' URL.",
 	"  - Omit optional parameters; don't pass empty strings.",
 	"  - For package version history use the separate nix_versions tool.",
@@ -226,12 +230,12 @@ const nixTool = defineTool({
 	label: "NixOS",
 	description: nixToolDescription,
 	promptSnippet:
-		"Prefer the nix tool over web search for NixOS packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, Noogle, flake inputs, and binary cache status.",
+		"Prefer the nix tool over web search for NixOS packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, flake inputs, and binary cache status.",
 	promptGuidelines: [
 		"Prefer the nix tool over web search for NixOS-related package, option, flake, wiki, nix.dev, and cache questions.",
 		'To search NixOS options: {"action": "search", "query": "<keyword>", "type": "options"}.',
 		'To inspect a NixOS option: {"action": "info", "query": "<option.path>", "type": "option"}.',
-		"action=browse is for walking option prefixes in home-manager, darwin, nixvim, or noogle only — never with source=nixos.",
+		"action=browse is for walking option prefixes in home-manager, darwin, nixvim, nvf, or noogle only — never with source=nixos.",
 	],
 	parameters: nixToolParams,
 	async execute(_toolCallId: string, params: NixToolParams, signal: AbortSignal | undefined) {
