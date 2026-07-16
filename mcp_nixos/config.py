@@ -43,6 +43,9 @@ FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
 NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/meta"
 
+# NVF options from the latest published (unstable) documentation.
+NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"
+
 # NixOS Wiki (MediaWiki API)
 WIKI_API = "https://wiki.nixos.org/w/api.php"
 
@@ -71,6 +74,7 @@ KNOWN_SOURCES = {
     "flakes",
     "flakehub",
     "nixvim",
+    "nvf",
     "wiki",
     "nix-dev",
     "noogle",
