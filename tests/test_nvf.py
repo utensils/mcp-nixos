@@ -10,6 +10,12 @@ from mcp_nixos.sources.nvf import (
     NVF_DOCS_TRACK,
     NVF_SOURCE,
     NVF_SUPPORTED_ACTIONS,
+    NvfOption,
+    _browse_nvf_options,
+    _format_nvf_option,
+    _info_nvf,
+    _search_nvf,
+    _stats_nvf,
     normalize_nvf_option_path,
     nvf_option_category,
 )
@@ -69,6 +75,53 @@ def nvf_options_response(content: bytes | str = NVF_OPTIONS_HTML) -> Mock:
     response = Mock()
     response.content = content
     return response
+
+
+def nvf_option(
+    name: str,
+    *,
+    option_type: str = "boolean",
+    description: str = "",
+    default: str = "",
+    example: str = "",
+    declarations: list[str] | None = None,
+) -> NvfOption:
+    """Build a normalized NVF option record for source action tests."""
+    fragment = name.replace("<", "_").replace(">", "_")
+    return {
+        "name": name,
+        "type": option_type,
+        "description": description,
+        "default": default,
+        "example": example,
+        "declarations": declarations or [],
+        "url": f"{NVF_OPTIONS_URL}#option-{fragment}",
+    }
+
+
+NVF_SOURCE_OPTIONS = [
+    nvf_option(
+        "vim.languages.nix.enable",
+        description="Whether to enable Nix language support.",
+        default="false",
+        example="true",
+        declarations=["https://github.com/NotAShelf/nvf/blob/main/modules/plugins/languages/nix.nix"],
+    ),
+    nvf_option(
+        "vim.languages.nix.format.type",
+        option_type="string",
+        description="Select the Nix formatter.",
+        default='"alejandra"',
+    ),
+    nvf_option(
+        "vim.languages.lua.enable",
+        description="Whether to enable Lua language support.",
+        default="false",
+    ),
+    nvf_option("vim.lsp.enable", description="Whether to enable the LSP client.", default="false"),
+    nvf_option("vim.notes.enable", description="Enable a Nix-aware note-taking helper.", default="false"),
+    nvf_option("vim.theme.enable", description="Enable the configured color theme.", default="true"),
+]
 
 
 @pytest.mark.unit
@@ -214,3 +267,150 @@ class TestNvfCache:
 
         assert len(options) == 2
         assert get.call_count == 2
+
+
+@pytest.mark.unit
+class TestNvfSearch:
+    def test_search_ranks_option_paths_before_description_matches(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _search_nvf("nix", 10)
+
+        assert "Found 3 NVF options matching 'nix'" in result
+        assert result.index("vim.languages.nix.enable") < result.index("vim.languages.nix.format.type")
+        assert result.index("vim.languages.nix.format.type") < result.index("vim.notes.enable")
+        assert "Type: boolean" in result
+        assert "Default: false" in result
+        assert "Whether to enable Nix language support." in result
+
+    def test_search_normalizes_wrapped_option_path(self):
+        query = "programs.nvf.vim.languages.nix.enable"
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _search_nvf(query, 10)
+
+        assert f"Found 1 NVF options matching '{query}'" in result
+        assert "* vim.languages.nix.enable" in result
+
+    def test_search_applies_limit_after_deterministic_sorting(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _search_nvf("enable", 2)
+
+        assert "Found 2 NVF options" in result
+        assert "vim.languages.lua.enable" in result
+        assert "vim.languages.nix.enable" in result
+        assert "vim.lsp.enable" not in result
+
+    def test_search_reports_no_matches(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _search_nvf("does-not-exist", 10)
+
+        assert result == "No NVF options found matching 'does-not-exist'"
+
+    def test_search_propagates_cache_api_error(self):
+        with (
+            patch("mcp_nixos.sources.nvf.nvf_cache.get_options", side_effect=APIError("unavailable")),
+            pytest.raises(APIError, match="unavailable"),
+        ):
+            _search_nvf("nix", 10)
+
+
+@pytest.mark.unit
+class TestNvfInfo:
+    def test_info_normalizes_module_wrapper_and_formats_all_fields(self):
+        name = "programs.nvf.settings.vim.languages.nix.enable"
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _info_nvf(name)
+
+        assert "NVF Option: vim.languages.nix.enable" in result
+        assert "Type: boolean" in result
+        assert "Description: Whether to enable Nix language support." in result
+        assert "Default: false" in result
+        assert "Example: true" in result
+        assert "Declared in: https://github.com/NotAShelf/nvf/" in result
+        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
+
+    def test_info_matches_canonical_name_case_insensitively(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _info_nvf("VIM.LANGUAGES.LUA.ENABLE")
+
+        assert result.startswith("NVF Option: vim.languages.lua.enable")
+
+    def test_info_suggests_options_below_a_non_exact_path(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _info_nvf("vim.languages.nix")
+
+        assert "Error (NOT_FOUND)" in result
+        assert "vim.languages.nix.enable" in result
+        assert "vim.languages.nix.format.type" in result
+
+    def test_info_reports_unknown_wrapper_only_option(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _info_nvf("programs.nvf.enable")
+
+        assert result == "Error (NOT_FOUND): NVF option 'programs.nvf.enable' not found"
+
+    def test_format_option_truncates_long_example_and_lists_declarations(self):
+        option = nvf_option(
+            "vim.test.option",
+            example="x" * 501,
+            declarations=["https://example.test/one.nix", "https://example.test/two.nix"],
+        )
+
+        result = _format_nvf_option(option)
+
+        assert f"Example: {'x' * 500}..." in result
+        assert "Declared in:\n* https://example.test/one.nix\n* https://example.test/two.nix" in result
+
+
+@pytest.mark.unit
+class TestNvfBrowse:
+    def test_browse_without_prefix_lists_two_component_categories(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _browse_nvf_options("")
+
+        assert "NVF option categories (4 total)" in result
+        assert "* vim.languages (3 options)" in result
+        assert "* vim.lsp (1 option)" in result
+        assert "* vim.notes (1 option)" in result
+        assert "* vim.theme (1 option)" in result
+        assert result.index("vim.lsp") < result.index("vim.notes") < result.index("vim.theme")
+
+    def test_browse_normalizes_wrapped_prefix_and_trailing_dot(self):
+        prefix = "PROGRAMS.NVF.SETTINGS.VIM.languages.nix."
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _browse_nvf_options(prefix)
+
+        assert "NVF options with prefix 'vim.languages.nix' (2 found)" in result
+        assert "vim.languages.nix.enable" in result
+        assert "vim.languages.nix.format.type" in result
+        assert "vim.languages.lua.enable" not in result
+
+    def test_browse_reports_unknown_canonical_prefix(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _browse_nvf_options("programs.nvf.vim.unknown")
+
+        assert result == "No NVF options found with prefix 'vim.unknown'"
+
+    def test_browse_caps_large_prefix_results(self):
+        options = [nvf_option(f"vim.plugins.example{i:03}.enable") for i in range(101)]
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=options):
+            result = _browse_nvf_options("vim.plugins")
+
+        assert "NVF options with prefix 'vim.plugins' (101 found)" in result
+        assert result.count("* vim.plugins.example") == 100
+        assert "vim.plugins.example099.enable" in result
+        assert "vim.plugins.example100.enable" not in result
+        assert "... and 1 more options" in result
+
+
+@pytest.mark.unit
+class TestNvfStats:
+    def test_stats_reports_track_totals_and_ranked_categories(self):
+        with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
+            result = _stats_nvf()
+
+        assert "NVF Statistics:" in result
+        assert "Documentation track: unstable" in result
+        assert "Total options: 6" in result
+        assert "Categories: 4" in result
+        assert "vim.languages: 3" in result
+        assert result.index("vim.lsp: 1") < result.index("vim.notes: 1") < result.index("vim.theme: 1")
