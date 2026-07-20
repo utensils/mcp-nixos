@@ -65,7 +65,6 @@ class TestNixSearchIntegration:
         assert "telescope" in result.lower() or "No Nixvim" in result
         assert_plain_text(result)
 
-    @pytest.mark.asyncio
     async def test_search_nvf_with_wrapped_option_path(self):
         result = await nix_fn(
             action="search",
@@ -121,7 +120,6 @@ class TestNixInfoIntegration:
         assert "Nixvim Option:" in result or "not found" in result or "NOT_FOUND" in result
         assert_plain_text(result)
 
-    @pytest.mark.asyncio
     async def test_info_nvf_with_module_wrapper(self):
         result = await nix_fn(
             action="info",
@@ -223,7 +221,6 @@ class TestNixStatsIntegration:
         assert "Total options:" in result
         assert_plain_text(result)
 
-    @pytest.mark.asyncio
     async def test_stats_nvf(self):
         result = await nix_fn(action="stats", source="nvf")
         assert "NVF Statistics" in result
@@ -276,14 +273,12 @@ class TestNixOptionsIntegration:
         assert "plugins" in result.lower()
         assert_plain_text(result)
 
-    @pytest.mark.asyncio
     async def test_browse_nvf_categories(self):
         result = await nix_fn(action="browse", source="nvf")
         assert "NVF option categories" in result
         assert "vim.languages" in result
         assert_plain_text(result)
 
-    @pytest.mark.asyncio
     async def test_browse_nvf_with_wrapped_prefix(self):
         result = await nix_fn(
             action="browse",
