@@ -58,6 +58,14 @@
   --vp-button-brand-hover-border: var(--nix-secondary);
 }
 
+/* Keep the home artwork below the fixed navigation on stacked layouts. */
+@media (max-width: 959px) {
+  .VPHero .image {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
 /* Smooth anchor jumps for deep links — gated on reduced-motion preference */
 @media (prefers-reduced-motion: no-preference) {
   html {

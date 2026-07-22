@@ -50,4 +50,27 @@ jobs:
     - name: Deploy to S3
       run: |
         aws s3 sync website/out/ s3://urandom-mcp-nixos/ --delete
-        aws cloudfront create-invalidation --distribution-id E1QS1G7FYYJ6TL --paths "/*"
+
+        # VitePress clean URLs link to /about while S3 stores about.html.
+        # Publish extensionless aliases so direct visits and refreshes work.
+        find website/out -type f -name '*.html' ! -name 'index.html' -print0 |
+          while IFS= read -r -d '' page; do
+            route="${page#website/out/}"
+            aws s3 cp "$page" "s3://urandom-mcp-nixos/${route%.html}" \
+              --content-type 'text/html; charset=utf-8'
+          done
+
+        invalidation_id=$(aws cloudfront create-invalidation \
+          --distribution-id E1QS1G7FYYJ6TL \
+          --paths '/*' \
+          --query 'Invalidation.Id' \
+          --output text)
+        aws cloudfront wait invalidation-completed \
+          --distribution-id E1QS1G7FYYJ6TL \
+          --id "$invalidation_id"
+
+    - name: Verify deployed clean URLs
+      run: |
+        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/ > /dev/null
+        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/about > /dev/null
+        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/usage > /dev/null
