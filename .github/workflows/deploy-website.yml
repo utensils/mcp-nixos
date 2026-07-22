@@ -71,6 +71,6 @@ jobs:
 
     - name: Verify deployed clean URLs
       run: |
-        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/ > /dev/null
-        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/about > /dev/null
-        curl --fail --silent --show-error --retry 5 --retry-delay 3 https://mcp-nixos.io/usage > /dev/null
+        curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors https://mcp-nixos.io/ > /dev/null
+        curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors https://mcp-nixos.io/about > /dev/null
+        curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors https://mcp-nixos.io/usage > /dev/null
