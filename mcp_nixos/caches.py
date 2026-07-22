@@ -1,10 +1,15 @@
 """Cache classes for MCP-NixOS server."""
 
+from __future__ import annotations
+
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from urllib.parse import urljoin
 
 import requests
+from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 from .config import (
     FALLBACK_CHANNELS,
@@ -13,8 +18,12 @@ from .config import (
     NIXOS_AUTH,
     NIXVIM_META_BASE,
     NOOGLE_API,
+    NVF_OPTIONS_URL,
     APIError,
 )
+
+if TYPE_CHECKING:
+    from .sources.nvf import NvfOption
 
 
 class ChannelCache:
@@ -153,6 +162,99 @@ class NixvimCache:
 
 
 nixvim_cache = NixvimCache()
+
+
+class NvfCache:
+    """Cache NVF's canonical ``vim.*`` options from its published docs."""
+
+    def __init__(self) -> None:
+        self.options: list[NvfOption] | None = None
+
+    @staticmethod
+    def _extract_text(option: Tag, selector: str, label: str = "") -> str:
+        """Extract a field as readable plain text, preserving code blocks."""
+        field = option.select_one(selector)
+        if field is None:
+            return ""
+
+        preserve_lines = field.find("pre") is not None
+        separator = "\n" if preserve_lines else " "
+        value = field.get_text(separator=separator, strip=True)
+        if label and value.startswith(label):
+            value = value[len(label) :].lstrip()
+
+        if preserve_lines:
+            return "\n".join(line.rstrip() for line in value.splitlines()).strip()
+        return " ".join(value.split())
+
+    @classmethod
+    def _parse_options(cls, html: bytes | str) -> list[NvfOption]:
+        """Parse normalized NVF option records from ``options.html``."""
+        soup = BeautifulSoup(html, "html.parser")
+        options: list[NvfOption] = []
+
+        for option in soup.select(".options-container .option"):
+            anchor = option.select_one(".option-name .option-anchor")
+            if anchor is None:
+                continue
+
+            name = anchor.get_text(" ", strip=True)
+            if name != "vim" and not name.startswith("vim."):
+                continue
+
+            declarations: list[str] = []
+            for declaration in option.select(".option-declared a[href]"):
+                href = declaration.get("href")
+                if isinstance(href, str):
+                    declarations.append(urljoin(NVF_OPTIONS_URL, href))
+
+            anchor_href = anchor.get("href")
+            if isinstance(anchor_href, str):
+                option_url = urljoin(NVF_OPTIONS_URL, anchor_href)
+            else:
+                option_id = option.get("id")
+                fragment = f"#{option_id}" if isinstance(option_id, str) and option_id else ""
+                option_url = f"{NVF_OPTIONS_URL}{fragment}"
+
+            options.append(
+                {
+                    "name": name,
+                    "type": cls._extract_text(option, ".option-type", "Type:"),
+                    "description": cls._extract_text(option, ".option-description"),
+                    "default": cls._extract_text(option, ".option-default", "Default:"),
+                    "example": cls._extract_text(option, ".option-example", "Example:"),
+                    "declarations": declarations,
+                    "url": option_url,
+                }
+            )
+
+        return options
+
+    def get_options(self) -> list[NvfOption]:
+        """Fetch, validate, and cache the latest published NVF options."""
+        if self.options is not None:
+            return self.options
+
+        try:
+            response = requests.get(NVF_OPTIONS_URL, timeout=30)
+            response.raise_for_status()
+            options = self._parse_options(response.content)
+            if not options:
+                raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+
+            self.options = options
+            return self.options
+        except requests.Timeout as exc:
+            raise APIError("Timeout fetching NVF options") from exc
+        except requests.RequestException as exc:
+            raise APIError(f"Failed to fetch NVF options: {exc}") from exc
+        except APIError:
+            raise
+        except Exception as exc:
+            raise APIError(f"Failed to parse NVF options: {exc}") from exc
+
+
+nvf_cache = NvfCache()
 
 
 class NixDevCache:

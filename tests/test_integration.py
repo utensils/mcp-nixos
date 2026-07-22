@@ -44,7 +44,8 @@ class TestNixSearchIntegration:
     @pytest.mark.asyncio
     async def test_search_home_manager(self):
         result = await nix_fn(action="search", query="git", source="home-manager", limit=3)
-        assert "git" in result.lower() or "No Home Manager" in result
+        assert "Found" in result
+        assert "git" in result.lower()
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -62,6 +63,16 @@ class TestNixSearchIntegration:
     async def test_search_nixvim(self):
         result = await nix_fn(action="search", query="telescope", source="nixvim", limit=3)
         assert "telescope" in result.lower() or "No Nixvim" in result
+        assert_plain_text(result)
+
+    async def test_search_nvf_with_wrapped_option_path(self):
+        result = await nix_fn(
+            action="search",
+            query="programs.nvf.vim.languages.nix.enable",
+            source="nvf",
+            limit=3,
+        )
+        assert "vim.languages.nix.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -94,7 +105,7 @@ class TestNixInfoIntegration:
     @pytest.mark.asyncio
     async def test_info_home_manager(self):
         result = await nix_fn(action="info", query="programs.git.enable", source="home-manager")
-        assert "Option: programs.git.enable" in result or "not found" in result
+        assert "Option: programs.git.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -107,6 +118,16 @@ class TestNixInfoIntegration:
     async def test_info_nixvim(self):
         result = await nix_fn(action="info", query="plugins.telescope.enable", source="nixvim")
         assert "Nixvim Option:" in result or "not found" in result or "NOT_FOUND" in result
+        assert_plain_text(result)
+
+    async def test_info_nvf_with_module_wrapper(self):
+        result = await nix_fn(
+            action="info",
+            query="programs.nvf.settings.vim.languages.nix.enable",
+            source="nvf",
+        )
+        assert "NVF Option: vim.languages.nix.enable" in result
+        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -200,6 +221,13 @@ class TestNixStatsIntegration:
         assert "Total options:" in result
         assert_plain_text(result)
 
+    async def test_stats_nvf(self):
+        result = await nix_fn(action="stats", source="nvf")
+        assert "NVF Statistics" in result
+        assert "Documentation track: unstable" in result
+        assert "Total options:" in result
+        assert_plain_text(result)
+
     @pytest.mark.asyncio
     async def test_stats_flakehub(self):
         result = await nix_fn(action="stats", source="flakehub")
@@ -216,7 +244,8 @@ class TestNixOptionsIntegration:
     @pytest.mark.asyncio
     async def test_browse_home_manager(self):
         result = await nix_fn(action="options", source="home-manager")
-        assert "Home Manager" in result or "categories" in result.lower()
+        assert "Home Manager categories" in result
+        assert "programs" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -228,6 +257,8 @@ class TestNixOptionsIntegration:
     @pytest.mark.asyncio
     async def test_browse_with_prefix(self):
         result = await nix_fn(action="options", source="home-manager", query="programs")
+        assert "Home Manager options with prefix 'programs'" in result
+        assert "programs." in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -240,6 +271,22 @@ class TestNixOptionsIntegration:
     async def test_browse_nixvim_with_prefix(self):
         result = await nix_fn(action="options", source="nixvim", query="plugins")
         assert "plugins" in result.lower()
+        assert_plain_text(result)
+
+    async def test_browse_nvf_categories(self):
+        result = await nix_fn(action="browse", source="nvf")
+        assert "NVF option categories" in result
+        assert "vim.languages" in result
+        assert_plain_text(result)
+
+    async def test_browse_nvf_with_wrapped_prefix(self):
+        result = await nix_fn(
+            action="browse",
+            source="nvf",
+            query="programs.nvf.vim.languages.nix",
+        )
+        assert "NVF options with prefix 'vim.languages.nix'" in result
+        assert "vim.languages.nix.enable" in result
         assert_plain_text(result)
 
 

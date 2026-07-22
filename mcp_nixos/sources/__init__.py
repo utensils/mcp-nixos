@@ -98,6 +98,15 @@ from .noogle import (
     _stats_noogle,
 )
 
+# NVF options
+from .nvf import (
+    _browse_nvf_options,
+    _format_nvf_option,
+    _info_nvf,
+    _search_nvf,
+    _stats_nvf,
+)
+
 # Direct /nix/store path access
 from .store import (
     _store_ls,
@@ -149,6 +158,12 @@ __all__ = [
     "_format_nixvim_option",
     "_stats_nixvim",
     "_browse_nixvim_options",
+    # NVF
+    "_search_nvf",
+    "_info_nvf",
+    "_format_nvf_option",
+    "_stats_nvf",
+    "_browse_nvf_options",
     # Noogle
     "_get_noogle_function_path",
     "_get_noogle_type_signature",

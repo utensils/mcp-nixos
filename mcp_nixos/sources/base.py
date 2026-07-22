@@ -231,7 +231,7 @@ def _browse_options(source: str, prefix: str) -> str:
                 results.append("")
             return "\n".join(results).strip()
         else:
-            options = parse_html_options(url, limit=5000)
+            options = parse_html_options(url, limit=None if source == "home-manager" else 5000)
             categories: dict[str, int] = {}
             for opt in options:
                 name = opt["name"]

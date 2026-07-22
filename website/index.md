@@ -36,8 +36,8 @@ features:
     title: Flakes & FlakeHub
     details: Search community flakes on search.nixos.org and the FlakeHub registry by Determinate Systems.
   - icon: 🧠
-    title: Noogle + Nixvim
-    details: 2K+ Nix functions with type signatures plus 5K+ Nixvim options. Because writing Nix is already hard enough.
+    title: Noogle + Neovim Modules
+    details: 2K+ Nix functions with type signatures, 5K+ Nixvim options, and 2.4K+ NVF options. Because writing Nix is already hard enough.
   - icon: ⏱️
     title: Package Version History
     details: Historical versions with nixpkgs commit hashes via NixHub.io. Find that one Ruby version from 2019 you're pretending to still support.
@@ -104,6 +104,7 @@ All responses come back as **plain text**, because your LLM does not want to par
 - **[FlakeHub](https://flakehub.com)** — Determinate Systems flake registry
 - **[noogle.dev](https://noogle.dev)** — Nix function signatures
 - **[NuschtOS](https://github.com/NuschtOS/search)** — Nixvim option index
+- **[NVF docs](https://nvf.notashelf.dev/options.html)** — Published NVF option catalogue
 - **[wiki.nixos.org](https://wiki.nixos.org)** — Community wiki
 - **[nix.dev](https://nix.dev)** — Official tutorials & guides
 - **Local `/nix/store`** — Your pinned flake inputs, read directly

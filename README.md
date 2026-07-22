@@ -121,6 +121,7 @@ An MCP server providing accurate, real-time information about:
 - **Home Manager** - 5K+ options for dotfile enthusiasts
 - **nix-darwin** - 1K+ macOS settings Apple doesn't document
 - **Nixvim** - 5K+ options for Neovim configuration via [NuschtOS search](https://github.com/NuschtOS/search)
+- **NVF** - 2.4K+ Neovim options from its [published unstable documentation](https://nvf.notashelf.dev/options.html)
 - **FlakeHub** - 600+ flakes from [FlakeHub.com](https://flakehub.com) registry
 - **Noogle** - 2K+ Nix functions with type signatures via [noogle.dev](https://noogle.dev)
 - **NixOS Wiki** - Community documentation and guides from [wiki.nixos.org](https://wiki.nixos.org)
@@ -148,7 +149,7 @@ nix(action, query, source, type, channel, limit)
 | `search` | Search packages, options, programs, or flakes |
 | `info` | Get detailed info about a package or option |
 | `stats` | Get counts and categories |
-| `options` | Browse Home Manager/Darwin options by prefix |
+| `browse` | Browse Home Manager, Darwin, Nixvim, NVF, or Noogle by prefix (legacy alias: `options`) |
 | `channels` | List available NixOS channels |
 | `flake-inputs` | Explore local flake inputs from Nix store |
 | `cache` | Check binary cache status for packages |
@@ -161,10 +162,15 @@ nix(action, query, source, type, channel, limit)
 | `flakes` | Community flakes (search.nixos.org) |
 | `flakehub` | FlakeHub registry (flakehub.com) |
 | `nixvim` | Nixvim Neovim configuration options |
+| `nvf` | NVF Neovim configuration options (latest unstable docs) |
 | `noogle` | Nix function signatures and docs (noogle.dev) |
 | `wiki` | NixOS Wiki articles (wiki.nixos.org) |
 | `nix-dev` | Official Nix documentation (nix.dev) |
 | `nixhub` | Package metadata and store paths (nixhub.io) |
+
+NVF results use canonical `vim.*` option paths. Queries may also use the shorthand
+`programs.nvf.vim.*` or the NixOS/Home Manager module path
+`programs.nvf.settings.vim.*`; both are normalized automatically.
 
 **Examples:**
 
@@ -179,13 +185,22 @@ nix(action="info", query="firefox", source="nixos", type="package")
 nix(action="search", query="git", source="home-manager")
 
 # Browse darwin options
-nix(action="options", source="darwin", query="system.defaults")
+nix(action="browse", source="darwin", query="system.defaults")
 
 # Search Nixvim options
 nix(action="search", query="telescope", source="nixvim")
 
 # Get Nixvim option info
 nix(action="info", query="plugins.telescope.enable", source="nixvim")
+
+# Search NVF options
+nix(action="search", query="vim.languages.nix", source="nvf")
+
+# Get NVF option info using a module wrapper path
+nix(action="info", query="programs.nvf.settings.vim.languages.nix.enable", source="nvf")
+
+# Browse NVF options below a prefix
+nix(action="browse", query="programs.nvf.vim.languages.nix", source="nvf")
 
 # Search FlakeHub
 nix(action="search", query="nixpkgs", source="flakehub")
@@ -200,7 +215,7 @@ nix(action="search", query="mapAttrs", source="noogle")
 nix(action="info", query="lib.attrsets.mapAttrs", source="noogle")
 
 # Browse Noogle function categories
-nix(action="options", source="noogle", query="lib.strings")
+nix(action="browse", source="noogle", query="lib.strings")
 
 # Search NixOS Wiki
 nix(action="search", query="nvidia", source="wiki")
@@ -349,6 +364,7 @@ mypy mcp_nixos/      # Type check
 - **[Noogle](https://noogle.dev)** - Nix function search engine
 - **[NuschtOS](https://github.com/NuschtOS/search)** - Static option search infrastructure powering Nixvim support
 - **[Nixvim](https://github.com/nix-community/nixvim)** - Neovim configuration framework for Nix
+- **[NVF](https://github.com/NotAShelf/nvf)** - Neovim configuration framework and published option catalogue
 
 ## License
 

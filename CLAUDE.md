@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-time information about NixOS packages, configuration options, Home Manager, nix-darwin, and flakes. It prevents AI assistants from hallucinating about NixOS package names and configurations by querying official APIs and documentation.
+MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-time information about NixOS packages, configuration options, Home Manager, nix-darwin, Nixvim, NVF, and flakes. It prevents AI assistants from hallucinating about NixOS package names and configurations by querying official APIs and documentation.
 
 ## Project Structure & Module Organization
 
 - `mcp_nixos/` - Contains the MCP server implementation.
   - `mcp_nixos/server.py` - MCP tools, tool routing, and main entry point.
   - `mcp_nixos/config.py` - Configuration constants (API URLs, auth, limits).
-  - `mcp_nixos/caches.py` - Cache implementations (channels, nixvim, noogle, nix.dev).
+  - `mcp_nixos/caches.py` - Process-local cache implementations (channels, nixvim, NVF, noogle, nix.dev).
   - `mcp_nixos/utils.py` - Shared utility functions (HTML parsing, formatting, file I/O).
   - `mcp_nixos/sources/` - Data source implementations (one module per source):
     - `base.py` - Channel helpers, Elasticsearch queries, browsing utilities.
@@ -23,6 +23,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
     - `wiki.py` - NixOS Wiki search.
     - `nixdev.py` - nix.dev documentation.
     - `nixvim.py` - Nixvim options.
+    - `nvf.py` - NVF options, path normalization, and query actions.
     - `noogle.py` - Noogle function search.
     - `nixhub.py` - NixHub API + binary cache status.
     - `flake_inputs.py` - Local flake inputs via nix store.
@@ -38,7 +39,7 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 The project is a FastMCP 3.x server (async) with a modular structure (Python 3.11+). The server is organized into focused modules: `server.py` handles MCP tools and routing, `sources/` contains per-source implementations, `config.py` defines constants, `caches.py` manages cached data, and `utils.py` provides shared utilities.
 
 Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
-- `nix` - Unified query tool for search/info/stats/browse/channels/flake-inputs/cache across all sources. `options` is accepted as a silent alias for `browse` (legacy).
+- `nix` - Unified query tool for search/info/stats/browse/channels/flake-inputs/cache/store across all sources. `options` is accepted as a silent alias for `browse` (legacy).
 - `nix_versions` - Package version history from NixHub.io.
 
 ### Data Sources
@@ -46,6 +47,8 @@ Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
 - NixOS packages/options: Elasticsearch API at search.nixos.org
 - Home Manager options: HTML parsing from official docs
 - nix-darwin options: HTML parsing from official docs
+- Nixvim options: NuschtOS search metadata
+- NVF options: HTML parsing from the latest published unstable options documentation
 - Package versions: NixHub.io API (search.devbox.sh)
 - Package metadata: NixHub.io API for license, homepage, store paths
 - Binary cache status: cache.nixos.org narinfo queries
@@ -168,7 +171,7 @@ pytest tests/ -k "nixos" -v
 
 1. **Channel Resolution**: The server dynamically discovers available NixOS channels on startup. "stable" always maps to the current stable release.
 2. **Error Handling**: All tools return helpful plain text error messages. API failures gracefully degrade.
-3. **No Caching**: Version 1.0+ removed all caching for simplicity. All queries hit live APIs.
+3. **Process-local Caching**: There is no persistent cache or database. Catalogue-style sources such as Nixvim, NVF, Noogle, and nix.dev are cached in memory for the lifetime of the server process; other queries hit live APIs.
 4. **Async Everything**: Version 1.0.1 migrated to FastMCP (currently FastMCP 3.x; `fastmcp>=3.2.0` in `pyproject.toml`). All tools are async functions. All blocking HTTP calls and file I/O are wrapped in `asyncio.to_thread()` to prevent blocking the event loop.
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
 6. **Environment Variables**:
@@ -181,6 +184,7 @@ pytest tests/ -k "nixos" -v
 7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
 8. **Binary Cache Status**: The `cache` action queries cache.nixos.org to check if packages have pre-built binaries. It uses NixHub to resolve package versions to store paths, then checks narinfo availability.
 9. **NixHub Source**: The `nixhub` source provides rich package metadata including license, homepage, programs, and store paths via the search.devbox.sh API.
+10. **NVF Source**: The `nvf` source tracks NVF's latest published unstable options. Its canonical names are `vim.*`; callers may also use `programs.nvf.vim.*` or `programs.nvf.settings.vim.*`, which normalize to the canonical path before search, info, or browse operations.
 
 ## Commit, PR, & Release Guidelines
 

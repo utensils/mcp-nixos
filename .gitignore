@@ -61,6 +61,7 @@ result
 *.swo
 *~
 .vscode/
+.zed/
 
 # MCP local configuration
 .mcp-nix.json

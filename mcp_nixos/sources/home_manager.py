@@ -48,7 +48,7 @@ def _info_home_manager(name: str) -> str:
 def _stats_home_manager() -> str:
     """Get Home Manager option counts and top categories."""
     try:
-        options = parse_html_options(HOME_MANAGER_URL, limit=5000)
+        options = parse_html_options(HOME_MANAGER_URL, limit=None)
         if not options:
             return error("Failed to fetch Home Manager statistics")
 

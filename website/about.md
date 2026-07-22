@@ -19,6 +19,7 @@ It provides real-time access to:
 - **Home Manager** settings for user-level configuration
 - **nix-darwin** macOS configuration options
 - **Nixvim** options via NuschtOS search
+- **NVF** options via its published unstable documentation
 - **FlakeHub** and community flake registries
 - **Nix function signatures** and documentation via Noogle
 - **NixOS Wiki** and **nix.dev** for community + official guides
@@ -41,14 +42,15 @@ and utilities for developers and systems engineers.
 MCP-NixOS v2.x is a **stateless, async FastMCP 3.x server** with a modular structure
 (Python 3.11+). No persistent caches, no databases, no sacred goat to appease — live
 APIs are the source of truth, with some in-process caching for discovered channels
-and index-style sources (Nixvim, Noogle, nix.dev) so a single server run doesn't
+and index-style sources (Nixvim, NVF, Noogle, nix.dev) so a single server run doesn't
 re-fetch the same catalog on every query.
 
 - **`nix` tool** — Unified query router for search / info / stats / browse / channels /
   flake-inputs / cache / store across every source.
 - **`nix_versions` tool** — Package version history via NixHub.io.
 - **Elasticsearch client** — Queries search.nixos.org for packages, options, and flakes.
-- **HTML parsers** — Parse Home Manager and nix-darwin documentation on demand.
+- **HTML parsers** — Parse Home Manager and nix-darwin documentation on demand and
+  normalize NVF's published option catalogue into plain-text records.
 - **Plain-text formatter** — All responses are rendered as human-readable text for
   optimal LLM consumption. No XML. No JSON leaking into prompts.
 - **Async everywhere** — Every blocking HTTP or file I/O call is wrapped in
@@ -68,6 +70,8 @@ backend is a small, bounded change.
 - **FlakeHub integration** — Search and discover flakes from the FlakeHub registry.
 - **Noogle integration** — 2K+ Nix functions with type signatures via noogle.dev.
 - **Nixvim integration** — 5K+ Neovim configuration options via NuschtOS search.
+- **NVF integration** — 2.4K+ Neovim configuration options from the latest published
+  unstable documentation, with `vim.*` and module-wrapper path support.
 - **Wiki & nix.dev** — Community articles and official tutorials, searchable in one
   place.
 - **Version history** — Package version tracking with nixpkgs commit hashes via
@@ -76,8 +80,8 @@ backend is a small, bounded change.
   download sizes, compression, and per-platform availability.
 - **Local flake inputs** — Read your pinned dependencies straight out of `/nix/store`,
   with security checks to keep paths inside the store.
-- **Stateless design** — Direct API calls, no caching complexity. Simple, reliable,
-  maintainable.
+- **No persistent state** — Direct API calls plus bounded in-process catalogue caches;
+  no database or on-disk index to maintain.
 
 ## What is Model Context Protocol? {#what-is-model-context-protocol}
 
@@ -173,6 +177,8 @@ checking, and tests.
 - [NuschtOS](https://github.com/NuschtOS/search) — Static option search infrastructure
 - [Nixvim](https://github.com/nix-community/nixvim) — Neovim configuration framework
   for Nix
+- [NVF](https://github.com/NotAShelf/nvf) — Neovim configuration framework and
+  [published option catalogue](https://nvf.notashelf.dev/options.html)
 
 ---
 

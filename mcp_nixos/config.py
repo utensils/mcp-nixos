@@ -31,7 +31,9 @@ FALLBACK_CHANNELS = {
     "beta": "latest-44-nixos-25.11",
 }
 
-HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/options.xhtml"
+# Home Manager's option docs are split across mdBook pages. The print view keeps
+# the complete option catalogue in one document for search, info, browse, and stats.
+HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/print.html"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
 FLAKE_INDEX = "latest-44-group-manual"
 
@@ -42,6 +44,9 @@ FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 # Nixvim options via NuschtOS search infrastructure (paginated, ~300 options per chunk)
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
 NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/meta"
+
+# NVF options from the latest published (unstable) documentation.
+NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"
 
 # NixOS Wiki (MediaWiki API)
 WIKI_API = "https://wiki.nixos.org/w/api.php"
@@ -71,6 +76,7 @@ KNOWN_SOURCES = {
     "flakes",
     "flakehub",
     "nixvim",
+    "nvf",
     "wiki",
     "nix-dev",
     "noogle",

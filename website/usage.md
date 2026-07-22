@@ -191,7 +191,7 @@ nix(action, query, source, type, channel, limit, version, system)
 | `search` | Search packages, options, programs, flakes, wiki, docs |
 | `info` | Get detailed info about a package, option, or function |
 | `stats` | Counts, channels, categories |
-| `browse` | Browse Home Manager / Darwin options by prefix (alias: `options`) |
+| `browse` | Browse Home Manager, Darwin, Nixvim, NVF, or Noogle by prefix (alias: `options`) |
 | `channels` | List available NixOS channels |
 | `flake-inputs` | Explore local flake inputs from the Nix store |
 | `cache` | Check binary cache status for packages |
@@ -205,10 +205,15 @@ nix(action, query, source, type, channel, limit, version, system)
 | `flakes` | Community flakes (search.nixos.org) |
 | `flakehub` | FlakeHub registry (flakehub.com) |
 | `nixvim` | Nixvim Neovim configuration options |
+| `nvf` | NVF Neovim configuration options (latest unstable docs) |
 | `noogle` | Nix function signatures & docs (noogle.dev) |
 | `wiki` | NixOS Wiki articles (wiki.nixos.org) |
 | `nix-dev` | Official Nix docs (nix.dev) |
 | `nixhub` | Package metadata & store paths (nixhub.io) |
+
+NVF returns canonical `vim.*` option paths. It also accepts the shorthand
+`programs.nvf.vim.*` and the actual NixOS/Home Manager module path
+`programs.nvf.settings.vim.*` as input aliases.
 
 #### Examples
 
@@ -227,6 +232,15 @@ nix(action="browse", source="darwin", query="system.defaults")
 
 # Search Nixvim options
 nix(action="search", query="telescope", source="nixvim")
+
+# Search NVF options
+nix(action="search", query="vim.languages.nix", source="nvf")
+
+# Inspect an NVF option through its Home Manager/NixOS wrapper path
+nix(action="info", query="programs.nvf.settings.vim.languages.nix.enable", source="nvf")
+
+# Browse an NVF prefix (the shorter wrapper alias is accepted too)
+nix(action="browse", query="programs.nvf.vim.languages.nix", source="nvf")
 
 # Search FlakeHub
 nix(action="search", query="nixpkgs", source="flakehub")

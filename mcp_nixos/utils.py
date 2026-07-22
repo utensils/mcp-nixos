@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 from .config import DocumentParseError
 
@@ -27,12 +28,69 @@ def error(msg: str, code: str = "ERROR") -> str:
     return f"Error ({code}): {msg}"
 
 
-def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int = 100) -> list[dict[str, str]]:
+def _option_matches(name: str, query: str, prefix: str) -> bool:
+    """Return whether an option name matches the requested filters."""
+    if query and query.lower() not in name.lower():
+        return False
+    return not prefix or name.startswith(prefix + ".") or name == prefix
+
+
+def _parse_home_manager_mdbook(soup: BeautifulSoup, query: str, prefix: str, limit: int | None) -> list[dict[str, str]]:
+    """Parse Home Manager options from the current mdBook HTML structure."""
+    options: list[dict[str, str]] = []
+
+    for heading in soup.select('h2[id^="opt-"]'):
+        anchor = heading.find("a", class_="header")
+        name = anchor.get_text(" ", strip=True) if isinstance(anchor, Tag) else heading.get_text(" ", strip=True)
+        if not name or not _option_matches(name, query, prefix):
+            continue
+
+        description_parts: list[str] = []
+        type_info = ""
+        metadata_started = False
+
+        for sibling in heading.next_siblings:
+            if not isinstance(sibling, Tag):
+                continue
+            if sibling.name in {"h1", "h2"}:
+                break
+            if sibling.name != "p":
+                continue
+
+            label = sibling.find("em")
+            label_text = label.get_text(" ", strip=True) if isinstance(label, Tag) else ""
+            if label_text == "Type:":
+                metadata_started = True
+                type_info = sibling.get_text(" ", strip=True).removeprefix("Type:").strip()
+            elif label_text in {"Default:", "Example:", "Declared by:"}:
+                metadata_started = True
+            elif not metadata_started:
+                description_parts.append(sibling.get_text(" ", strip=True))
+
+        description = " ".join(description_parts)
+        options.append(
+            {
+                "name": name,
+                "description": description[:200] if len(description) > 200 else description,
+                "type": type_info,
+            }
+        )
+        if limit is not None and len(options) >= limit:
+            break
+
+    return options
+
+
+def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int | None = 100) -> list[dict[str, str]]:
     try:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "html.parser")
-        options = []
+
+        if "home-manager" in url and soup.select_one('h2[id^="opt-"]') is not None:
+            return _parse_home_manager_mdbook(soup, query, prefix, limit)
+
+        options: list[dict[str, str]] = []
         dts = soup.find_all("dt")
 
         for dt in dts:
@@ -55,9 +113,7 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
 
             if "." not in name and len(name.split()) > 1:
                 continue
-            if query and query.lower() not in name.lower():
-                continue
-            if prefix and not (name.startswith(prefix + ".") or name == prefix):
+            if not _option_matches(name, query, prefix):
                 continue
 
             dd = dt.find_next_sibling("dd")
@@ -88,7 +144,7 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int =
                         "type": type_info,
                     }
                 )
-                if len(options) >= limit:
+                if limit is not None and len(options) >= limit:
                     break
         return options
     except Exception as exc:
