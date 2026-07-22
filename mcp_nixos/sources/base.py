@@ -7,15 +7,13 @@ from typing import Any
 import requests
 
 from .. import __version__
-from ..caches import channel_cache
+from ..caches import HtmlOptionsCache, channel_cache, darwin_cache, home_manager_cache
 from ..config import (
-    DARWIN_URL,
-    HOME_MANAGER_URL,
     NIXOS_API,
     NIXOS_AUTH,
     APIError,
 )
-from ..utils import error, parse_html_options
+from ..utils import error, score_option_match
 
 # Match the 40-char hex commit appended to unstable ES indices,
 # e.g. `nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc`.
@@ -213,25 +211,113 @@ def _list_channels() -> str:
         return error(str(e))
 
 
+# Maximum options listed by a prefix browse before truncating with a
+# "... and N more" line, matching the NVF source's browse behavior.
+_BROWSE_DISPLAY_LIMIT = 100
+
+
+def _html_source_cache(source: str) -> HtmlOptionsCache:
+    """Return the option catalogue cache for an HTML-parsed source."""
+    return home_manager_cache if source == "home-manager" else darwin_cache
+
+
+def _search_html_options(cache: HtmlOptionsCache, query: str, limit: int) -> str:
+    """Search a cached HTML option catalogue, ranked by match quality."""
+    try:
+        options = cache.get_options()
+        matches = []
+        for opt in options:
+            score = score_option_match(opt["name"], opt["description"], query)
+            if score:
+                matches.append((score, opt))
+        matches.sort(key=lambda match: (-match[0], match[1]["name"].casefold()))
+        matches = matches[:limit]
+
+        if not matches:
+            return f"No {cache.display_name} options found matching '{query}'"
+        results = [f"Found {len(matches)} {cache.display_name} options matching '{query}':\n"]
+        for _score, opt in matches:
+            results.append(f"* {opt['name']}")
+            if opt["type"]:
+                results.append(f"  Type: {opt['type']}")
+            if opt["description"]:
+                results.append(f"  {opt['description']}")
+            results.append("")
+        return "\n".join(results).strip()
+    except Exception as e:
+        return error(str(e))
+
+
+def _info_html_options(cache: HtmlOptionsCache, name: str) -> str:
+    """Get detailed info for an option in a cached HTML catalogue."""
+    try:
+        options = cache.get_options()
+        for opt in options:
+            if opt["name"] == name:
+                info = [f"Option: {name}"]
+                if opt["type"]:
+                    info.append(f"Type: {opt['type']}")
+                if opt["description"]:
+                    info.append(f"Description: {opt['description']}")
+                return "\n".join(info)
+
+        name_cf = name.casefold()
+        suggestions = sorted(
+            (opt["name"] for opt in options if name_cf in opt["name"].casefold()),
+            key=str.casefold,
+        )[:5]
+        if suggestions:
+            return error(f"Option '{name}' not found. Similar: {', '.join(suggestions)}", "NOT_FOUND")
+        return error(f"Option '{name}' not found", "NOT_FOUND")
+    except Exception as e:
+        return error(str(e))
+
+
+def _stats_html_options(cache: HtmlOptionsCache) -> str:
+    """Get option counts and top categories for a cached HTML catalogue."""
+    try:
+        options = cache.get_options()
+        categories: dict[str, int] = {}
+        for opt in options:
+            cat = opt["name"].split(".")[0]
+            categories[cat] = categories.get(cat, 0) + 1
+
+        top_cats = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:5]
+        result = [
+            f"{cache.display_name} Statistics:",
+            f"* Total options: {len(options):,}",
+            f"* Categories: {len(categories)}",
+        ]
+        result.append("* Top categories:")
+        for cat, count in top_cats:
+            result.append(f"  - {cat}: {count:,}")
+        return "\n".join(result)
+    except Exception as e:
+        return error(str(e))
+
+
 def _browse_options(source: str, prefix: str) -> str:
     """Browse Home Manager or nix-darwin options by prefix, or list categories."""
-    url = HOME_MANAGER_URL if source == "home-manager" else DARWIN_URL
-    source_name = "Home Manager" if source == "home-manager" else "nix-darwin"
+    cache = _html_source_cache(source)
+    source_name = cache.display_name
 
     try:
+        options = cache.get_options()
         if prefix:
-            options = parse_html_options(url, "", prefix)
-            if not options:
+            matches = [opt for opt in options if opt["name"] == prefix or opt["name"].startswith(prefix + ".")]
+            if not matches:
                 return f"No {source_name} options found with prefix '{prefix}'"
-            results = [f"{source_name} options with prefix '{prefix}' ({len(options)} found):\n"]
-            for opt in sorted(options, key=lambda x: x["name"]):
+            results = [f"{source_name} options with prefix '{prefix}' ({len(matches):,} found):\n"]
+            matches.sort(key=lambda x: x["name"])
+            for opt in matches[:_BROWSE_DISPLAY_LIMIT]:
                 results.append(f"* {opt['name']}")
                 if opt["description"]:
                     results.append(f"  {opt['description']}")
                 results.append("")
+            if len(matches) > _BROWSE_DISPLAY_LIMIT:
+                results.append(f"... and {len(matches) - _BROWSE_DISPLAY_LIMIT:,} more options")
             return "\n".join(results).strip()
         else:
-            options = parse_html_options(url, limit=None if source == "home-manager" else 5000)
             categories: dict[str, int] = {}
             for opt in options:
                 name = opt["name"]

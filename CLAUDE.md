@@ -171,7 +171,7 @@ pytest tests/ -k "nixos" -v
 
 1. **Channel Resolution**: The server dynamically discovers available NixOS channels on startup. "stable" always maps to the current stable release.
 2. **Error Handling**: All tools return helpful plain text error messages. API failures gracefully degrade.
-3. **Process-local Caching**: There is no persistent cache or database. Catalogue-style sources such as Nixvim, NVF, Noogle, and nix.dev are cached in memory for the lifetime of the server process; other queries hit live APIs.
+3. **Process-local Caching**: There is no persistent cache or database. Catalogue-style sources such as Home Manager, nix-darwin, Nixvim, NVF, Noogle, and nix.dev are cached in memory for the lifetime of the server process; other queries hit live APIs.
 4. **Async Everything**: Version 1.0.1 migrated to FastMCP (currently FastMCP 3.x; `fastmcp>=3.2.0` in `pyproject.toml`). All tools are async functions. All blocking HTTP calls and file I/O are wrapped in `asyncio.to_thread()` to prevent blocking the event loop.
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
 6. **Environment Variables**:

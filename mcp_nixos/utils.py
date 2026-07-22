@@ -35,8 +35,41 @@ def _option_matches(name: str, query: str, prefix: str) -> bool:
     return not prefix or name.startswith(prefix + ".") or name == prefix
 
 
+def score_option_match(name: str, description: str, query: str) -> int:
+    """Score how well an option matches a query, prioritizing path matches.
+
+    Tiers: exact path (100), leading path prefix (80), complete dot-separated
+    path segment(s) (70 minus the segment position, floored at 62), name
+    substring (60), description substring (20). The segment tier ranks
+    ``programs.git.enable`` above ``programs.bun.enableGitIntegration`` for
+    the query ``git``, and the position penalty ranks it above deeper segment
+    matches such as ``programs.difftastic.git.enable``.
+    """
+    query_cf = query.casefold()
+    if not query_cf:
+        return 0
+    name_cf = name.casefold()
+
+    if name_cf == query_cf:
+        return 100
+    if name_cf.startswith(query_cf + "."):
+        return 80
+
+    name_parts = name_cf.split(".")
+    query_parts = query_cf.split(".")
+    for start in range(len(name_parts) - len(query_parts) + 1):
+        if name_parts[start : start + len(query_parts)] == query_parts:
+            return 70 - min(start, 8)
+
+    if query_cf in name_cf:
+        return 60
+    if query_cf in description.casefold():
+        return 20
+    return 0
+
+
 def _parse_home_manager_mdbook(soup: BeautifulSoup, query: str, prefix: str, limit: int | None) -> list[dict[str, str]]:
-    """Parse Home Manager options from the current mdBook HTML structure."""
+    """Parse options from an mdBook-style document (Home Manager docs)."""
     options: list[dict[str, str]] = []
 
     for heading in soup.select('h2[id^="opt-"]'):
@@ -87,7 +120,10 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int |
         resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "html.parser")
 
-        if "home-manager" in url and soup.select_one('h2[id^="opt-"]') is not None:
+        # Dispatch on document structure, not URL: mdBook option docs (Home
+        # Manager) mark each option with an h2 "opt-" heading, while DocBook
+        # manuals (nix-darwin) use dt/dd definition lists.
+        if soup.select_one('h2[id^="opt-"]') is not None:
             return _parse_home_manager_mdbook(soup, query, prefix, limit)
 
         options: list[dict[str, str]] = []

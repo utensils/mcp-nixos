@@ -14,7 +14,7 @@ from typing import Final, TypedDict
 
 from ..caches import nvf_cache
 from ..config import APIError
-from ..utils import error
+from ..utils import error, score_option_match
 
 NVF_SOURCE: Final = "nvf"
 NVF_DISPLAY_NAME: Final = "NVF"
@@ -23,7 +23,9 @@ NVF_CANONICAL_ROOT: Final = "vim"
 NVF_SUPPORTED_ACTIONS: Final[frozenset[str]] = frozenset({"search", "info", "browse", "stats"})
 
 _NVF_SEARCH_DESCRIPTION_LIMIT: Final = 200
-_NVF_SEARCH_DEFAULT_LIMIT: Final = 120
+# Character-truncation width for the Default-value field in search listings
+# (a text width, unlike _NVF_BROWSE_LIMIT which is a result count).
+_NVF_DEFAULT_FIELD_TEXT_LIMIT: Final = 120
 _NVF_INFO_EXAMPLE_LIMIT: Final = 500
 _NVF_BROWSE_LIMIT: Final = 100
 
@@ -97,18 +99,7 @@ def _compact_text(value: str, limit: int) -> str:
 
 def _nvf_match_score(option: NvfOption, query: str) -> int:
     """Score a search match, prioritizing option paths over descriptions."""
-    name = option["name"].casefold()
-    description = option["description"].casefold()
-
-    if name == query:
-        return 100
-    if name.startswith(query + "."):
-        return 80
-    if query in name:
-        return 60
-    if query in description:
-        return 20
-    return 0
+    return score_option_match(option["name"], option["description"], query)
 
 
 def _search_nvf(query: str, limit: int) -> str:
@@ -137,7 +128,7 @@ def _search_nvf(query: str, limit: int) -> str:
             if option["type"]:
                 results.append(f"  Type: {option['type']}")
             if option["default"]:
-                default = _compact_text(option["default"], _NVF_SEARCH_DEFAULT_LIMIT)
+                default = _compact_text(option["default"], _NVF_DEFAULT_FIELD_TEXT_LIMIT)
                 results.append(f"  Default: {default}")
             if option["description"]:
                 description = _compact_text(option["description"], _NVF_SEARCH_DESCRIPTION_LIMIT)

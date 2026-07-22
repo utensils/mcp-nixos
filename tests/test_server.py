@@ -200,6 +200,25 @@ class TestParseHtmlOptions:
         assert [option["name"] for option in result] == ["programs.git.enable"]
 
     @patch("mcp_nixos.utils.requests.get")
+    def test_mdbook_dispatch_is_structural_not_url_based(self, mock_get):
+        """The mdBook parser is chosen by document structure, not by the URL."""
+        html = b"""
+        <html><body>
+        <h2 id="opt-system.defaults.dock.autohide"><a class="header">system.defaults.dock.autohide</a></h2>
+        <p>Whether to hide the dock.</p><p><em>Type:</em> boolean</p>
+        </body></html>
+        """
+        mock_resp = Mock()
+        mock_resp.content = html
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = parse_html_options("https://example.invalid/manual/index.html", limit=None)
+
+        assert [option["name"] for option in result] == ["system.defaults.dock.autohide"]
+        assert result[0]["type"] == "boolean"
+
+    @patch("mcp_nixos.utils.requests.get")
     def test_timeout(self, mock_get):
         from mcp_nixos.server import DocumentParseError
 
