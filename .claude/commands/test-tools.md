@@ -60,20 +60,21 @@ Return a markdown table with Test | Expected | Actual | Status (PASS/FAIL) for e
 Test the mcp__nixos__nix tool for Home Manager and Darwin sources. Run EVERY test below:
 
 HOME-MANAGER SEARCH:
-- action=search, source=home-manager, query=git
+- action=search, source=home-manager, query=git (expect programs.git.* in the TOP results, ranked above *.enableGitIntegration substring matches - ranking regression, issue #190)
+- action=search, source=home-manager, query=programs.git.enable (expect exact match ranked first)
 
 HOME-MANAGER INFO:
 - action=info, source=home-manager, query=programs.git.enable
 
 HOME-MANAGER STATS:
-- action=stats, source=home-manager
+- action=stats, source=home-manager (expect Total options > 5,000)
 
 HOME-MANAGER OPTIONS:
 - action=options, source=home-manager, query=programs.git
 - action=options, source=home-manager (no query - list all categories)
 
 DARWIN SEARCH:
-- action=search, source=darwin, query=dock
+- action=search, source=darwin, query=dock (expect system.defaults.dock.* in the TOP results - ranking regression, issue #190)
 
 DARWIN INFO:
 - action=info, source=darwin, query=system.defaults.dock.autohide
@@ -127,10 +128,10 @@ Return a markdown table with Test | Expected | Actual | Status (PASS/FAIL) for e
 
 ---
 
-### Group 4: Nixvim & Wiki Tests
+### Group 4: Nixvim, NVF & Wiki Tests
 **Subagent prompt:**
 ```
-Test the mcp__nixos__nix tool for Nixvim and Wiki sources. Run EVERY test below:
+Test the mcp__nixos__nix tool for Nixvim, NVF, and Wiki sources. Run EVERY test below:
 
 NIXVIM SEARCH:
 - action=search, source=nixvim, query=telescope
@@ -143,6 +144,23 @@ NIXVIM STATS:
 
 NIXVIM OPTIONS:
 - action=options, source=nixvim, query=plugins
+
+NVF SEARCH:
+- action=search, source=nvf, query=languages.nix (expect vim.languages.nix.* options)
+- action=search, source=nvf, query=programs.nvf.vim.languages.nix.enable (wrapper path - expect results using canonical vim.* form)
+- action=search, source=nvf, query=xyznonexistent12345 (expect "No NVF options found")
+
+NVF INFO:
+- action=info, source=nvf, query=vim.languages.nix.enable (canonical path)
+- action=info, source=nvf, query=programs.nvf.settings.vim.languages.nix.enable (module wrapper path - expect "NVF Option: vim.languages.nix.enable" with Documentation link)
+- action=info, source=nvf, query=vim.nonexistent.xyz (expect NOT_FOUND)
+
+NVF STATS:
+- action=stats, source=nvf (expect "Documentation track: unstable" and Total options > 2,000)
+
+NVF BROWSE:
+- action=browse, source=nvf (no query - expect categories including vim.languages)
+- action=browse, source=nvf, query=programs.nvf.vim.languages.nix (wrapped prefix - expect "NVF options with prefix 'vim.languages.nix'")
 
 WIKI SEARCH:
 - action=search, source=wiki, query=nvidia
@@ -378,7 +396,7 @@ After ALL 8 subagents complete, compile a FINAL SUMMARY in this EXACT format:
 | 1. Core NixOS | X | X | X | X% |
 | 2. Home Manager & Darwin | X | X | X | X% |
 | 3. Flakes & FlakeHub | X | X | X | X% |
-| 4. Nixvim & Wiki | X | X | X | X% |
+| 4. Nixvim, NVF & Wiki | X | X | X | X% |
 | 5. Noogle | X | X | X | X% |
 | 6. nix-dev & NixHub | X | X | X | X% |
 | 7. Cache Action | X | X | X | X% |

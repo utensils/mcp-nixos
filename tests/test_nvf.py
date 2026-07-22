@@ -294,10 +294,12 @@ class TestNvfSearch:
         with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
             result = _search_nvf("enable", 2)
 
+        # Shallower segment matches rank first (vim.lsp.enable at depth 2
+        # beats vim.languages.*.enable at depth 3), then alphabetical.
         assert "Found 2 NVF options" in result
-        assert "vim.languages.lua.enable" in result
-        assert "vim.languages.nix.enable" in result
-        assert "vim.lsp.enable" not in result
+        assert "vim.lsp.enable" in result
+        assert "vim.notes.enable" in result
+        assert "vim.languages.lua.enable" not in result
 
     def test_search_reports_no_matches(self):
         with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):

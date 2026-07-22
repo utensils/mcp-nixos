@@ -45,13 +45,17 @@ class TestNixSearchIntegration:
     async def test_search_home_manager(self):
         result = await nix_fn(action="search", query="git", source="home-manager", limit=3)
         assert "Found" in result
-        assert "git" in result.lower()
+        # Ranking regression (GH #190): the direct programs.git.* namespace must
+        # outrank alphabetically-earlier *.enableGitIntegration substring matches.
+        assert "programs.git." in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
     async def test_search_darwin(self):
         result = await nix_fn(action="search", query="dock", source="darwin", limit=3)
-        assert "dock" in result.lower() or "No nix-darwin" in result
+        assert "Found" in result
+        # Ranking regression (GH #190): direct dock options must surface first.
+        assert "system.defaults.dock." in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio

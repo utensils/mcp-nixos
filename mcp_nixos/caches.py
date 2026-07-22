@@ -12,7 +12,9 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from .config import (
+    DARWIN_URL,
     FALLBACK_CHANNELS,
+    HOME_MANAGER_URL,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
     NIXOS_AUTH,
@@ -21,6 +23,7 @@ from .config import (
     NVF_OPTIONS_URL,
     APIError,
 )
+from .utils import parse_html_options
 
 if TYPE_CHECKING:
     from .sources.nvf import NvfOption
@@ -255,6 +258,37 @@ class NvfCache:
 
 
 nvf_cache = NvfCache()
+
+
+class HtmlOptionsCache:
+    """Process-local cache for an HTML-parsed option catalogue.
+
+    Home Manager and nix-darwin publish their full option catalogues as
+    single HTML documents (~4 MB for Home Manager). Parsing once per process
+    lets search, info, browse, and stats filter in memory instead of
+    re-downloading and re-parsing the document on every request.
+    """
+
+    def __init__(self, url: str, display_name: str) -> None:
+        self.url = url
+        self.display_name = display_name
+        self.options: list[dict[str, str]] | None = None
+
+    def get_options(self) -> list[dict[str, str]]:
+        """Fetch, parse, and cache the full option catalogue."""
+        if self.options is not None:
+            return self.options
+
+        options = parse_html_options(self.url, limit=None)
+        if not options:
+            raise APIError(f"Failed to parse {self.display_name} options: no options found")
+
+        self.options = options
+        return self.options
+
+
+home_manager_cache = HtmlOptionsCache(HOME_MANAGER_URL, "Home Manager")
+darwin_cache = HtmlOptionsCache(DARWIN_URL, "nix-darwin")
 
 
 class NixDevCache:
