@@ -10,7 +10,7 @@
     "check": "vue-tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.1.2",
     "vitepress": "^1.6.4",
     "vue": "^3.5.33",
     "vue-tsc": "^2.2.0"
