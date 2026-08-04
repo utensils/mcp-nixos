@@ -216,17 +216,6 @@ jobs:
             done
           done
 
-      - name: Make GHCR package public
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api --method PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/orgs/utensils/packages/container/mcp-nixos" \
-            -f visibility=public || echo "Could not set visibility via API"
-
   publish-flakehub:
     needs: [validate, build]
     if: ${{ github.event_name == 'release' && !github.event.release.prerelease && needs.build.result == 'success' }}
@@ -246,14 +235,30 @@ jobs:
         env:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
+          verify_platforms() {
+            jq --exit-status '
+              [.manifests[].platform | "\(.os)/\(.architecture)"] as $platforms
+              | ($platforms | index("linux/amd64")) != null
+              and ($platforms | index("linux/arm64")) != null
+            ' >/dev/null
+          }
+
           curl --fail --location --retry 12 --retry-all-errors --retry-delay 10 \
             "https://pypi.org/pypi/mcp-nixos/$VERSION/json" \
             | jq --exit-status --arg version "$VERSION" '.info.version == $version' >/dev/null
-          for image in "utensils/mcp-nixos:$VERSION" "ghcr.io/utensils/mcp-nixos:$VERSION"; do
-            docker buildx imagetools inspect --raw "$image" \
-              | jq --exit-status '
-                  [.manifests[].platform | "\(.os)/\(.architecture)"] as $platforms
-                  | ($platforms | index("linux/amd64")) != null
-                  and ($platforms | index("linux/arm64")) != null
-                ' >/dev/null
-          done
+
+          docker buildx imagetools inspect --raw "utensils/mcp-nixos:$VERSION" \
+            | verify_platforms
+
+          ghcr_token=$(curl --fail --silent --show-error \
+            --retry 12 --retry-all-errors --retry-delay 10 \
+            --get "https://ghcr.io/token" \
+            --data-urlencode "scope=repository:utensils/mcp-nixos:pull" \
+            --data-urlencode "service=ghcr.io" \
+            | jq --exit-status --raw-output '.token')
+          curl --fail --silent --show-error \
+            --retry 12 --retry-all-errors --retry-delay 10 \
+            --header "Authorization: Bearer $ghcr_token" \
+            --header "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
+            "https://ghcr.io/v2/utensils/mcp-nixos/manifests/$VERSION" \
+            | verify_platforms
