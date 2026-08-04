@@ -1,3 +1,11 @@
+# Unreleased
+
+## Compatibility
+
+- Intel macOS (`x86_64-darwin`) flake outputs have been removed because current nixpkgs marks a transitive development-shell dependency as broken on that platform, which prevented FlakeHub from evaluating and publishing the flake. Apple Silicon macOS (`aarch64-darwin`) and both supported Linux systems remain available.
+
+---
+
 # MCP-NixOS: v2.4.3 Release Notes - LLM Discoverability
 
 ## Overview
