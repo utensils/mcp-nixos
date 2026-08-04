@@ -1,40 +1,34 @@
-# Unreleased
+# Changelog
 
-## Compatibility
+## 2.4.3 - LLM Discoverability
 
-- Intel macOS (`x86_64-darwin`) flake outputs have been removed because current nixpkgs marks a transitive development-shell dependency as broken on that platform, which prevented FlakeHub from evaluating and publishing the flake. Apple Silicon macOS (`aarch64-darwin`) and both supported Linux systems remain available.
-
----
-
-# MCP-NixOS: v2.4.3 Release Notes - LLM Discoverability
-
-## Overview
+### Overview
 
 MCP-NixOS v2.4.3 makes the server measurably easier for LLMs to discover and use correctly. When asked Nix-flavored questions, models were reaching for `Bash` (`gh api`, `curl`, `nix search`) before considering this MCP — even though it would have answered faster and with less code. This release closes that gap with a server-level instructions string, an INTENTS → CALLS recipe block, deterministic `action=info` matching, and per-channel revision metadata. No breaking changes.
 
-## Changes in v2.4.3
+### Changes in v2.4.3
 
-### ✨ Added
+#### ✨ Added
 
 - **Server-level `instructions`** (#146, #147): The FastMCP server now ships an `instructions` string that is surfaced to clients via the MCP `InitializeResult`. Hosts render it alongside tool schemas, priming the model on when to reach for this server vs. Bash / web search / scraping `search.nixos.org`. Includes intent triggers (mentions of package names, attribute paths, NixOS / home-manager / darwin options, channel names, flake inputs, `/nix/store/` paths) and a JSON-shaped recipe block.
 - **INTENTS → CALLS recipe in the `nix` tool docstring** (#147): Real user phrasings ("is package X in channel Y?", "search NixOS options for X", "does X have a binary cache?") mapped to exact JSON call shapes. Cross-references `nix_versions` for history queries.
 - **Per-channel nixpkgs HEAD commit in `action=channels`** (#147): When the commit is embedded in the ES index name, output labels it `Revision (indexed): <sha>` (safe to compare against `nix_versions`). Otherwise a best-effort GitHub API fetch labels it `Branch HEAD: <sha> (upstream; may be ahead of indexed data)`. Cached per branch with a 10-minute TTL so long-running servers don't return stale revisions.
 
-### 🔧 Fixed
+#### 🔧 Fixed
 
 - **Silent fuzzy match in `action=info` for packages** (#146, #147): Previously `{"action": "info", "query": "firefox"}` could arbitrarily return `firefox-esr` because `term: pname=firefox` matches three packages (firefox, firefox-esr, firefox-mobile) and `size:1` picked one non-deterministically. Match now prioritises exact attribute path, then exact pname; when multiple attrs share a pname, prefers the canonical entry (attr == pname) and explicitly flags the disambiguation in the response with a copy-pasteable JSON retry hint. Non-canonical tie-breaks sort by attribute name so repeated calls are deterministic.
 - **Disambiguation hint emits a copy-pasteable JSON object** (#147): The pname-collision retry hint previously used a `action=info, query='X'` pseudo-call shape that did not match the JSON-object form models actually send.
 
-### 🛠️ Internal
+#### 🛠️ Internal
 
 - GitHub API call now sets a `User-Agent: mcp-nixos/<version>` header for traceability and rate-limit diagnostics.
 - Channel branch revision lookups defensively handle non-JSON 200 responses and fall back to the stale cached value rather than bubbling the error up to `action=channels`.
 
-### 🧪 Tests
+#### 🧪 Tests
 
 - 12 new unit tests covering attr-first match priority, pname ambiguity signaling and deterministic tie-break, single-pname-hit cleanliness, indexed vs. branch-HEAD revision labeling, TTL refresh and cache-hit paths, JSON-decode failure fallback, server instructions presence, and JSON call-shape consistency. Total tests: 348 (was 336).
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -47,7 +41,7 @@ uv pip install mcp-nixos==2.4.3
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -57,42 +51,42 @@ docker pull utensils/mcp-nixos:2.4.3
 docker pull ghcr.io/utensils/mcp-nixos:2.4.3
 ```
 
-## Migration Notes
+### Migration Notes
 
 Drop-in replacement for v2.4.2. No configuration or API changes. The biggest user-visible behavior change is that `action=info` for an ambiguous pname (e.g. `firefox`) now returns the canonical attribute deterministically instead of an arbitrary one — if you were relying on the old behavior, pass an explicit attribute path.
 
-## Contributors
+### Contributors
 
 - James Brink (@jamesbrink) — design, implementation, tests
 - Codex / Copilot / CodeRabbit — automated peer reviews on #147
 
 ---
 
-# MCP-NixOS: v2.4.2 Release Notes - Dotenv Startup Crash Fix
+## 2.4.2 - Dotenv Startup Crash Fix
 
-## Overview
+### Overview
 
 MCP-NixOS v2.4.2 fixes a startup crash when the server is launched from a working directory containing a non-UTF-8 `.env` file (e.g. git-crypt ciphertext, sops-encrypted dotenv, or any binary blob). Previously, `fastmcp`'s top-level `Settings()` construction ran python-dotenv on `.env` in the process CWD at import time, and a non-UTF-8 byte anywhere in that file took the whole server down with a `UnicodeDecodeError` — before the MCP stdio handshake ever ran. Clients (Claude Code, opencode, Roo, Pi, etc.) just saw mcp-nixos fail to initialise.
 
-## Changes in v2.4.2
+### Changes in v2.4.2
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Survive non-UTF-8 `.env` in CWD** (#144, #145): `mcp_nixos/__init__.py` now defaults `FASTMCP_ENV_FILE` to `os.devnull` via `os.environ.setdefault`, before any submodule imports fastmcp. mcp-nixos does not read any values from fastmcp's `.env` lookup, so pointing fastmcp at a known-empty path sidesteps the crash without behavior loss. Users who legitimately need a fastmcp dotenv can still set `FASTMCP_ENV_FILE` explicitly and it will be respected.
 
-### 🧪 Tests
+#### 🧪 Tests
 
 - Added `tests/test_env_file_safety.py` — three subprocess-based regression tests that spawn fresh Python processes to exercise import-time behavior: non-UTF-8 `.env` in CWD → clean import; explicit `FASTMCP_ENV_FILE` override preserved; unset `FASTMCP_ENV_FILE` defaults to `os.devnull`.
 
-### 📚 Documentation
+#### 📚 Documentation
 
 - Website migrated from Next.js + Tailwind to VitePress 1.6 with a small custom theme preserving the NixOS brand palette (#143). No behavioral change to the Python package — this only affects the mcp-nixos.io marketing site.
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No changes from previous version.
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -105,7 +99,7 @@ uv pip install mcp-nixos==2.4.2
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -115,34 +109,34 @@ docker pull utensils/mcp-nixos:2.4.2
 docker pull ghcr.io/utensils/mcp-nixos:2.4.2
 ```
 
-## Migration Notes
+### Migration Notes
 
 Drop-in replacement for v2.4.1. No configuration or API changes. If you previously worked around this bug with `FASTMCP_ENV_FILE=/dev/null` or a CWD-change wrapper, you can remove those shims — the server now ships the equivalent default.
 
-## Contributors
+### Contributors
 
 - James Brink (@jamesbrink) — fix, tests
 - Reporter: @versality (#144) — excellent reproducer and suggested fix path
 
 ---
 
-# MCP-NixOS: v2.4.1 Release Notes - Flake Overlay Compatibility
+## 2.4.1 - Flake Overlay Compatibility
 
-## Overview
+### Overview
 
 MCP-NixOS v2.4.1 fixes the `fastmcp3` Nix flake overlay for downstream consumers whose nixpkgs does not contain `griffelib` or `uncalled-for`. Both packages were added to nixos-unstable on 2026-03-18 and are absent from stable (`nixos-25.11`) and older unstable pins. No runtime, API, or Python-package changes — this release only affects Nix flake consumers.
 
-## Changes in v2.4.1
+### Changes in v2.4.1
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Flake overlay compatibility** (#135, #136): `overlays.fastmcp3` previously referenced `pyFinal.griffelib` and `pyFinal.uncalled-for` directly, which failed with `error: attribute 'griffelib' missing` for any consumer using `inputs.nixpkgs.follows = "nixpkgs"` against a nixpkgs that predates those packages. The overlay now guards both references with `or` fallbacks that `callPackage` local derivations (`nix/griffelib.nix`, `nix/uncalled-for.nix`) when the consumer's nixpkgs lacks them. Consumers on current unstable continue to use the upstream packages unchanged — the fallback path only triggers when the attribute is missing.
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No changes from previous version.
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -155,7 +149,7 @@ uv pip install mcp-nixos==2.4.1
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -165,45 +159,45 @@ docker pull utensils/mcp-nixos:2.4.1
 docker pull ghcr.io/utensils/mcp-nixos:2.4.1
 ```
 
-## Migration Notes
+### Migration Notes
 
 Drop-in replacement for v2.4.0. If you are a Nix flake consumer who pinned `v2.4.0` with `inputs.nixpkgs.follows` against a stable or older nixpkgs, bump to `v2.4.1` to unblock the build. PyPI and Docker consumers see no behavioral change.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) — overlay fix
 - Reporter: @rolfst (#135) — flagged the downstream breakage
 
 ---
 
-# MCP-NixOS: v2.4.0 Release Notes - FastMCP 3.x Upgrade
+## 2.4.0 - FastMCP 3.x Upgrade
 
-## Overview
+### Overview
 
 MCP-NixOS v2.4.0 upgrades the framework dependency to FastMCP 3.x (`fastmcp>=3.2.0`). No user-facing behavior changes — this is a dependency bump needed to keep the project buildable alongside downstream nixpkgs work that moves consumers (e.g. `ha-mcp`) onto FastMCP 3 (tracked in [NixOS/nixpkgs#511658](https://github.com/NixOS/nixpkgs/pull/511658)).
 
-## Changes in v2.4.0
+### Changes in v2.4.0
 
-### 🚀 Framework
+#### 🚀 Framework
 
 - **FastMCP 3.x upgrade** (#127, #130): Bumped `fastmcp>=2.11.0` → `fastmcp>=3.2.0` in `pyproject.toml`. The server's API surface (constructor, `@mcp.tool()`, `mcp.run()` with stdio/http kwargs) is unchanged; both transports continue to work identically.
 - **Nix flake fastmcp 3 override**: The flake overlay temporarily overrides `python3Packages.fastmcp` to build PrefectHQ/fastmcp v3.2.4 directly, mirroring pending nixpkgs PR [#510339](https://github.com/NixOS/nixpkgs/pull/510339). The override lives in `overlays.fastmcp3` and is composed into `overlays.default`, so downstream consumers applying `mcp-nixos.overlays.default` get the upgraded fastmcp automatically. Removable once upstream nixpkgs catches up.
 - **aarch64-linux docker build** (#131): Dropped `pydocket` from the inherited runtime deps in the fastmcp override — matches the upstream PR which moves it to `optional-dependencies.tasks`. Without this, `pydocket` pulled in `lupa`, whose bundled `libluajit.a` fails to link on aarch64-linux. Multi-arch Docker images now build cleanly on both `amd64` and `arm64` again.
 - **Test shim for fastmcp 2.x / 3.x compat**: `tests/test_tools.py`, `tests/test_integration.py`, and `tests/test_flake_inputs.py` now use `getattr(tool, "fn", tool)` instead of `tool.fn`. FastMCP 2.x and the PyPI wheel of 3.2.4 wrap `@mcp.tool()` as `FunctionTool` (has `.fn`), while the nix-built 3.2.4 returns a plain async function. Same shim the `.pi` wrapper already uses.
 
-### ⚠️ Breaking (for package consumers)
+#### ⚠️ Breaking (for package consumers)
 
 - If you had `fastmcp==2.x` pinned elsewhere in your environment alongside `mcp-nixos`, pip/uv will now refuse to resolve. Upgrade fastmcp to >=3.2.0 or remove the pin.
 
-### 🧹 Docs
+#### 🧹 Docs
 
 - `CLAUDE.md` updated to say "FastMCP 3.x server" and cite the actual pin (`fastmcp>=3.2.0`).
 
-### 🪲 Known non-issues
+#### 🪲 Known non-issues
 
 - The overlay keeps `py-key-value-aio` at nixpkgs' 0.3.0, which fastmcp 3.2.4 formally wants at >=0.4.4 with the `filetree` extra. This only affects the `fastmcp.server.auth.oauth_proxy` import path (missing `aiofile`) — not used by mcp-nixos. Tracked in #129; resolves naturally when nixpkgs PR #510339 lands.
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -216,7 +210,7 @@ uv pip install mcp-nixos==2.4.0
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -226,33 +220,33 @@ docker pull utensils/mcp-nixos:2.4.0
 docker pull ghcr.io/utensils/mcp-nixos:2.4.0
 ```
 
-## Migration Notes
+### Migration Notes
 
 No runtime or configuration changes. The only practical impact is the transitive dependency upgrade — if anything else in your environment holds fastmcp to 2.x, relax that pin.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) — FastMCP 3 upgrade, flake overlay, release
 - Reporter: @JamieMagee (#127) — flagged the downstream nixpkgs upgrade blocker
 
 ---
 
-# MCP-NixOS: v2.3.2 Release Notes - Local Agent Tool Descriptions
+## 2.3.2 - Local Agent Tool Descriptions
 
-## Overview
+### Overview
 
 MCP-NixOS v2.3.2 improves the `nix` tool's descriptions and error messages so smaller local models (qwen3.6, qwen3-coder via Pi, etc.) can reliably map intent to the right `action`/`type` combo. Also ships a project-local Pi Coding Agent extension.
 
-## Changes in v2.3.2
+### Changes in v2.3.2
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Rename `action=options` → `action=browse`** (#125): The old name suggested "the options action" but actually meant "browse an option hierarchy by prefix" and rejected `source=nixos` outright. Small models reasonably tried it for NixOS options and hit a dead end. `action=options` is still accepted as a silent alias for backward compatibility.
 - **`browse` with `source=nixos` now redirects** (#125): Instead of a generic "not for nixos" rejection, the error now contains the exact correct JSON (`{"action": "search", ..., "type": "options"}`) so a retry uses the right shape.
 - **Pi wrapper fastmcp 2.x compatibility** (#128): The `.pi/extensions/mcp-nixos.ts` wrapper now unwraps FastMCP `FunctionTool` via `getattr(tool, "fn", tool)`. Previously it worked on fastmcp 3.x (plain function) but failed on fastmcp 2.x (Nix dev-shell / CI) with `TypeError: 'FunctionTool' object is not callable`.
 - **Pi wrapper cancellation propagation** (#128): Aborted tool calls now short-circuit the Python-candidate retry loop instead of spawning further `uv`/`python3`/`python` processes.
 
-### 📚 Tool Description Improvements (#123, #125)
+#### 📚 Tool Description Improvements (#123, #125)
 
 - **Concrete JSON examples in the `nix` docstring**: 9 copy-pasteable examples (`search`, `info`, `browse`, `channels`, `cache`, etc.) that small models can pattern-match against.
 - **Replaced pipe-separated values with plain prose** in parameter and error messages (e.g. `"one of: packages, options, programs, flakes"` instead of `"packages|options|programs|flakes"`). Pipes looked like pseudo-JSON to weaker models and fed back confusingly into the next attempt.
@@ -260,21 +254,21 @@ MCP-NixOS v2.3.2 improves the `nix` tool's descriptions and error messages so sm
 - **Documented the `flake-inputs` path mode** for `source` in both the Python tool and the Pi schema.
 - **Concrete examples in redirect error** — replaced `<keyword>` / `<option.path>` placeholders in the browse-nixos redirect with `nginx` / `services.nginx.enable` so a literal copy is runnable.
 
-### 🧩 Pi Coding Agent
+#### 🧩 Pi Coding Agent
 
 - **Project-local `.pi/extensions/mcp-nixos.ts`**: Auto-loaded by Pi when run in the cloned repo. Wraps the Python tools as native Pi tools (no MCP transport overhead).
 - **README "Option 5: Pi Coding Agent"**: Documents both the `pi-mcp-adapter` path (recommended, speaks MCP) and the project-local extension path.
 - **`.pi/package.json` + `.pi/tsconfig.json`**: Enable clean in-editor type resolution for the extension (optional — `npm install` locally if you want it; Pi itself resolves at runtime).
 
-### 🔧 Tooling
+#### 🔧 Tooling
 
 - **Pre-commit ruff bumped** from `v0.4.10` to `v0.14.10` to match the ruff version shipped by the Nix dev-shell / CI, ending a formatter ping-pong on assert layouts.
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No runtime dependency changes.
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -287,7 +281,7 @@ uv pip install mcp-nixos==2.3.2
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -297,40 +291,40 @@ docker pull utensils/mcp-nixos:2.3.2
 docker pull ghcr.io/utensils/mcp-nixos:2.3.2
 ```
 
-## Migration Notes
+### Migration Notes
 
 Drop-in replacement with no user-facing breaking changes. The renamed `action=browse` is additive — existing callers using `action=options` continue to work via the alias. Tool description changes are consumed by LLMs, not user code.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) — Tool description overhaul, Pi extension, release
 - Reporters: @juk0de (#123), @Smona (#125)
 
 ---
 
-# MCP-NixOS: v2.3.1 Release Notes - Dotted Package Name Search Fix
+## 2.3.1 - Dotted Package Name Search Fix
 
-## Overview
+### Overview
 
 MCP-NixOS v2.3.1 fixes package search and info lookups for dotted/namespaced attribute paths (e.g., `kdePackages.qt6ct`, `python314Packages.matplotlib`). Previously, models were unable to find packages by their exact namespaced names.
 
-## Changes in v2.3.1
+### Changes in v2.3.1
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Dotted Package Name Search** (#118): Search now queries `package_attr_name` in Elasticsearch and extracts the last component of dotted names for `package_pname` matching. Searching for `kdePackages.qt6ct` now correctly finds the `qt6ct` package.
 - **Info Lookup by Attribute Path** (#118): The `info` action falls back to `package_attr_name` when the `pname` lookup returns no results, so `nix(action="info", query="kdePackages.qt6ct")` now works.
 - **Attribute Path in Output** (#118): Search results and info output now display the full attribute path (e.g., `kdePackages.qt6ct`) instead of just the pname (`qt6ct`), helping users identify which package set a package belongs to.
 
-### 🧹 Housekeeping
+#### 🧹 Housekeeping
 
 - **CLAUDE.md / AGENTS.md**: Fixed circular symlinks. `CLAUDE.md` is now the source of truth, `AGENTS.md` symlinks to it.
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No changes from previous version
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -343,7 +337,7 @@ uv pip install mcp-nixos==2.3.1
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -353,25 +347,25 @@ docker pull utensils/mcp-nixos:2.3.1
 docker pull ghcr.io/utensils/mcp-nixos:2.3.1
 ```
 
-## Migration Notes
+### Migration Notes
 
 Drop-in replacement with no user-facing breaking changes. Search results now include attribute paths in the output, which provides more information but doesn't change the format in a breaking way.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Dotted package name fix
 
 ---
 
-# MCP-NixOS: v2.3.0 Release Notes - HTTP Transport & Modular Architecture
+## 2.3.0 - HTTP Transport & Modular Architecture
 
-## Overview
+### Overview
 
 MCP-NixOS v2.3.0 adds HTTP transport support for Remote MCP, binary cache status checking, NixHub as a rich metadata source, and restructures the codebase into a modular architecture. This release includes two new user-facing features with no breaking changes.
 
-## Changes in v2.3.0
+### Changes in v2.3.0
 
-### 🚀 New Features
+#### 🚀 New Features
 
 - **HTTP Transport Support** (#104): Run the server over HTTP in addition to STDIO
   - `MCP_NIXOS_TRANSPORT=http` enables HTTP mode (default endpoint: `http://127.0.0.1:8000/mcp`)
@@ -389,7 +383,7 @@ MCP-NixOS v2.3.0 adds HTTP transport support for Remote MCP, binary cache status
   - `nix(action="info", source="nixhub", query="python")` — license, homepage, store paths
   - Enhanced `nix_versions` with richer version data
 
-### 🏗️ Architecture
+#### 🏗️ Architecture
 
 - **Modular Codebase Restructure** (#94): Split monolithic `server.py` into focused modules
   - `mcp_nixos/sources/` — one module per data source (nixos, home_manager, darwin, flakes, etc.)
@@ -398,20 +392,20 @@ MCP-NixOS v2.3.0 adds HTTP transport support for Remote MCP, binary cache status
   - `mcp_nixos/utils.py` — shared utility functions
   - `mcp_nixos/server.py` — MCP tools and routing only
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **serverInfo Version** (#109): Report package version correctly in MCP serverInfo response
 - **pytest Config** (#105): Use list types for pytest ini_options
 - **Channel Validation**: Corrected patch paths for channel validation tests
 - **CI**: Allow dependabot PRs in Claude Code Review workflow
 
-### 📦 Dependencies & CI
+#### 📦 Dependencies & CI
 
 - Bumped `aws-actions/configure-aws-credentials` from 5 to 6
 - Website dependency updates: shiki, autoprefixer, @types/react
 - Added `@pytest.mark.unit` decorators to test suite
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -424,7 +418,7 @@ uv pip install mcp-nixos==2.3.0
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -434,11 +428,11 @@ docker pull utensils/mcp-nixos:2.3.0
 docker pull ghcr.io/utensils/mcp-nixos:2.3.0
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v2.2.0. All existing queries work unchanged. The new HTTP transport and binary cache/NixHub features are entirely additive.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) — Binary cache, NixHub, modular architecture, serverInfo fix
 - ReStranger (@ReStranger) — HTTP transport support (#104)
@@ -446,15 +440,15 @@ This is a drop-in replacement for v2.2.0. All existing queries work unchanged. T
 
 ---
 
-# MCP-NixOS: v2.2.0 Release Notes - Documentation Sources & Flake Inputs
+## 2.2.0 - Documentation Sources & Flake Inputs
 
-## Overview
+### Overview
 
 MCP-NixOS v2.2.0 adds three new documentation sources (NixOS Wiki, nix.dev, and Noogle) and a new `flake-inputs` action to explore local Nix store dependencies. This release significantly expands the knowledge accessible to AI assistants working with Nix.
 
-## Changes in v2.2.0
+### Changes in v2.2.0
 
-### 🚀 New Documentation Sources
+#### 🚀 New Documentation Sources
 
 Three new sources have been added to the `nix` tool:
 
@@ -472,7 +466,7 @@ Three new sources have been added to the `nix` tool:
   - `action=stats`: View function statistics
   - `action=options`: Browse functions by category (e.g., `lib.strings`)
 
-### 🔍 Flake Inputs Exploration
+#### 🔍 Flake Inputs Exploration
 
 New `flake-inputs` action to explore local Nix store dependencies (requires Nix):
 
@@ -486,19 +480,19 @@ Features:
 - Binary file detection and file size limits (up to 2000 lines)
 - Nested input flattening (e.g., `flake-parts.nixpkgs-lib`)
 
-### 🔧 Improvements & Bug Fixes
+#### 🔧 Improvements & Bug Fixes
 
 - **CI/CD**: Updated GitHub Actions (checkout v6, upload/download-artifact v6/v7, setup-node v6)
 - **Documentation**: Added declarative Nix installation examples
 - **Docker**: Fixed tag generation to match flake version output
 - **Website**: Synced feature descriptions and updated dependencies
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No Python dependency changes
 - Website dependencies updated (sharp, @types/node, eslint plugins)
 
-## Usage Examples
+### Usage Examples
 
 ```bash
 # Search NixOS Wiki
@@ -526,7 +520,7 @@ nix action=flake-inputs type=ls query="nixpkgs:lib/strings.nix"
 nix action=flake-inputs type=read query="nixpkgs:flake.nix"
 ```
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -539,7 +533,7 @@ uv pip install mcp-nixos==2.2.0
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -549,43 +543,43 @@ docker pull utensils/mcp-nixos:2.2.0
 docker pull ghcr.io/utensils/mcp-nixos:2.2.0
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v2.1.1. All new features are additive with no breaking changes. Existing queries continue to work unchanged.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Documentation sources and flake-inputs implementation
 
 ---
 
-# MCP-NixOS: v2.1.1 Release Notes - Stable Python Compatibility
+## 2.1.1 - Stable Python Compatibility
 
-## Overview
+### Overview
 
 MCP-NixOS v2.1.1 fixes the Nix flake by using the stable python in nixpkgs.
 
-## Changes in v2.1.1
+### Changes in v2.1.1
 
-### 🔧 Improvements & Bug Fixes
+#### 🔧 Improvements & Bug Fixes
 
 - **Stable Python Compatibility**: MCP-NixOS v2.1.1 fixes the Nix flake by using the stable python in nixpkgs.
 
-## Contributors
+### Contributors
 
 - Malix - Alix Brunet (@Malix-Labs)
 
 ---
 
-# MCP-NixOS: v2.1.0 Release Notes - Pure Nix Flake
+## 2.1.0 - Pure Nix Flake
 
-## Overview
+### Overview
 
 MCP-NixOS v2.1.0 converts to a pure Nix flake build system and adds FlakeHub integration for easier installation. This release fixes build compatibility with nixpkgs-unstable and provides a proper Nix overlay for seamless integration into NixOS and Home Manager configurations.
 
-## Changes in v2.1.0
+### Changes in v2.1.0
 
-### 🚀 Pure Nix Flake Build System
+#### 🚀 Pure Nix Flake Build System
 
 - **Complete Flake Rewrite**: Migrated from hybrid venv/pip approach to pure Nix
 - **Python 3.14 Support**: Now builds with Python 3.14 from nixpkgs
@@ -593,12 +587,12 @@ MCP-NixOS v2.1.0 converts to a pure Nix flake build system and adds FlakeHub int
 - **flake-parts**: Refactored to use flake-parts for cleaner multi-system support
 - **Build Fix**: Added overlay to handle fastmcp/mcp version constraints in nixpkgs-unstable
 
-### 🌐 FlakeHub Integration
+#### 🌐 FlakeHub Integration
 
 - **FlakeHub Publishing**: Package now available on FlakeHub for simplified installation
 - **Semantic Versioning**: Proper versioning support via FlakeHub
 
-### 📦 Installation
+#### 📦 Installation
 
 **Via FlakeHub:**
 ```nix
@@ -621,16 +615,16 @@ MCP-NixOS v2.1.0 converts to a pure Nix flake build system and adds FlakeHub int
 }
 ```
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **nixpkgs-unstable Compatibility**: Fixed build failure caused by fastmcp requiring `mcp<1.17.0` while nixpkgs has `mcp>=1.25.0`
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No Python dependency changes
 - Build system now uses pure nixpkgs packages
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -643,7 +637,7 @@ uv pip install mcp-nixos==2.1.0
 nix run github:utensils/mcp-nixos
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -653,25 +647,25 @@ docker pull utensils/mcp-nixos:2.1.0
 docker pull ghcr.io/utensils/mcp-nixos:2.1.0
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v2.0.0 with no user-facing changes to the MCP tools. The changes are entirely in the Nix build infrastructure. If you were experiencing build failures with v2.0.0 on nixpkgs-unstable, this release resolves that issue.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Nix Flake Architect
 
 ---
 
-# MCP-NixOS: v2.0.0 Release Notes - The Great Consolidation
+## 2.0.0 - The Great Consolidation
 
-## Overview
+### Overview
 
 MCP-NixOS v2.0.0 is a major release that consolidates 17 MCP tools into just 2 unified tools, reducing token overhead by 95%. This release also adds comprehensive Nixvim support with 16,600+ configuration options.
 
-## Changes in v2.0.0
+### Changes in v2.0.0
 
-### 🎯 Tool Consolidation (95% Token Reduction)
+#### 🎯 Tool Consolidation (95% Token Reduction)
 
 - **Before**: 17 individual tools consuming ~15,000 tokens
 - **After**: 2 unified tools consuming ~1,400 tokens
@@ -681,7 +675,7 @@ New tools:
 - `nix` (769 tokens) - Unified query tool for search/info/stats/options/channels
 - `nix_versions` (643 tokens) - Package version history from NixHub.io
 
-### 🚀 Nixvim Support
+#### 🚀 Nixvim Support
 
 Added `nixvim` as a new source for the `nix` tool:
 
@@ -690,25 +684,25 @@ Added `nixvim` as a new source for the `nix` tool:
 - Covers plugins (14,216), LSP (1,439), colorschemes (679), and more
 - Credits [NuschtOS/search](https://github.com/NuschtOS/search) for the data source
 
-### 🔧 Improvements
+#### 🔧 Improvements
 
 - **Input Validation**: Added limit validation (1-100) for nix tool queries
 - **Type Safety**: Fixed `strip_html()` type hint to accept `str | None`
 - **Test Suite**: Comprehensive 114 tests (unit + integration)
 - **Edge Case Coverage**: Tests for channels, programs type, empty results
 
-### 🧹 Cleanup
+#### 🧹 Cleanup
 
 - Removed smithery integration
 - Removed orphaned `website/app/docs/claude.html` (17K+ lines)
 - Consolidated test files from 12 files to 3
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No dependency changes
 - Maintained compatibility with FastMCP 2.x
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -721,7 +715,7 @@ uv pip install mcp-nixos==2.0.0
 uvx mcp-nixos==2.0.0
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -731,9 +725,9 @@ docker pull utensils/mcp-nixos:2.0.0
 docker pull ghcr.io/utensils/mcp-nixos:2.0.0
 ```
 
-## Migration Guide
+### Migration Guide
 
-### ⚠️ Breaking Changes
+#### ⚠️ Breaking Changes
 
 All 17 legacy tools have been removed. You must migrate to the new unified `nix` tool:
 
@@ -753,7 +747,7 @@ All 17 legacy tools have been removed. You must migrate to the new unified `nix`
 | `nixos_channels` | `nix action=channels` |
 | `nix_versions` | `nix_versions` (unchanged) |
 
-### New Nixvim Queries
+#### New Nixvim Queries
 
 ```bash
 # Search Nixvim options
@@ -769,44 +763,44 @@ nix action=options source=nixvim query=plugins
 nix action=stats source=nixvim
 ```
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Chief Consolidator
 
 ---
 
-# MCP-NixOS: v1.1.0 Release Notes - NixOS 25.11 Stable
+## 1.1.0 - NixOS 25.11 Stable
 
-## Overview
+### Overview
 
 MCP-NixOS v1.1.0 updates to NixOS 25.11 as the new stable channel, fixes the flakes search index, and improves CI/CD reliability with automatic retry handling for integration tests.
 
-## Changes in v1.1.0
+### Changes in v1.1.0
 
-### 🚀 Channel Updates
+#### 🚀 Channel Updates
 
 - **NixOS 25.11 Stable**: Updated stable channel to the latest NixOS 25.11 release
 - **Flakes Index Fix**: Fixed flakes search which was broken due to Elasticsearch index changes (#62)
 - **Dynamic Channel Discovery**: Improved channel detection to handle new NixOS releases automatically
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Flaky Test Handling**: Added pytest-rerunfailures for automatic retry of integration tests on API timeouts (#63, #64)
 - **Portability Fix**: Changed `.mcp.json` to use relative paths for better cross-environment compatibility
 - **Test Stability**: All integration test classes now properly marked with flaky decorators
 
-### 🛠️ Development Experience
+#### 🛠️ Development Experience
 
 - **Test Cleanup**: Removed eval test framework and renamed tests with descriptive names
 - **Documentation**: Updated README with accurate statistics and refreshed badges
 - **CI Reliability**: Integration tests now retry up to 3 times with 2-second delay on transient failures
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - Added `pytest-rerunfailures>=15.0` for flaky test handling
 - Maintained compatibility with FastMCP 2.x
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -819,7 +813,7 @@ uv pip install mcp-nixos==1.1.0
 uvx mcp-nixos==1.1.0
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -829,41 +823,41 @@ docker pull utensils/mcp-nixos:1.1.0
 docker pull ghcr.io/utensils/mcp-nixos:1.1.0
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v1.0.3. The "stable" channel alias now points to NixOS 25.11 instead of 25.05. If you explicitly use version-specific channels (e.g., `channel="25.05"`), your queries will continue to work unchanged.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - NixOS 25.11 update and CI improvements
 
 ---
 
-# MCP-NixOS: v1.0.3 Release Notes - Encoding Fix
+## 1.0.3 - Encoding Fix
 
-## Overview
+### Overview
 
 MCP-NixOS v1.0.3 fixes encoding errors when parsing Home Manager and nix-darwin documentation, ensuring robust operation with various HTML encodings from CDN edge servers.
 
-## Changes in v1.0.3
+### Changes in v1.0.3
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **HTML Encoding Support**: Fixed parsing errors with non-UTF-8 encodings (windows-1252, ISO-8859-1, UTF-8 with BOM) in documentation (#58)
 - **CDN Resilience**: Enhanced robustness when fetching docs from different CDN edge nodes with varying configurations
 - **Test Coverage**: Added comprehensive encoding tests for all HTML parsing functions
 
-### 🛠️ Development Experience
+#### 🛠️ Development Experience
 
 - **Release Workflow**: Improved release command documentation with clearer formatting
 - **Test Suite**: Updated 26 tests to properly handle byte content in mock responses
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - No changes from previous version
 - Maintained compatibility with FastMCP 2.x
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -876,7 +870,7 @@ uv pip install mcp-nixos==1.0.3
 uvx mcp-nixos==1.0.3
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -886,25 +880,25 @@ docker pull utensils/mcp-nixos:1.0.3
 docker pull ghcr.io/utensils/mcp-nixos:1.0.3
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v1.0.2 with no user-facing changes. The fix resolves intermittent "unknown encoding: windows-1252" errors when fetching documentation.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Fixed encoding handling in HTML parser
 
 ---
 
-# MCP-NixOS: v1.0.2 Release Notes - Infrastructure Improvements
+## 1.0.2 - Infrastructure Improvements
 
-## Overview
+### Overview
 
 MCP-NixOS v1.0.2 is a maintenance release focused on CI/CD improvements, security fixes, and enhanced Docker support. This release adds manual workflow dispatch capabilities, GHCR package visibility automation, and improves the deployment pipeline.
 
-## Changes in v1.0.2
+### Changes in v1.0.2
 
-### 🚀 CI/CD Enhancements
+#### 🚀 CI/CD Enhancements
 
 - **Manual Workflow Dispatch**: Added ability to manually trigger Docker builds for specific tags
 - **GHCR Package Visibility**: Automated setting of GitHub Container Registry packages to public visibility
@@ -912,26 +906,26 @@ MCP-NixOS v1.0.2 is a maintenance release focused on CI/CD improvements, securit
 - **FlakeHub Publishing**: Integrated automated FlakeHub deployment workflow
 - **Workflow Separation**: Split website deployment into dedicated workflow for better CI/CD organization
 
-### 🔧 Bug Fixes
+#### 🔧 Bug Fixes
 
 - **Tag Validation**: Fixed regex character class in Docker tag validation
 - **API Resilience**: Added fallback channels when NixOS API discovery fails (#52, #54)
 - **Documentation Fixes**: Escaped quotes in usage page to fix ESLint errors
 - **Security**: Patched PrismJS DOM Clobbering vulnerability
 
-### 🛠️ Development Experience
+#### 🛠️ Development Experience
 
 - **Code Review Automation**: Enhanced Claude Code Review with sticky comments
 - **Agent Support**: Added MCP and Python development subagents
 - **CI Optimization**: Skip CI builds on documentation-only changes
 - **Improved Docker Support**: Better multi-architecture builds (amd64, arm64)
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - All dependencies remain unchanged from v1.0.1
 - Maintained compatibility with FastMCP 2.x
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -944,7 +938,7 @@ uv pip install mcp-nixos==1.0.2
 uvx mcp-nixos==1.0.2
 ```
 
-## Docker Images
+### Docker Images
 
 ```bash
 # Pull from Docker Hub
@@ -954,25 +948,25 @@ docker pull utensils/mcp-nixos:1.0.2
 docker pull ghcr.io/utensils/mcp-nixos:1.0.2
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v1.0.1 with no user-facing changes. All improvements are infrastructure and workflow related.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Chief Infrastructure Engineer
 
 ---
 
-# MCP-NixOS: v1.0.1 Release Notes - FastMCP 2.x Migration
+## 1.0.1 - FastMCP 2.x Migration
 
-## Overview
+### Overview
 
 MCP-NixOS v1.0.1 completes the migration to FastMCP 2.x, bringing modern async/await patterns and improved MCP protocol compliance. This release maintains all existing functionality while modernizing the codebase for better performance and maintainability.
 
-## Changes in v1.0.1
+### Changes in v1.0.1
 
-### 🚀 Major Updates
+#### 🚀 Major Updates
 
 - **FastMCP 2.x Migration**: Migrated from MCP SDK to FastMCP 2.x for better async support
 - **Async/Await Patterns**: All tools now use proper async/await patterns throughout
@@ -980,7 +974,7 @@ MCP-NixOS v1.0.1 completes the migration to FastMCP 2.x, bringing modern async/a
 - **Test Suite Overhaul**: Fixed all 334 tests to work with new async architecture
 - **CI/CD Modernization**: Updated to use ruff for linting/formatting (replacing black/flake8/isort)
 
-### 🔧 Technical Improvements
+#### 🔧 Technical Improvements
 
 - **Tool Definitions**: Migrated from `@server.call_tool()` to `@mcp.tool()` decorators
 - **Function Extraction**: Added `get_tool_function` helper for test compatibility
@@ -988,7 +982,7 @@ MCP-NixOS v1.0.1 completes the migration to FastMCP 2.x, bringing modern async/a
 - **Channel Resolution**: Fixed channel cache mock configurations in tests
 - **Error Messages**: Removed "await" from user-facing error messages for clarity
 
-### 🧪 Testing Enhancements
+#### 🧪 Testing Enhancements
 
 - **Test File Consolidation**: Removed duplicate test classes from merged files
 - **Async Test Support**: All tests now properly handle async/await patterns
@@ -996,20 +990,20 @@ MCP-NixOS v1.0.1 completes the migration to FastMCP 2.x, bringing modern async/a
 - **API Compatibility**: Updated test expectations to match current NixHub API data
 - **Coverage Maintained**: All 334 tests passing with comprehensive coverage
 
-### 🛠️ Development Experience
+#### 🛠️ Development Experience
 
 - **Ruff Integration**: Consolidated linting and formatting with ruff
 - **Simplified Toolchain**: Removed black, flake8, and isort in favor of ruff
 - **Faster CI/CD**: Improved CI pipeline efficiency with better caching
 - **Type Checking**: Enhanced mypy configuration for FastMCP compatibility
 
-### 📦 Dependencies
+#### 📦 Dependencies
 
 - **FastMCP**: Now using `fastmcp>=2.11.0` for modern MCP support
 - **Other Dependencies**: Maintained compatibility with all existing dependencies
 - **Development Tools**: Streamlined dev dependencies with ruff
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -1022,11 +1016,11 @@ uv pip install mcp-nixos==1.0.1
 uvx mcp-nixos==1.0.1
 ```
 
-## Migration Notes
+### Migration Notes
 
 This is a drop-in replacement for v1.0.1 with no user-facing changes. The migration to FastMCP 2.x is entirely internal and maintains full backward compatibility.
 
-## Technical Details
+### Technical Details
 
 The migration involved:
 
@@ -1036,21 +1030,21 @@ The migration involved:
 4. **Test Compatibility**: Added function extraction helpers for test suite compatibility
 5. **Mock Enhancements**: Improved mock setup for async testing patterns
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Chief Modernizer
 
 ---
 
-# MCP-NixOS: v1.0.0 Release Notes - The Great Simplification
+## 1.0.0 - The Great Simplification
 
-## Overview
+### Overview
 
 MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've drastically simplified the codebase while maintaining 100% functionality and adding new features. This isn't just a refactor—it's a masterclass in minimalism.
 
-## Changes in v1.0.0
+### Changes in v1.0.0
 
-### 🎯 The Nuclear Option
+#### 🎯 The Nuclear Option
 
 - **Complete Rewrite**: Drastically simplified the entire codebase
 - **Stateless Operation**: No more cache directories filling up your disk
@@ -1059,7 +1053,7 @@ MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've drastical
 - **Two-File Implementation**: Everything you need in just `server.py` and `__main__.py`
 - **Resolves #22**: Completely eliminated pickle usage and the entire cache layer
 
-### 🚀 Major Improvements
+#### 🚀 Major Improvements
 
 - **Plain Text Output**: All responses now return human-readable plain text (no XML!)
 - **NixHub Integration**: Added package version history tools
@@ -1073,14 +1067,14 @@ MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've drastical
 - **Faster Startup**: No cache initialization, no state management, just pure functionality
 - **100% Test Coverage**: Comprehensive test suite ensures everything works as advertised
 
-### 💥 Breaking Changes
+#### 💥 Breaking Changes
 
 - **No More Caching**: All operations are now stateless (your internet better be working)
 - **Environment Variables Removed**: Only `ELASTICSEARCH_URL` remains
 - **No Pre-Cache Option**: The `--pre-cache` flag is gone (along with the cache itself)
 - **No Interactive Shell**: The deprecated CLI has been completely removed
 
-### 🧹 What We Removed
+#### 🧹 What We Removed
 
 - `cache/` directory - Complex caching that nobody understood
 - `clients/` directory - Abstract interfaces that abstracted nothing
@@ -1090,13 +1084,13 @@ MCP-NixOS v1.0.0 is a complete rewrite that proves less is more. We've drastical
 - `utils/` directory - "Utility" functions that weren't
 - 45 files of over-engineered complexity
 
-### 📊 The Numbers
+#### 📊 The Numbers
 
 - **Before**: Many files with layers of abstraction
 - **After**: Just 2 core files that matter
 - **Result**: Dramatically less code, zero reduction in functionality, more features added
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -1109,7 +1103,7 @@ uv pip install mcp-nixos==1.0.0
 uvx mcp-nixos==1.0.0
 ```
 
-## Migration Guide
+### Migration Guide
 
 If you're upgrading from v0.x:
 
@@ -1117,7 +1111,7 @@ If you're upgrading from v0.x:
 2. **Remove `--pre-cache` from any scripts** - It's gone
 3. **That's it** - Everything else just works
 
-## Why This Matters
+### Why This Matters
 
 This release demonstrates that most "enterprise" code is just complexity for complexity's sake. By removing abstractions, caching layers, and "design patterns," we've created something that:
 
@@ -1129,26 +1123,26 @@ This release demonstrates that most "enterprise" code is just complexity for com
 
 Sometimes the best code is the code you delete.
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils) - Chief Code Deleter
 
 ---
 
-# MCP-NixOS: v0.5.1 Release Notes
+## 0.5.1
 
-## Overview
+### Overview
 
 MCP-NixOS v0.5.1 is a minor release that updates the Elasticsearch index references to ensure compatibility with the latest NixOS search API. This release updates the index references from `latest-42-` to `latest-43-` to maintain functionality with the NixOS search service.
 
-## Changes in v0.5.1
+### Changes in v0.5.1
 
-### 🔧 Fixes & Improvements
+#### 🔧 Fixes & Improvements
 
 - **Updated Elasticsearch Index References**: Fixed the Elasticsearch index references to ensure proper connectivity with the NixOS search API
 - **Version Bump**: Bumped version from 0.5.0 to 0.5.1
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -1161,7 +1155,7 @@ uv pip install mcp-nixos==0.5.1
 uvx mcp-nixos==0.5.1
 ```
 
-## Configuration
+### Configuration
 
 Configure Claude to use the tool by adding it to your `~/.config/claude/config.json` file:
 
@@ -1176,33 +1170,33 @@ Configure Claude to use the tool by adding it to your `~/.config/claude/config.j
 }
 ```
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils)
 
-# MCP-NixOS: v0.5.0 Release Notes
+## 0.5.0
 
-## Overview
+### Overview
 
 MCP-NixOS v0.5.0 introduces support for the NixOS 25.05 Beta channel, enhancing the flexibility and forward compatibility of the tool. This release adds the ability to search and query packages and options from the upcoming NixOS 25.05 release while maintaining backward compatibility with existing channels.
 
-## Changes in v0.5.0
+### Changes in v0.5.0
 
-### 🚀 Major Enhancements
+#### 🚀 Major Enhancements
 
 - **NixOS 25.05 Beta Channel Support**: Added support for the upcoming NixOS 25.05 release
 - **New "beta" Alias**: Added a "beta" alias that maps to the current beta channel (currently 25.05)
 - **Comprehensive Channel Documentation**: Updated all docstrings to include information about the new beta channel
 - **Enhanced Testing**: Added extensive tests to ensure proper channel functionality
 
-### 🛠️ Implementation Details
+#### 🛠️ Implementation Details
 
 - **Channel Validation**: Extended channel validation to include the new 25.05 Beta channel
 - **Cache Management**: Ensured cache clearing behavior works correctly with the new channel
 - **Alias Handling**: Implemented proper handling of the "beta" alias similar to the "stable" alias
 - **Testing**: Comprehensive test suite to verify all aspects of channel switching and alias resolution
 
-## Technical Details
+### Technical Details
 
 The release implements the following key improvements:
 
@@ -1214,7 +1208,7 @@ The release implements the following key improvements:
 
 4. **Future-Proofing**: Designed the implementation to make it easy to add new channels in the future when new NixOS releases are in development
 
-## Installation
+### Installation
 
 ```bash
 # Install with pip
@@ -1227,7 +1221,7 @@ uv pip install mcp-nixos==0.5.0
 uvx mcp-nixos==0.5.0
 ```
 
-## Usage
+### Usage
 
 Configure Claude to use the tool by adding it to your `~/.config/claude/config.json` file:
 
@@ -1242,7 +1236,7 @@ Configure Claude to use the tool by adding it to your `~/.config/claude/config.j
 }
 ```
 
-### Available Channels
+#### Available Channels
 
 The following channels are now available for all NixOS tools:
 
@@ -1262,7 +1256,7 @@ nixos_search(query="nginx", channel="beta")
 nixos_info(name="python3", type="package", channel="25.05")
 ```
 
-## Contributors
+### Contributors
 
 - James Brink (@utensils)
 - Sean Callan (Moral Support)

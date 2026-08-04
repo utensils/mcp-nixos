@@ -1,29 +1,74 @@
-name: "Publish tags to FlakeHub"
+name: Publish to FlakeHub
+
 on:
-  push:
-    tags:
-      - "v?[0-9]+.[0-9]+.[0-9]+*"
+  workflow_call:
+    inputs:
+      tag:
+        description: Git tag to publish (for example, v3.0.0)
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: "The existing tag to publish to FlakeHub"
-        type: "string"
+        description: Existing Git tag to publish to FlakeHub
         required: true
+        type: string
+
 jobs:
   flakehub-publish:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     permissions:
-      id-token: "write"
-      contents: "read"
+      id-token: write
+      contents: read
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
-          ref: "${{ (inputs.tag != null) && format('refs/tags/{0}', inputs.tag) || '' }}"
-      - uses: "DeterminateSystems/determinate-nix-action@v3"
-      - uses: "DeterminateSystems/flakehub-push@main"
+          ref: ${{ inputs.tag }}
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG"
+            exit 1
+          fi
+
+          VERSION="${RELEASE_TAG#v}"
+          PROJECT_VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [[ "$PROJECT_VERSION" != "$VERSION" ]]; then
+            echo "Tag $RELEASE_TAG does not match pyproject.toml version $PROJECT_VERSION"
+            exit 1
+          fi
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Publish tagged flake
+        uses: DeterminateSystems/flakehub-push@abcff4fb351e63f852f5fb2b9af0ae4e69de07d4
         with:
-          visibility: "public"
-          name: "utensils/mcp-nixos"
-          tag: "${{ inputs.tag }}"
+          visibility: public
+          name: utensils/mcp-nixos
+          tag: ${{ inputs.tag }}
           include-output-paths: true
+          error-on-conflict: true
+
+      - name: Verify public FlakeHub release
+        env:
+          EXPECTED_VERSION: ${{ inputs.tag }}
+        run: |
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}"
+          EXPECTED_REVISION=$(git rev-parse HEAD)
+          for attempt in {1..12}; do
+            read -r PUBLISHED_VERSION PUBLISHED_REVISION < <(curl --fail --silent --show-error \
+              https://api.flakehub.com/f/utensils/mcp-nixos \
+              | python3 -c 'import json, sys; data = json.load(sys.stdin); print(data["version"], data["revision"])') || true
+            if [[ "$PUBLISHED_VERSION" == "$EXPECTED_VERSION" && "$PUBLISHED_REVISION" == "$EXPECTED_REVISION" ]]; then
+              exit 0
+            fi
+            echo "Waiting for FlakeHub $EXPECTED_VERSION at $EXPECTED_REVISION (attempt $attempt/12)"
+            sleep 10
+          done
+          echo "FlakeHub did not expose $EXPECTED_VERSION at $EXPECTED_REVISION"
+          exit 1

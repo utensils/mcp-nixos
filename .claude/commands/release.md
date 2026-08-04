@@ -1,157 +1,96 @@
 ---
-allowed-tools: Bash, Read, Edit, Glob, Grep, Write, TodoWrite
-description: Perform a version release with automated PyPI publishing and Docker image builds
+allowed-tools: Bash, Read, Glob, Grep, TodoWrite
+description: Review and publish the Release Please release PR, then verify every registry
 ---
 
 # Release
 
-Automate the release process: version bump, changelog, tag creation, and trigger CI/CD for PyPI and Docker deployments.
+Releases are managed by Release Please. Do not edit the version, create a tag, or create a GitHub Release by hand during the normal release path.
 
-## Workflow
+## How it works
 
-1. Review commits since last release
-2. Determine version bump (patch/minor/major)
-3. Update `pyproject.toml` and `RELEASE_NOTES.md`
-4. Commit, tag, and create GitHub release
-5. Verify PyPI and Docker deployments
+1. Conventional commits merged to `main` update the open `release: vX.Y.Z` PR.
+2. The release PR updates `pyproject.toml`, `.release-please-manifest.json`, and `RELEASE_NOTES.md`.
+3. Merging that PR makes Release Please create the matching tag and GitHub Release.
+4. The resulting `release.published` event runs the existing trusted-publisher workflow, which publishes PyPI, Docker Hub, GHCR, and FlakeHub artifacts from that exact tag.
+5. `ci.yml` only validates builds; it does not publish rolling container images.
 
-## Key Files
+Version rules:
 
-- `pyproject.toml` - Package version
-- `RELEASE_NOTES.md` - Release changelog
-- `.github/workflows/publish.yml` - PyPI & Docker publishing (triggered by GitHub release)
+- `fix:` produces a patch release.
+- `feat:` produces a minor release.
+- `fix!:`, `feat!:`, or a `BREAKING CHANGE:` footer produces a major release.
+- Non-user-facing `ci:`, `docs:`, `test:`, `refactor:`, `build:`, and `chore:` commits are hidden and do not cause a release by themselves.
 
-## Execute
+## Release checklist
 
-### 1. Review Changes
-
-```bash
-# Get current version and recent tags
-grep '^version = ' pyproject.toml
-git tag --list 'v*' --sort=-version:refname | head -5
-
-# Review commits since last release (replace with actual last tag)
-git log v1.0.2..HEAD --oneline
-```
-
-### 2. Update Version
-
-Version bump types:
-
-- **Patch** (x.y.Z): Bug fixes, CI/CD, docs
-- **Minor** (x.Y.0): New features, backward-compatible
-- **Major** (X.0.0): Breaking changes
-
-Edit `pyproject.toml`:
-
-```toml
-version = "X.Y.Z"
-```
-
-### 3. Update Release Notes
-
-Add new section at top of `RELEASE_NOTES.md` following existing format:
-
-```markdown
-# MCP-NixOS: vX.Y.Z Release Notes - [Title]
-
-## Overview
-Brief description (1-2 sentences).
-
-## Changes in vX.Y.Z
-### 🚀 [Category]
-- **Feature**: Description
-### 📦 Dependencies
-- Changes or "No changes from previous version"
-
-## Installation
-[Standard installation commands]
-
-## Migration Notes
-Breaking changes or "Drop-in replacement with no user-facing changes."
-
----
-```
-
-### 4. Commit and Tag
+### 1. Review the release PR
 
 ```bash
-# Commit changes
-git add pyproject.toml RELEASE_NOTES.md
-git commit -m "chore: Bump version to X.Y.Z"
-git commit -m "docs: Update RELEASE_NOTES.md for vX.Y.Z"
-git push
-
-# Create and push tag
-git tag -a vX.Y.Z -m "Release vX.Y.Z: [description]"
-git push origin vX.Y.Z
+gh pr list --search 'release: in:title is:open' --json number,title,url,headRefName
+gh pr view <PR_NUMBER> --json files,commits,reviews,statusCheckRollup
+git log "$(git describe --tags --abbrev=0)..origin/main" --oneline
 ```
 
-### 5. Create GitHub Release
+Confirm that:
+
+- the proposed SemVer bump matches every included change;
+- `RELEASE_NOTES.md` is complete and calls out breaking changes;
+- `pyproject.toml` and `.release-please-manifest.json` contain the same version;
+- CI and review are green.
+
+For the first automated release, verify that the migration merge commit's one-time `Release-As: 3.0.0` footer was honored. This major bump is required because Intel macOS flake outputs were removed.
+
+### 2. Merge the release PR
 
 ```bash
-gh release create vX.Y.Z \
-  --title "vX.Y.Z: [Title]" \
-  --notes "## Overview
-
-[Brief description]
-
-## Highlights
-- 🚀 [Key feature]
-- 🔒 [Important fix]
-
-## Installation
-```bash
-pip install mcp-nixos==X.Y.Z
+gh pr merge <PR_NUMBER> --squash --delete-branch
 ```
 
-See [RELEASE_NOTES.md](https://github.com/utensils/mcp-nixos/blob/main/RELEASE_NOTES.md) for details."
+The `Release Please` workflow owns tag creation and the GitHub Release. Its authenticated release event starts the `Publish Package` workflow, which owns every publication job. Never create or move the release tag manually.
 
-```
-
-### 6. Monitor Pipeline
+### 3. Watch publication
 
 ```bash
-# Watch workflow execution
-gh run list --workflow=publish.yml --limit 3
-gh run watch <RUN_ID>
+gh run list --workflow release-please.yml --limit 3
+gh run list --workflow publish.yml --limit 3
+gh run watch <RELEASE_PLEASE_RUN_ID>
+gh run watch <PUBLISH_RUN_ID>
+gh run view <RUN_ID> --log-failed
 ```
 
-## Verify
-
-### PyPI
+If PyPI/Docker or FlakeHub fails after the tag exists, fix the cause and rerun only the relevant recovery workflow with the immutable release tag:
 
 ```bash
-uvx mcp-nixos@X.Y.Z --help
+gh workflow run publish.yml -f tag=vX.Y.Z -f docker_only=true
+gh workflow run deploy-flakehub.yml -f tag=vX.Y.Z
 ```
 
-### Docker Hub & GHCR
+Manual package recovery republishes only the immutable version tag by default. Add `-f update_aliases=true` only when recovering the current latest release after verifying that moving `latest`, major, and minor aliases forward is correct. The manual package workflow intentionally cannot publish PyPI. A failed PyPI upload must be retried from the failed job in the original `Publish Package` run after confirming that no partial version exists.
+
+### 4. Independently verify public artifacts
 
 ```bash
-docker pull utensils/mcp-nixos:X.Y.Z
-docker pull ghcr.io/utensils/mcp-nixos:X.Y.Z
-docker run --rm utensils/mcp-nixos:X.Y.Z --help
+VERSION=X.Y.Z
+
+gh release view "v$VERSION" --json tagName,isDraft,isPrerelease,publishedAt,url,targetCommitish
+curl --fail --silent "https://pypi.org/pypi/mcp-nixos/$VERSION/json" | jq -r .info.version
+uvx "mcp-nixos@$VERSION" --help
+
+docker buildx imagetools inspect "utensils/mcp-nixos:$VERSION"
+docker buildx imagetools inspect "ghcr.io/utensils/mcp-nixos:$VERSION"
+docker run --rm "utensils/mcp-nixos:$VERSION" --help
+
+curl --fail --silent https://api.flakehub.com/f/utensils/mcp-nixos \
+  | jq -r .version
+nix flake metadata "https://flakehub.com/f/utensils/mcp-nixos/$VERSION"
 ```
 
-## Report
+Verify that the tag and GitHub Release target the release PR merge commit, PyPI reports the exact version, both container manifests contain `linux/amd64` and `linux/arm64`, the container starts, and FlakeHub reports the exact version.
 
-Provide release summary:
+## Guardrails
 
-```
-✅ Release vX.Y.Z Complete!
-
-**Version:** vX.Y.Z
-**Release URL:** https://github.com/utensils/mcp-nixos/releases/tag/vX.Y.Z
-
-### Verified Deployments
-- ✅ PyPI: https://pypi.org/project/mcp-nixos/X.Y.Z/
-- ✅ Docker Hub: utensils/mcp-nixos:X.Y.Z
-- ✅ GHCR: ghcr.io/utensils/mcp-nixos:X.Y.Z
-```
-
-## Troubleshooting
-
-**Workflow fails**: `gh run view <RUN_ID> --log-failed`
-**PyPI unavailable**: Wait 2-5 min for CDN, check Test PyPI first
-**Docker unavailable**: Wait 5-10 min for multi-arch builds
-**Tag exists**: Delete with `git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`
+- Treat published tags and package versions as immutable; do not delete or retarget them to repair a release.
+- Do not publish from an unmerged branch or a dirty worktree.
+- Do not merge a release PR with incomplete notes or a mismatched version.
+- Do not assume a green workflow means propagation succeeded; verify each public registry independently.

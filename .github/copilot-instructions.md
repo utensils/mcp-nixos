@@ -107,9 +107,9 @@ async def nix(...) -> str:
 ## CI/CD & Release Process
 
 - **CI runs on all PRs:** flake check, Nix build, Python distribution build, package validation (twine), lint, typecheck, tests
-- **Automated PyPI releases:** Version tags (v*) trigger publish workflow
+- **Automated releases:** Release Please creates the version tag and GitHub Release; the authenticated release event publishes PyPI, Docker Hub, GHCR, and FlakeHub from that exact tag
 - **Commit convention:** `type: summary` format (feat:, fix:, docs:, refactor:, test:, chore:)
-- **Use `/release` skill:** Automates version bumps in pyproject.toml, changelog updates in RELEASE_NOTES.md, and Git tagging
+- **Use `/release` command:** Review and merge the generated release PR, then verify every registry; do not bump versions or create tags manually
 
 ## Common Pitfalls
 
