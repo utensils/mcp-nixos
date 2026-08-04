@@ -190,6 +190,6 @@ pytest tests/ -k "nixos" -v
 
 - Commit messages follow `type: summary` (e.g., `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
 - **CI**: Runs on all PRs - flake check, Nix build, Python distribution build, package validation (twine), linting, type checking, tests.
-- **Publish**: Automated PyPI releases on version tags (v*), multi-arch Docker images to GHCR and Docker Hub.
-- **Release Process**: Use the `/release` skill to automate version releases. This handles version bumps in `pyproject.toml`, changelog updates in `RELEASE_NOTES.md`, and Git tagging.
-- Release merges include `release: vX.Y.Z` in the merge commit message.
+- **Publish**: Release Please creates tags and GitHub Releases; the authenticated release event then publishes PyPI, multi-arch Docker images to GHCR and Docker Hub, and the tagged flake to FlakeHub.
+- **Release Process**: Use the `/release` command to review and merge the generated `release: vX.Y.Z` PR and verify every public registry. Do not bump versions or create tags manually.
+- Release PRs update `pyproject.toml`, `.release-please-manifest.json`, and `RELEASE_NOTES.md`; their squash merge message is `release: vX.Y.Z`.
