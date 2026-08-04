@@ -32,6 +32,13 @@ if TYPE_CHECKING:
 class ChannelCache:
     """Cache for discovered channels and resolved mappings."""
 
+    # Matches `latest-<gen>-nixos-<channel>` aliases, where <channel> is either
+    # the string "unstable" or a release like "25.11". The generation captured
+    # in group 1 is what disambiguates rollovers — when Hydra publishes a new
+    # index for a channel it increments the generation and atomically retargets
+    # the alias, so the highest generation is always the freshest data.
+    _ALIAS_RE = re.compile(r"^latest-(\d+)-nixos-(unstable|\d+\.\d+)$")
+
     def __init__(self) -> None:
         self.available_channels: dict[str, str] | None = None
         self.resolved_channels: dict[str, str] | None = None
@@ -48,25 +55,48 @@ class ChannelCache:
         return self.resolved_channels if self.resolved_channels is not None else {}
 
     def _discover_available_channels(self) -> dict[str, str]:
-        generations = [43, 44, 45, 46]
-        versions = ["unstable", "25.05", "25.11", "26.05", "26.11"]
-        available = {}
-        for gen in generations:
-            for version in versions:
-                pattern = f"latest-{gen}-nixos-{version}"
-                try:
-                    resp = requests.post(
-                        f"{NIXOS_API}/{pattern}/_count",
-                        json={"query": {"match_all": {}}},
-                        auth=NIXOS_AUTH,
-                        timeout=10,
-                    )
-                    if resp.status_code == 200:
-                        count = resp.json().get("count", 0)
-                        if count > 0:
-                            available[pattern] = f"{count:,} documents"
-                except Exception:
-                    continue
+        """Discover live `latest-*-nixos-*` aliases via Elasticsearch.
+
+        Replaces a hardcoded `[43..46]` probe loop with a single
+        `_cat/aliases` call, so newly published channel generations
+        (e.g. `latest-48-nixos-unstable` after Hydra rolls forward) are
+        picked up automatically instead of bit-rotting in the source.
+        """
+        available: dict[str, str] = {}
+        try:
+            resp = requests.get(
+                f"{NIXOS_API}/_cat/aliases?format=json",
+                auth=NIXOS_AUTH,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                return available
+            entries = resp.json()
+            if not isinstance(entries, list):
+                return available
+        except Exception:
+            return available
+
+        aliases = [
+            entry["alias"]
+            for entry in entries
+            if isinstance(entry, dict) and self._ALIAS_RE.match(str(entry.get("alias", "")))
+        ]
+
+        for alias in aliases:
+            try:
+                count_resp = requests.post(
+                    f"{NIXOS_API}/{alias}/_count",
+                    json={"query": {"match_all": {}}},
+                    auth=NIXOS_AUTH,
+                    timeout=10,
+                )
+                if count_resp.status_code == 200:
+                    count = count_resp.json().get("count", 0)
+                    if count > 0:
+                        available[alias] = f"{count:,} documents"
+            except Exception:
+                continue
         return available
 
     def _resolve_channels(self) -> dict[str, str]:
@@ -75,42 +105,38 @@ class ChannelCache:
             self.using_fallback = True
             return FALLBACK_CHANNELS.copy()
 
-        resolved = {}
-        unstable_pattern = None
+        # Bucket aliases by channel name ("unstable", "25.11", ...) and
+        # remember each candidate's generation so we can pick the maximum
+        # per channel. The previous implementation picked the *first*
+        # unstable match in dict-insertion order, which yielded the lowest
+        # generation when multiple unstable indices were live.
+        by_channel: dict[str, list[tuple[int, str]]] = {}
         for pattern in available:
-            if "unstable" in pattern:
-                unstable_pattern = pattern
-                break
-        if unstable_pattern:
-            resolved["unstable"] = unstable_pattern
+            match = self._ALIAS_RE.match(pattern)
+            if not match:
+                continue
+            gen = int(match.group(1))
+            channel = match.group(2)
+            by_channel.setdefault(channel, []).append((gen, pattern))
 
-        stable_candidates = []
-        for pattern, count_str in available.items():
-            if "unstable" not in pattern:
-                parts = pattern.split("-")
-                if len(parts) >= 4:
-                    version = parts[3]
-                    try:
-                        major, minor = map(int, version.split("."))
-                        count = int(count_str.replace(",", "").replace(" documents", ""))
-                        stable_candidates.append((major, minor, version, pattern, count))
-                    except (ValueError, IndexError):
-                        continue
+        for candidates in by_channel.values():
+            candidates.sort(reverse=True)  # highest generation first
 
-        if stable_candidates:
-            stable_candidates.sort(key=lambda x: (x[0], x[1], x[4]), reverse=True)
-            current_stable = stable_candidates[0]
-            resolved["stable"] = current_stable[3]
-            resolved[current_stable[2]] = current_stable[3]
+        resolved: dict[str, str] = {}
+        if "unstable" in by_channel:
+            resolved["unstable"] = by_channel["unstable"][0][1]
 
-            version_patterns: dict[str, tuple[str, int]] = {}
-            for _major, _minor, version, pattern, count in stable_candidates:
-                if version not in version_patterns or count > version_patterns[version][1]:
-                    version_patterns[version] = (pattern, count)
-            for version, (pattern, _count) in version_patterns.items():
-                resolved[version] = pattern
+        release_versions = sorted(
+            (v for v in by_channel if v != "unstable"),
+            key=lambda v: tuple(int(p) for p in v.split(".")),
+            reverse=True,
+        )
 
-        if "stable" in resolved:
+        for version in release_versions:
+            resolved[version] = by_channel[version][0][1]
+
+        if release_versions:
+            resolved["stable"] = resolved[release_versions[0]]
             resolved["beta"] = resolved["stable"]
 
         if not resolved:
