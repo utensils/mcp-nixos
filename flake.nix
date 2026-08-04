@@ -84,42 +84,45 @@
       ];
 
       flake = {
-        # Upgrade fastmcp to 3.2.4 ahead of nixpkgs.
-        # Mirrors nixpkgs PR #510339 (PrefectHQ/fastmcp v3.2.4). Can be removed
-        # once that PR merges and our flake input moves past it.
+        # Upgrade fastmcp to 3.2.4 only when the consumer's nixpkgs is older.
+        # Newer nixpkgs versions split fastmcp-slim out of the source tree, so
+        # downgrading only fastmcp would create an incompatible mixed package set.
         overlays.fastmcp3 = final: prev: {
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-            (pyFinal: pyPrev: {
-              fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
-                version = "3.2.4";
-                src = prev.fetchFromGitHub {
-                  owner = "PrefectHQ";
-                  repo = "fastmcp";
-                  tag = "v${version}";
-                  hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
-                };
-                # Drop pydocket (moved to optional-dependencies.tasks upstream in
-                # nixpkgs PR #510339) and add fastmcp 3's new transitive deps.
-                # pydocket's build pulls in lupa → luajit, which fails to link on
-                # aarch64-linux (bundled libluajit.a is in the wrong format), and
-                # we don't use fastmcp task features.
-                #
-                # griffelib and uncalled-for are recent additions to nixos-unstable
-                # (March 2026) and absent from stable channels. Use upstream if the
-                # consumer's nixpkgs has them; otherwise fall back to our inline
-                # definitions so `inputs.nixpkgs.follows = "nixpkgs"` works against
-                # older pins. See issue #135.
-                dependencies = builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ]) ++ [
-                  (pyFinal.griffelib or (pyFinal.callPackage ./nix/griffelib.nix { }))
-                  pyFinal.opentelemetry-api
-                  (pyFinal.uncalled-for or (pyFinal.callPackage ./nix/uncalled-for.nix { }))
-                  pyFinal.watchfiles
-                  pyFinal.pyyaml
-                ];
-                dontCheckRuntimeDeps = true;
-                doCheck = false;
-              });
-            })
+            (
+              pyFinal: pyPrev:
+              prev.lib.optionalAttrs (!(pyPrev ? fastmcp-slim)) {
+                fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
+                  version = "3.2.4";
+                  src = prev.fetchFromGitHub {
+                    owner = "PrefectHQ";
+                    repo = "fastmcp";
+                    tag = "v${version}";
+                    hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
+                  };
+                  # Drop pydocket (moved to optional-dependencies.tasks upstream in
+                  # nixpkgs PR #510339) and add fastmcp 3's new transitive deps.
+                  # pydocket's build pulls in lupa → luajit, which fails to link on
+                  # aarch64-linux (bundled libluajit.a is in the wrong format), and
+                  # we don't use fastmcp task features.
+                  #
+                  # griffelib and uncalled-for are recent additions to nixos-unstable
+                  # (March 2026) and absent from stable channels. Use upstream if the
+                  # consumer's nixpkgs has them; otherwise fall back to our inline
+                  # definitions so `inputs.nixpkgs.follows = "nixpkgs"` works against
+                  # older pins. See issue #135.
+                  dependencies = builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ]) ++ [
+                    (pyFinal.griffelib or (pyFinal.callPackage ./nix/griffelib.nix { }))
+                    pyFinal.opentelemetry-api
+                    (pyFinal.uncalled-for or (pyFinal.callPackage ./nix/uncalled-for.nix { }))
+                    pyFinal.watchfiles
+                    pyFinal.pyyaml
+                  ];
+                  dontCheckRuntimeDeps = true;
+                  doCheck = false;
+                });
+              }
+            )
           ];
         };
 
