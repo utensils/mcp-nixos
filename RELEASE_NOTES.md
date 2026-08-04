@@ -1129,7 +1129,7 @@ Sometimes the best code is the code you delete.
 
 ---
 
-# MCP-NixOS: v0.5.1 Release Notes
+## 0.5.1
 
 ### Overview
 
@@ -1174,7 +1174,7 @@ Configure Claude to use the tool by adding it to your `~/.config/claude/config.j
 
 - James Brink (@utensils)
 
-# MCP-NixOS: v0.5.0 Release Notes
+## 0.5.0
 
 ### Overview
 

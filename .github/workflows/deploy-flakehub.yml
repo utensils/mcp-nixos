@@ -46,7 +46,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Publish tagged flake
-        uses: DeterminateSystems/flakehub-push@main
+        uses: DeterminateSystems/flakehub-push@abcff4fb351e63f852f5fb2b9af0ae4e69de07d4
         with:
           visibility: public
           name: utensils/mcp-nixos

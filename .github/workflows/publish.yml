@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: true
+      update_aliases:
+        description: Also move latest, major, and minor aliases (current release recovery only)
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: publish-${{ github.event.release.tag_name || inputs.tag }}
@@ -194,10 +199,16 @@ jobs:
         env:
           MAJOR: ${{ needs.validate.outputs.major }}
           MINOR: ${{ needs.validate.outputs.minor }}
+          UPDATE_ALIASES: ${{ github.event_name == 'release' || inputs.update_aliases }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
+          tags=("$VERSION")
+          if [[ "$UPDATE_ALIASES" == "true" ]]; then
+            tags=(latest "$VERSION" "$MINOR" "$MAJOR")
+          fi
+
           for registry in "utensils/mcp-nixos" "ghcr.io/utensils/mcp-nixos"; do
-            for tag in latest "$VERSION" "$MINOR" "$MAJOR"; do
+            for tag in "${tags[@]}"; do
               docker manifest create "$registry:$tag" \
                 "$registry:$VERSION-amd64" \
                 "$registry:$VERSION-arm64"

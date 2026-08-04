@@ -66,7 +66,7 @@ gh workflow run publish.yml -f tag=vX.Y.Z -f docker_only=true
 gh workflow run deploy-flakehub.yml -f tag=vX.Y.Z
 ```
 
-The manual package workflow intentionally cannot publish PyPI. A failed PyPI upload must be retried from the failed job in the original `Publish Package` run after confirming that no partial version exists.
+Manual package recovery republishes only the immutable version tag by default. Add `-f update_aliases=true` only when recovering the current latest release after verifying that moving `latest`, major, and minor aliases forward is correct. The manual package workflow intentionally cannot publish PyPI. A failed PyPI upload must be retried from the failed job in the original `Publish Package` run after confirming that no partial version exists.
 
 ### 4. Independently verify public artifacts
 
