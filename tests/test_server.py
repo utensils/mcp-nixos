@@ -780,7 +780,7 @@ class TestNixvimCache:
     def test_unexpected_payload_raises(self, mock_get):
         """A non-list payload mid-walk raises APIError so a layout change
         doesn't silently cache a partial option set."""
-        from mcp_nixos.server import APIError
+        from mcp_nixos.caches import APIError
 
         unexpected_resp = Mock(status_code=200, raise_for_status=Mock())
         unexpected_resp.json = lambda: {"not": "a list"}
