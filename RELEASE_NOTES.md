@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.0.0](https://github.com/utensils/mcp-nixos/compare/v2.4.3...v3.0.0) (2026-08-04)
+
+
+### Features
+
+* add NVF as an options source ([#189](https://github.com/utensils/mcp-nixos/issues/189)) ([b59cad3](https://github.com/utensils/mcp-nixos/commit/b59cad33a9eea1c1daeac3d18dccd132530c1511))
+* rank option search and cache HTML catalogues ([#192](https://github.com/utensils/mcp-nixos/issues/192)) ([7b21991](https://github.com/utensils/mcp-nixos/commit/7b219918636b8bcb475d16c6ff0239d64c9b69dc))
+
+
+### Bug Fixes
+
+* avoid incompatible FastMCP downgrade ([#199](https://github.com/utensils/mcp-nixos/issues/199)) ([939c81d](https://github.com/utensils/mcp-nixos/commit/939c81dd5442075a6a0bb584161398a4a3c9d3bb))
+* **caches:** discover channels dynamically and pick latest generation ([#159](https://github.com/utensils/mcp-nixos/issues/159)) ([b6e7b25](https://github.com/utensils/mcp-nixos/commit/b6e7b25d05a90b5735363794346d8d208a69aa44))
+* **ci:** retry website verification errors ([#194](https://github.com/utensils/mcp-nixos/issues/194)) ([de85ae4](https://github.com/utensils/mcp-nixos/commit/de85ae4cf8817709866fe91fef58774ef439d0a8))
+* **flake:** drop unsupported Intel macOS outputs ([#177](https://github.com/utensils/mcp-nixos/issues/177)) ([73bdcbb](https://github.com/utensils/mcp-nixos/commit/73bdcbb3884e2187955e0a313135232170210ff9))
+* **nixvim:** load options from current NuschtOS chunks ([#173](https://github.com/utensils/mcp-nixos/issues/173)) ([d1862f4](https://github.com/utensils/mcp-nixos/commit/d1862f4391bf0188364a32cbb29c782b7272a599))
+* **website:** prevent mobile overlap and refresh errors ([#193](https://github.com/utensils/mcp-nixos/issues/193)) ([3d48839](https://github.com/utensils/mcp-nixos/commit/3d48839f1aca0bab513dabec9f6e1607e0e32fcd))
+
+
+### Continuous Integration
+
+* adopt Release Please automation ([#200](https://github.com/utensils/mcp-nixos/issues/200)) ([5d85c2b](https://github.com/utensils/mcp-nixos/commit/5d85c2b3924740d622e4729ec5889f4763c3d80a))
+
 ## 2.4.3 - LLM Discoverability
 
 ### Overview
