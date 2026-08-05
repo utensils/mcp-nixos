@@ -1,5 +1,7 @@
 # MCP-NixOS - Because Your AI Shouldn't Hallucinate Package Names
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Futensils%2Fmcp-nixos.svg)](https://mcptoplist.com/server/glama%2Futensils%2Fmcp-nixos)
+
 [![CI](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml/badge.svg)](https://github.com/utensils/mcp-nixos/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/utensils/mcp-nixos/graph/badge.svg?token=kdcbgvq4Bh)](https://codecov.io/gh/utensils/mcp-nixos)
 [![PyPI](https://img.shields.io/pypi/v/mcp-nixos.svg)](https://pypi.org/project/mcp-nixos/)
