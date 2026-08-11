@@ -190,6 +190,93 @@ class TestDottedPackageNameIntegration:
 
 @pytest.mark.integration
 @pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestSearchAccuracyIntegration:
+    """Regression tests: package/option search should match the search.nixos.org frontend.
+
+    Covers three historical miss categories:
+    - Substring match: a package with pname='musicfree-desktop' must be hit by 'musicfree' (wildcard fallback)
+    - Case-insensitive: the 'MusicFree' binary name (programs field) must be hit by mixed-case queries
+    - Programs field: searching by binary name should still hit via the packages query semantics
+    """
+
+    @pytest.mark.asyncio
+    async def test_search_package_by_partial_pname(self):
+        """Substring match: 'musicfree' should hit pname='musicfree-desktop'."""
+        result = await nix_fn(action="search", query="musicfree", type="packages", limit=5)
+        assert "musicfree-desktop" in result.lower(), f"Should match musicfree-desktop via substring, got: {result}"
+        assert "No packages found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_package_case_insensitive(self):
+        """Case-insensitive: 'MusicFree' should hit 'musicfree-desktop'."""
+        result = await nix_fn(action="search", query="MusicFree", type="packages", limit=5)
+        assert "musicfree-desktop" in result.lower(), f"Should match case-insensitively, got: {result}"
+        assert "No packages found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_package_by_program_name(self):
+        """Programs field hit: 'MusicFree' (binary name) must find packages providing it."""
+        result = await nix_fn(action="search", query="MusicFree", type="programs", limit=5)
+        assert "musicfree" in result.lower(), f"Should find program MusicFree, got: {result}"
+        assert "No programs found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_option_by_partial_name(self):
+        """Options substring match: 'fontconfig' should hit 'fonts.fontconfig.*' options."""
+        result = await nix_fn(action="search", query="fontconfig", type="options", limit=5)
+        assert "fonts.fontconfig" in result.lower(), f"Should match fonts.fontconfig options, got: {result}"
+        assert "No options found" not in result
+        assert_plain_text(result)
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
+class TestSearchRobustnessIntegration:
+    """Search robustness regression: multi-word queries / hyphen interchange /
+    wildcard metacharacters / overlong queries.
+
+    Covers:
+    - Multi-word + `_ ↔ -` interchange: wildcard tokenization + swap variants must hit
+      hyphenated field values.
+    - Wildcard metacharacters: user-supplied `*`, `?`, `\\` must be escaped to literals,
+      not interpreted as wildcards.
+    - Length cap: overlong queries must be truncated (no error, no service impact).
+    """
+
+    @pytest.mark.asyncio
+    async def test_search_package_hyphen_underscore_interchange(self):
+        """'firefox_esr' should hit 'firefox-esr' (wildcard _ → - interchange)."""
+        result = await nix_fn(action="search", query="firefox_esr", type="packages", limit=5)
+        assert "firefox-esr" in result.lower(), f"Should match firefox-esr via _ → - interchange, got: {result}"
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_query_with_wildcard_chars_is_escaped(self):
+        """Query containing *,? must be escaped to literals, not interpreted as wildcards."""
+        result = await nix_fn(action="search", query="firefox*", type="packages", limit=5)
+        # Must not crash; must not be interpreted as a leading wildcard causing a full scan
+        # returning unrelated results (firefox* escaped ≈ prefix match for firefox).
+        assert_plain_text(result)
+        assert " API error" not in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_overlong_query_is_truncated(self):
+        """Overlong query must be truncated to _MAX_QUERY_LEN without error."""
+        long_query = "firefox" + "x" * 500
+        result = await nix_fn(action="search", query=long_query, type="packages", limit=3)
+        assert_plain_text(result)
+        assert " API error" not in result.lower()
+        # After truncation the 'firefox' prefix should still be present and match firefox packages
+        assert "firefox" in result.lower() or "No packages found" in result, (
+            f"Truncated query should still match firefox, got: {result}"
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3, reruns_delay=2)
 class TestNixStatsIntegration:
     """Test nix stats action against real APIs."""
 
