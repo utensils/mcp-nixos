@@ -363,7 +363,11 @@
                 category = "build";
                 name = "build";
                 help = "build the Python wheel + sdist into dist/";
-                command = "cd \"$PRJ_ROOT\" && python -m build \"$@\"";
+                # --no-isolation: use the hatchling pinned by this flake instead of
+                # letting `build` fetch the newest one from PyPI. Recent hatchling
+                # releases emit Metadata-Version 2.5, which `twine check` — and
+                # PyPI's upload API — still reject.
+                command = "cd \"$PRJ_ROOT\" && python -m build --no-isolation \"$@\"";
               }
               {
                 category = "build";
