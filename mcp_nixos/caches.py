@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
@@ -40,30 +41,115 @@ class ChannelCache:
     # the alias, so the highest generation is always the freshest data.
     _ALIAS_RE = re.compile(r"^latest-(\d+)-nixos-(unstable|\d+\.\d+)$")
 
+    # After a failed alias probe, serve the fallback for this long before
+    # spending another round of requests. Without it, an outage makes every
+    # concurrent caller queue behind the lock for its own 10s timeout, since
+    # fallback results are deliberately not memoized.
+    _DISCOVERY_RETRY_COOLDOWN = 30.0
+
+    # An alias observed empty means Hydra is mid-publish. Counts — and the
+    # resolution derived from them — are a snapshot of that window, so they
+    # expire: otherwise the process stays pinned to the older generation (or,
+    # if every alias was empty, to the fallback) until it restarts.
+    _ROLLOVER_RECHECK = 300.0
+
     def __init__(self) -> None:
+        # Alias *names* and their document counts are cached separately: names
+        # are what channel resolution needs, counts are display-only. A partial
+        # `_count` failure must not shrink the set of channels we can resolve.
+        self.alias_names: list[str] | None = None
+        # Aliases whose `_count` came back 200 with zero documents. Hydra
+        # publishes the alias before the index finishes filling, so during a
+        # rollover the newest generation can be live but empty — resolving to it
+        # would fail every search for that channel. Distinct from an alias whose
+        # probe merely failed, which stays a candidate.
+        self.empty_aliases: set[str] = set()
         self.available_channels: dict[str, str] | None = None
         self.resolved_channels: dict[str, str] | None = None
         self.using_fallback: bool = False
+        self._failed_at: float | None = None
+        self._rollover_at: float | None = None
+        # Every tool call reaches this cache through `asyncio.to_thread`, so
+        # concurrent first requests can race. The lock keeps each population
+        # decision atomic; the fallback verdict is threaded through return
+        # values rather than shared state so one resolution cannot act on
+        # another's outcome.
+        self._lock = threading.Lock()
 
     def get_available(self) -> dict[str, str]:
-        if self.available_channels is None:
-            self.available_channels = self._discover_available_channels()
-        return self.available_channels if self.available_channels is not None else {}
+        with self._lock:
+            self._expire_rollover_locked()
+            return self._available_locked()
+
+    def _expire_rollover_locked(self) -> None:
+        """Drop discovery state captured while a rollover was in progress."""
+        if self._rollover_at is None or (time.monotonic() - self._rollover_at) < self._ROLLOVER_RECHECK:
+            return
+        self._rollover_at = None
+        self.alias_names = None
+        self.available_channels = None
+        self.resolved_channels = None
+        self.empty_aliases = set()
+
+    def _aliases_locked(self) -> list[str]:
+        """Live alias names, cached once a probe succeeds.
+
+        A failed probe is not cached — the hardcoded fallback goes stale, so the
+        next call must retry — but it does start a cooldown so an outage does
+        not make every caller pay for its own round of requests.
+        """
+        if self.alias_names is not None:
+            return self.alias_names
+        if self._failed_at is not None and (time.monotonic() - self._failed_at) < self._DISCOVERY_RETRY_COOLDOWN:
+            return []
+        aliases = self._list_aliases()
+        if aliases:
+            self.alias_names = aliases
+            self._failed_at = None
+        else:
+            self._failed_at = time.monotonic()
+        return aliases
+
+    def _available_locked(self) -> dict[str, str]:
+        if self.available_channels is not None:
+            return self.available_channels
+        counted, empty, complete = self._discover_available_channels()
+        self.empty_aliases = empty
+        # Start (or clear) the rollover clock so this snapshot cannot outlive
+        # the publish window it was taken in.
+        self._rollover_at = time.monotonic() if empty else None
+        # Cache only a complete listing. A partial one means some `_count`
+        # probes failed transiently, and memoizing it would report those
+        # channels as Unavailable for the life of the process.
+        if complete:
+            self.available_channels = counted
+        return counted
 
     def get_resolved(self) -> dict[str, str]:
-        if self.resolved_channels is None:
-            self.resolved_channels = self._resolve_channels()
-        return self.resolved_channels if self.resolved_channels is not None else {}
+        with self._lock:
+            self._expire_rollover_locked()
+            if self.resolved_channels is not None:
+                return self.resolved_channels
+            resolved, used_fallback, cacheable = self._resolve_channels()
+            self.using_fallback = used_fallback
+            if used_fallback or not cacheable:
+                # Never memoize a fallback: the hardcoded generations go stale
+                # and a retired alias 404s on every query, so caching one
+                # transient discovery failure would poison the whole process.
+                # `cacheable` is False when a `_count` probe failed, which means
+                # a selected alias might turn out to be an empty rollover index.
+                return resolved
+            self.resolved_channels = resolved
+            return resolved
 
-    def _discover_available_channels(self) -> dict[str, str]:
-        """Discover live `latest-*-nixos-*` aliases via Elasticsearch.
+    def _list_aliases(self) -> list[str]:
+        """Return live `latest-<gen>-nixos-<channel>` alias names, newest first.
 
         Replaces a hardcoded `[43..46]` probe loop with a single
         `_cat/aliases` call, so newly published channel generations
         (e.g. `latest-48-nixos-unstable` after Hydra rolls forward) are
         picked up automatically instead of bit-rotting in the source.
         """
-        available: dict[str, str] = {}
         try:
             resp = requests.get(
                 f"{NIXOS_API}/_cat/aliases?format=json",
@@ -71,19 +157,34 @@ class ChannelCache:
                 timeout=10,
             )
             if resp.status_code != 200:
-                return available
+                return []
             entries = resp.json()
             if not isinstance(entries, list):
-                return available
+                return []
         except Exception:
-            return available
+            return []
 
-        aliases = [
+        return [
             entry["alias"]
             for entry in entries
             if isinstance(entry, dict) and self._ALIAS_RE.match(str(entry.get("alias", "")))
         ]
 
+    def _discover_available_channels(self) -> tuple[dict[str, str], set[str], bool]:
+        """Map each live alias to its document count.
+
+        Returns `(counts, empty, complete)`:
+        - `counts` — aliases that hold documents, with a formatted count.
+        - `empty` — aliases confirmed to hold zero documents. Resolution must
+          skip these; an alias whose probe *failed* is absent from both sets and
+          stays a candidate.
+        - `complete` — False when any probe failed, so the caller knows `counts`
+          is not cacheable.
+        """
+        available: dict[str, str] = {}
+        empty: set[str] = set()
+        aliases = self._aliases_locked()
+        complete = bool(aliases)
         for alias in aliases:
             try:
                 count_resp = requests.post(
@@ -96,15 +197,43 @@ class ChannelCache:
                     count = count_resp.json().get("count", 0)
                     if count > 0:
                         available[alias] = f"{count:,} documents"
+                    else:
+                        empty.add(alias)
+                else:
+                    complete = False
             except Exception:
+                complete = False
                 continue
-        return available
+        return available, empty, complete
 
-    def _resolve_channels(self) -> dict[str, str]:
-        available = self.get_available()
+    def _resolve_channels(self) -> tuple[dict[str, str], bool, bool]:
+        """Resolve channel names to aliases.
+
+        Returns `(mapping, used_fallback, cacheable)`. The verdicts are returned
+        rather than stored so a concurrent resolution cannot flip them out from
+        under this one.
+        """
+        # Resolution reads alias *names*, not the counted listing: a cluster that
+        # serves `_cat/aliases` while refusing `_count` still tells us exactly
+        # which channels are live, and a partial count failure must not silently
+        # drop a channel like `stable` from the mapping.
+        aliases = self._aliases_locked()
+        if not aliases:
+            return FALLBACK_CHANNELS.copy(), True, False
+
+        # Probe counts so confirmed-empty aliases can be skipped. Hydra publishes
+        # an alias before its index has filled, so mid-rollover the highest
+        # generation may exist with zero documents — resolving to it would fail
+        # every search for that channel until the process restarts.
+        self._available_locked()
+        # `available_channels` is only populated from a complete probe, so this
+        # doubles as "every alias has a known document count". When some probe
+        # failed, the winning alias might be an empty rollover index we could not
+        # rule out, so the result must not be memoized.
+        cacheable = self.available_channels is not None
+        available = [alias for alias in aliases if alias not in self.empty_aliases]
         if not available:
-            self.using_fallback = True
-            return FALLBACK_CHANNELS.copy()
+            return FALLBACK_CHANNELS.copy(), True, False
 
         # Bucket aliases by channel name ("unstable", "25.11", ...) and
         # remember each candidate's generation so we can pick the maximum
@@ -141,9 +270,8 @@ class ChannelCache:
             resolved["beta"] = resolved["stable"]
 
         if not resolved:
-            self.using_fallback = True
-            return FALLBACK_CHANNELS.copy()
-        return resolved
+            return FALLBACK_CHANNELS.copy(), True, False
+        return resolved, False, cacheable
 
 
 channel_cache = ChannelCache()

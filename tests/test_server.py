@@ -1,9 +1,11 @@
 """Tests for server helper functions and internal logic."""
 
+import time
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from mcp_nixos.config import FALLBACK_CHANNELS
 from mcp_nixos.server import (
     HOME_MANAGER_URL,
     NIXOS_API,
@@ -245,13 +247,254 @@ class TestChannelCache:
         result = cache.get_available()
         assert result == {"test": "value"}
 
-    def test_resolved_channels_fallback(self):
+    @patch("mcp_nixos.caches.requests.get")
+    def test_resolved_channels_fallback(self, mock_get):
+        mock_get.side_effect = Exception("backend unreachable")
         cache = ChannelCache()
         cache.available_channels = {}  # Empty available channels
         cache.resolved_channels = None
         result = cache.get_resolved()
         assert cache.using_fallback is True
         assert "unstable" in result
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_fallback_is_not_memoized(self, mock_get):
+        """A transient discovery failure must not poison the process.
+
+        The fallback generations go stale — Hydra retires old aliases, and a
+        retired alias 404s on every query. Caching one failed probe would make
+        every later request fail too, and no amount of retrying would recover.
+        """
+        mock_get.side_effect = Exception("backend unreachable")
+        cache = ChannelCache()
+        assert cache.get_resolved() == FALLBACK_CHANNELS
+        assert cache.using_fallback is True
+        # Nothing cached, so the next call re-probes instead of reusing the fallback.
+        assert cache.resolved_channels is None
+        assert cache.available_channels is None
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_recovers_after_a_transient_failure(self, mock_get, mock_post):
+        """Once the backend answers again, resolution must use live aliases."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [{"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"}]
+        mock_get.side_effect = [Exception("backend unreachable"), aliases_resp]
+
+        count_resp = Mock()
+        count_resp.status_code = 200
+        count_resp.json.return_value = {"count": 100000}
+        mock_post.return_value = count_resp
+
+        cache = ChannelCache()
+        assert cache.get_resolved() == FALLBACK_CHANNELS
+        cache._failed_at = None  # skip the retry cooldown
+        assert cache.get_resolved() == {"unstable": "latest-48-nixos-unstable"}
+        assert cache.using_fallback is False
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_resolves_when_count_probes_fail(self, mock_get, mock_post):
+        """Resolution needs alias names only — failing `_count` must not force the fallback."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"},
+            {"alias": "latest-48-nixos-25.11", "index": "nixos-48-25.11-cafebabe"},
+        ]
+        mock_get.return_value = aliases_resp
+        mock_post.side_effect = Exception("count refused")
+
+        cache = ChannelCache()
+        resolved = cache.get_resolved()
+        assert cache.using_fallback is False
+        assert resolved["unstable"] == "latest-48-nixos-unstable"
+        assert resolved["stable"] == "latest-48-nixos-25.11"
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_failed_counts_are_not_memoized(self, mock_get, mock_post):
+        """An empty count map while aliases exist means the probes failed, not that
+        the channels are gone — memoizing it would report every channel as
+        Unavailable for the life of the process."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [{"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"}]
+        mock_get.return_value = aliases_resp
+
+        count_resp = Mock()
+        count_resp.status_code = 200
+        count_resp.json.return_value = {"count": 100000}
+        mock_post.side_effect = [Exception("count refused"), count_resp]
+
+        cache = ChannelCache()
+        assert cache.get_available() == {}
+        assert cache.available_channels is None, "a failed count probe must not be cached"
+        assert cache.get_available() == {"latest-48-nixos-unstable": "100,000 documents"}
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_failed_discovery_backs_off_before_retrying(self, mock_get):
+        """Fallback results are not cached, so without a cooldown every caller
+        would pay for its own round of 10s requests during an outage."""
+        mock_get.side_effect = Exception("backend unreachable")
+        cache = ChannelCache()
+
+        assert cache.get_resolved() == FALLBACK_CHANNELS
+        assert mock_get.call_count == 1
+        # Still inside the cooldown: serve the fallback without re-probing.
+        assert cache.get_resolved() == FALLBACK_CHANNELS
+        assert mock_get.call_count == 1
+
+        cache._failed_at = time.monotonic() - ChannelCache._DISCOVERY_RETRY_COOLDOWN - 1
+        assert cache.get_resolved() == FALLBACK_CHANNELS
+        assert mock_get.call_count == 2, "cooldown expiry must allow another probe"
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_confirmed_empty_alias_is_never_resolved(self, mock_get, mock_post):
+        """Hydra publishes an alias before its index fills, so mid-rollover the
+        highest generation can be live but empty. Resolving to it would fail
+        every search for that channel for the life of the process."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-50-nixos-unstable", "index": "nixos-50-unstable-deadbeef"},
+            {"alias": "latest-51-nixos-unstable", "index": "nixos-51-unstable-fresh"},
+        ]
+        mock_get.return_value = aliases_resp
+
+        def fake_post(url, **_kwargs):
+            resp = Mock()
+            resp.status_code = 200
+            resp.json.return_value = {"count": 0 if "latest-51" in url else 450000}
+            return resp
+
+        mock_post.side_effect = fake_post
+
+        cache = ChannelCache()
+        assert cache.get_resolved()["unstable"] == "latest-50-nixos-unstable"
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_rollover_state_expires_so_the_new_generation_is_picked_up(self, mock_get, mock_post):
+        """A snapshot taken mid-publish must not outlive the publish window, or a
+        long-running server stays pinned to the old generation forever."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-50-nixos-unstable", "index": "nixos-50-unstable-deadbeef"},
+            {"alias": "latest-51-nixos-unstable", "index": "nixos-51-unstable-fresh"},
+        ]
+        mock_get.return_value = aliases_resp
+        filled = {"yet": False}
+
+        def fake_post(url, **_kwargs):
+            resp = Mock()
+            resp.status_code = 200
+            if "latest-51" in url:
+                resp.json.return_value = {"count": 450000 if filled["yet"] else 0}
+            else:
+                resp.json.return_value = {"count": 440000}
+            return resp
+
+        mock_post.side_effect = fake_post
+
+        cache = ChannelCache()
+        assert cache.get_resolved()["unstable"] == "latest-50-nixos-unstable"
+        assert cache.get_resolved()["unstable"] == "latest-50-nixos-unstable"
+
+        filled["yet"] = True
+        cache._rollover_at = time.monotonic() - ChannelCache._ROLLOVER_RECHECK - 1
+        assert cache.get_resolved()["unstable"] == "latest-51-nixos-unstable"
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_resolution_after_a_failed_count_is_not_cached(self, mock_get, mock_post):
+        """A failed probe leaves the alias a candidate, so the winner might be an
+        empty rollover index we could not rule out. Memoizing that would break
+        the channel until restart, so the resolution is recomputed next call."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-50-nixos-unstable", "index": "nixos-50-unstable-deadbeef"},
+            {"alias": "latest-51-nixos-unstable", "index": "nixos-51-unstable-fresh"},
+        ]
+        mock_get.return_value = aliases_resp
+
+        def probe(url, fresh_count):
+            resp = Mock()
+            resp.status_code = 200
+            resp.json.return_value = {"count": fresh_count if "latest-51" in url else 450000}
+            return resp
+
+        # First pass: the new alias's probe fails, so it stays a candidate and wins.
+        # Second pass: the probe succeeds and confirms it is empty.
+        state = {"first": True}
+
+        def fake_post(url, **_kwargs):
+            if "latest-51" in url and state["first"]:
+                state["first"] = False
+                raise requests.RequestException("count refused")
+            return probe(url, 0)
+
+        mock_post.side_effect = fake_post
+
+        cache = ChannelCache()
+        assert cache.get_resolved()["unstable"] == "latest-51-nixos-unstable"
+        assert cache.resolved_channels is None, "an incomplete probe must not be memoized"
+        assert cache.get_resolved()["unstable"] == "latest-50-nixos-unstable"
+
+    @patch("mcp_nixos.caches.requests.post")
+    @patch("mcp_nixos.caches.requests.get")
+    def test_partial_count_failure_keeps_every_channel_resolvable(self, mock_get, mock_post):
+        """Regression: caching the successfully-counted subset dropped channels
+        whose probe failed — `stable` could vanish until process restart."""
+        aliases_resp = Mock()
+        aliases_resp.status_code = 200
+        aliases_resp.json.return_value = [
+            {"alias": "latest-48-nixos-unstable", "index": "nixos-48-unstable-deadbeef"},
+            {"alias": "latest-48-nixos-25.11", "index": "nixos-48-25.11-cafebabe"},
+        ]
+        mock_get.return_value = aliases_resp
+
+        count_resp = Mock()
+        count_resp.status_code = 200
+        count_resp.json.return_value = {"count": 100000}
+
+        def fake_post(url, **_kwargs):
+            if "25.11" in url:
+                raise requests.RequestException("count refused")
+            return count_resp
+
+        mock_post.side_effect = fake_post
+
+        cache = ChannelCache()
+        assert cache.get_available() == {"latest-48-nixos-unstable": "100,000 documents"}
+        assert cache.available_channels is None, "a partial listing must not be cached"
+        # Resolution reads alias names, so the un-counted channel still resolves.
+        resolved = cache.get_resolved()
+        assert resolved["stable"] == "latest-48-nixos-25.11"
+        assert resolved["unstable"] == "latest-48-nixos-unstable"
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_concurrent_resolution_never_caches_a_fallback(self, mock_get):
+        """Regression: `using_fallback` used to be shared mutable state, so a
+        concurrent success could clear the flag before a fallback resolution
+        checked it — permanently caching the stale map."""
+        import threading
+
+        mock_get.side_effect = Exception("backend unreachable")
+        cache = ChannelCache()
+        results: list[dict[str, str]] = []
+        threads = [threading.Thread(target=lambda: results.append(cache.get_resolved())) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert all(r == FALLBACK_CHANNELS for r in results)
+        assert cache.resolved_channels is None, "a fallback must never end up cached"
 
     @patch("mcp_nixos.caches.requests.post")
     @patch("mcp_nixos.caches.requests.get")
@@ -327,12 +570,13 @@ class TestChannelCache:
         freshest data lives on the highest generation, so the resolver must
         prefer that even when older generations are still live."""
         cache = ChannelCache()
-        cache.available_channels = {
-            "latest-45-nixos-unstable": "400,000 documents",
-            "latest-46-nixos-unstable": "410,000 documents",
-            "latest-48-nixos-unstable": "450,000 documents",
-            "latest-47-nixos-unstable": "440,000 documents",
-        }
+        cache.alias_names = [
+            "latest-45-nixos-unstable",
+            "latest-46-nixos-unstable",
+            "latest-48-nixos-unstable",
+            "latest-47-nixos-unstable",
+        ]
+        cache.available_channels = dict.fromkeys(cache.alias_names, "400,000 documents")
         resolved = cache.get_resolved()
         assert resolved["unstable"] == "latest-48-nixos-unstable"
 
@@ -340,11 +584,12 @@ class TestChannelCache:
         """Same logic for release channels: when multiple generations of the
         same release version are live during a rollover window, pick the max."""
         cache = ChannelCache()
-        cache.available_channels = {
-            "latest-46-nixos-25.11": "400,000 documents",
-            "latest-48-nixos-25.11": "414,000 documents",
-            "latest-47-nixos-25.11": "414,000 documents",
-        }
+        cache.alias_names = [
+            "latest-46-nixos-25.11",
+            "latest-48-nixos-25.11",
+            "latest-47-nixos-25.11",
+        ]
+        cache.available_channels = dict.fromkeys(cache.alias_names, "400,000 documents")
         resolved = cache.get_resolved()
         assert resolved["25.11"] == "latest-48-nixos-25.11"
         assert resolved["stable"] == "latest-48-nixos-25.11"
@@ -354,11 +599,12 @@ class TestChannelCache:
         """`stable` aliases to the newest release version (not the newest
         generation across versions)."""
         cache = ChannelCache()
-        cache.available_channels = {
-            "latest-48-nixos-25.05": "350,000 documents",
-            "latest-48-nixos-25.11": "410,000 documents",
-            "latest-48-nixos-26.05": "420,000 documents",
-        }
+        cache.alias_names = [
+            "latest-48-nixos-25.05",
+            "latest-48-nixos-25.11",
+            "latest-48-nixos-26.05",
+        ]
+        cache.available_channels = dict.fromkeys(cache.alias_names, "400,000 documents")
         resolved = cache.get_resolved()
         assert resolved["stable"] == "latest-48-nixos-26.05"
         assert resolved["beta"] == "latest-48-nixos-26.05"
@@ -370,9 +616,8 @@ class TestChannelCache:
         """Only unstable is live — resolver must still produce a usable map
         and must not synthesize a fake `stable` / `beta` entry."""
         cache = ChannelCache()
-        cache.available_channels = {
-            "latest-48-nixos-unstable": "450,000 documents",
-        }
+        cache.alias_names = ["latest-48-nixos-unstable"]
+        cache.available_channels = {"latest-48-nixos-unstable": "450,000 documents"}
         resolved = cache.get_resolved()
         assert resolved == {"unstable": "latest-48-nixos-unstable"}
 
