@@ -371,9 +371,10 @@ class TestDottedPackageNameSearch:
         call_args = mock_es.call_args
         query = call_args[0][1]
         query_str = json.dumps(query)
-        # multi_match.query carries the full dotted string; package_pname is one
-        # of the weighted fields inside the same multi_match.
-        assert "python314Packages.matplotlib" in query_str, (
+        # multi_match.query carries the full dotted string, lower-cased (the
+        # whitespace analyzer does not fold case); package_pname is one of the
+        # weighted fields inside the same multi_match.
+        assert "python314packages.matplotlib" in query_str, (
             "multi_match.query should carry the full dotted name, got: " + query_str
         )
         assert "package_pname" in query_str, "package_pname must remain a searchable field"

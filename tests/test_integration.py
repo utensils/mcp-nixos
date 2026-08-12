@@ -219,8 +219,24 @@ class TestSearchAccuracyIntegration:
     async def test_search_package_by_program_name(self):
         """Programs field hit: 'MusicFree' (binary name) must find packages providing it."""
         result = await nix_fn(action="search", query="MusicFree", type="programs", limit=5)
-        assert "musicfree" in result.lower(), f"Should find program MusicFree, got: {result}"
+        # The header echoes the query, so assert on the rendered entry instead.
+        assert "provided by musicfree-desktop" in result.lower(), f"Should find program MusicFree, got: {result}"
         assert "No programs found" not in result
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_search_program_by_indirect_binary_name(self):
+        """`rg` is provided by `ripgrep` — a package whose attr name shares nothing with the query."""
+        result = await nix_fn(action="search", query="rg", type="programs", limit=10)
+        assert "provided by ripgrep" in result.lower(), f"Should find rg provided by ripgrep, got: {result}"
+        assert_plain_text(result)
+
+    @pytest.mark.asyncio
+    async def test_exact_package_name_ranks_first(self):
+        """`firefox` must outrank derived names like `firefox-esr-153-unwrapped`."""
+        result = await nix_fn(action="search", query="firefox", type="packages", limit=5)
+        first_entry = next(line for line in result.splitlines() if line.startswith("* "))
+        assert first_entry.startswith("* firefox ("), f"Exact match should rank first, got: {result}"
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -241,8 +257,8 @@ class TestSearchRobustnessIntegration:
     Covers:
     - Multi-word + `_ ↔ -` interchange: wildcard tokenization + swap variants must hit
       hyphenated field values.
-    - Wildcard metacharacters: user-supplied `*`, `?`, `\\` must be escaped to literals,
-      not interpreted as wildcards.
+    - Wildcard metacharacters: user-supplied `*`, `?`, `\\` are stripped, so the rest of
+      the query still searches normally.
     - Length cap: overlong queries must be truncated (no error, no service impact).
     """
 
@@ -254,13 +270,13 @@ class TestSearchRobustnessIntegration:
         assert_plain_text(result)
 
     @pytest.mark.asyncio
-    async def test_search_query_with_wildcard_chars_is_escaped(self):
-        """Query containing *,? must be escaped to literals, not interpreted as wildcards."""
+    async def test_search_query_with_wildcard_chars_is_stripped(self):
+        """`firefox*` must search for "firefox" — metacharacters are dropped, not escaped."""
         result = await nix_fn(action="search", query="firefox*", type="packages", limit=5)
-        # Must not crash; must not be interpreted as a leading wildcard causing a full scan
-        # returning unrelated results (firefox* escaped ≈ prefix match for firefox).
         assert_plain_text(result)
-        assert " API error" not in result.lower()
+        assert "API error" not in result
+        assert "\\" not in result, f"Escape characters must not leak into the response, got: {result}"
+        assert "* firefox (" in result, f"Should still match firefox packages, got: {result}"
 
     @pytest.mark.asyncio
     async def test_search_overlong_query_is_truncated(self):
@@ -268,7 +284,7 @@ class TestSearchRobustnessIntegration:
         long_query = "firefox" + "x" * 500
         result = await nix_fn(action="search", query=long_query, type="packages", limit=3)
         assert_plain_text(result)
-        assert " API error" not in result.lower()
+        assert "API error" not in result
         # After truncation the 'firefox' prefix should still be present and match firefox packages
         assert "firefox" in result.lower() or "No packages found" in result, (
             f"Truncated query should still match firefox, got: {result}"
