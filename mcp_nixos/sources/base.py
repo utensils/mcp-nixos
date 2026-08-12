@@ -70,11 +70,19 @@ def get_channel_suggestions(invalid_channel: str) -> str:
     return f"Available channels: {', '.join(suggestions)}"
 
 
-def es_query(index: str, query: dict[str, Any], size: int = 20) -> list[dict[str, Any]]:
+def es_query(
+    index: str, query: dict[str, Any], size: int = 20, rescore: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Run a search against the NixOS Elasticsearch index.
+
+    `rescore` is a top-level search-body key (not part of `query`), used to
+    re-rank the top window after the main query scores it.
+    """
+    body: dict[str, Any] = {"query": query, "size": size}
+    if rescore:
+        body["rescore"] = rescore
     try:
-        resp = requests.post(
-            f"{NIXOS_API}/{index}/_search", json={"query": query, "size": size}, auth=NIXOS_AUTH, timeout=10
-        )
+        resp = requests.post(f"{NIXOS_API}/{index}/_search", json=body, auth=NIXOS_AUTH, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         if isinstance(data, dict) and "hits" in data:
