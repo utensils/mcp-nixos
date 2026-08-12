@@ -71,7 +71,7 @@ jobs:
 
     - name: Build Python distribution
       run: |
-        nix develop --command python -m build
+        nix develop --command python -m build --no-isolation
         ls -la dist/
 
     - name: Validate package metadata

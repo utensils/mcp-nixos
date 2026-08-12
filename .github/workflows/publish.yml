@@ -87,7 +87,7 @@ jobs:
 
       - name: Build Python package
         run: |
-          nix develop --command python -m build
+          nix develop --command python -m build --no-isolation
           nix develop --command twine check dist/*
 
       - name: Upload build artifacts
