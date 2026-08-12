@@ -23,12 +23,17 @@ BASE_CHANNELS = {
 }
 
 # Fallback channels when API discovery fails (static mappings based on recent patterns)
+# Last-resort channel map, used only when alias discovery fails outright.
+# These generations bit-rot: Hydra retires old `latest-<gen>-nixos-*` aliases,
+# and a retired alias 404s on every query. The cache therefore never memoizes a
+# fallback result — it retries discovery on the next call (see ChannelCache) —
+# so this map only has to cover a single request during an upstream blip.
 FALLBACK_CHANNELS = {
-    "unstable": "latest-44-nixos-unstable",
-    "stable": "latest-44-nixos-25.11",
-    "25.05": "latest-44-nixos-25.05",
-    "25.11": "latest-44-nixos-25.11",
-    "beta": "latest-44-nixos-25.11",
+    "unstable": "latest-50-nixos-unstable",
+    "stable": "latest-50-nixos-26.05",
+    "26.05": "latest-50-nixos-26.05",
+    "25.11": "latest-48-nixos-25.11",
+    "beta": "latest-50-nixos-26.05",
 }
 
 # Home Manager's option docs are split across mdBook pages. The print view keeps
