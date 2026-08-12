@@ -13,6 +13,7 @@ These tests verify:
 - Edge cases and boundary conditions
 """
 
+import json
 from unittest.mock import Mock, patch
 
 import pytest
@@ -304,7 +305,13 @@ class TestDottedPackageNameSearch:
     @patch("mcp_nixos.sources.nixos.get_channels")
     @pytest.mark.asyncio
     async def test_search_queries_package_attr_name(self, mock_channels, mock_es):
-        """Verify that the ES query includes package_attr_name in the should clause."""
+        """Verify that the ES query includes package_attr_name as a weighted field.
+
+        New search semantics (aligned with search.nixos.org frontend) packs the
+        field list inside a dis_max/multi_match; the structural assertion is now
+        "package_attr_name appears in the query body", regardless of whether it
+        lives in a bool/should list or a multi_match fields list.
+        """
         from mcp_nixos.sources.nixos import _search_nixos
 
         mock_channels.return_value = {"unstable": "nixos-unstable"}
@@ -315,12 +322,9 @@ class TestDottedPackageNameSearch:
         # Inspect the query passed to es_query
         call_args = mock_es.call_args
         query = call_args[0][1]  # second positional arg is the query dict
-        should_clauses = query["bool"]["should"]
-
-        # There should be a clause matching package_attr_name
-        attr_name_clauses = [c for c in should_clauses if "package_attr_name" in str(c)]
-        assert len(attr_name_clauses) > 0, (
-            "ES query should include package_attr_name in should clauses to support dotted package name searches"
+        query_str = json.dumps(query)
+        assert "package_attr_name" in query_str, (
+            "ES query should reference package_attr_name to support dotted package name searches"
         )
 
     @patch("mcp_nixos.sources.nixos.es_query")
@@ -355,8 +359,8 @@ class TestDottedPackageNameSearch:
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")
     @pytest.mark.asyncio
-    async def test_search_dotted_name_extracts_pname(self, mock_channels, mock_es):
-        """Verify that dotted names also search the last component as pname."""
+    async def test_search_dotted_name_queries_full_string(self, mock_channels, mock_es):
+        """Dotted names must be sent whole into multi_match.query (no client-side pname split)."""
         from mcp_nixos.sources.nixos import _search_nixos
 
         mock_channels.return_value = {"unstable": "nixos-unstable"}
@@ -366,20 +370,13 @@ class TestDottedPackageNameSearch:
 
         call_args = mock_es.call_args
         query = call_args[0][1]
-        should_clauses = query["bool"]["should"]
-
-        # The pname clause should search for "matplotlib" (the last component),
-        # not the full dotted string
-        pname_clauses = [c for c in should_clauses if "match" in c and "package_pname" in c.get("match", {})]
-        assert len(pname_clauses) > 0, "Should have a package_pname match clause"
-        pname_query = pname_clauses[0]["match"]["package_pname"]
-        if isinstance(pname_query, dict):
-            pname_value = pname_query["query"]
-        else:
-            pname_value = pname_query
-        assert pname_value == "matplotlib", (
-            f"package_pname should search for 'matplotlib' (last component), got '{pname_value}'"
+        query_str = json.dumps(query)
+        # multi_match.query carries the full dotted string; package_pname is one
+        # of the weighted fields inside the same multi_match.
+        assert "python314Packages.matplotlib" in query_str, (
+            "multi_match.query should carry the full dotted name, got: " + query_str
         )
+        assert "package_pname" in query_str, "package_pname must remain a searchable field"
 
     @patch("mcp_nixos.sources.nixos.es_query")
     @patch("mcp_nixos.sources.nixos.get_channels")

@@ -7,6 +7,106 @@ from typing import Any
 from ..utils import error
 from .base import es_query, get_channel_suggestions, get_channels
 
+# Field weights mirror the search.nixos.org frontend Elm source
+# (nixos-search repo: frontend/src/Page/Packages.elm — defaultSearchFields).
+# Verified against live ES index document keys — only fields that actually exist
+# on the NixOS packages / options indices are referenced.
+# Note: the frontend options query template also references option_name_query,
+# service_package(s), flake_name — those are template fields for the
+# home-manager / darwin / flakes indices and are silently ignored by ES against
+# the NixOS options index, so we omit them here.
+_PACKAGE_SEARCH_FIELDS = [
+    "package_attr_name^9",
+    "package_programs^9",
+    "package_pname^6",
+    "package_description^1.3",
+    "package_longDescription^1",
+]
+_OPTION_SEARCH_FIELDS = [
+    "option_name^6",
+    "option_description^1",
+]
+
+# Query length cap: wildcard is a term-level scan, so an overlong query makes
+# substring matching noticeably slower. 200 chars covers any realistic package
+# name or option path (longest observed nixpkgs attr paths are well under 100)
+# while blocking LLM-generated paragraphs.
+_MAX_QUERY_LEN = 200
+
+
+def _hyphen_variants(token: str) -> set[str]:
+    """Return the token plus its `_ ↔ -` swap variants.
+
+    The nix ecosystem mixes `_` and `-` (e.g. `steam_install` / `steam-runtime`),
+    so search should treat them as interchangeable.
+    """
+    return {token, token.replace("_", "-"), token.replace("-", "_")}
+
+
+def _wildcard_clauses(query: str, field: str) -> list[dict[str, Any]]:
+    """Build case_insensitive wildcard clauses, mirroring the frontend Elm (Search.elm).
+
+    1. The whole query string is a candidate (covers substring matches like
+       `musicfree` hitting `musicfree-desktop`).
+    2. Each whitespace-separated token gets its own wildcard clause (multi-word queries).
+    3. `_ ↔ -` swap variants via `_hyphen_variants`.
+
+    Precondition: `query` must already be normalized (trimmed) by the caller —
+    `_search_nixos` calls `_normalize_query` before reaching here, which turns
+    pure-whitespace input into an empty string. An empty `query` yields zero
+    clauses, leaving the dis_max branch inactive.
+    """
+    lowered = query.lower()
+    tokens = [lowered, *lowered.split()]
+    candidates: set[str] = set()
+    for token in tokens:
+        candidates |= _hyphen_variants(token)
+    candidates.discard("")
+    return [{"wildcard": {field: {"value": f"*{w}*", "case_insensitive": True}}} for w in sorted(candidates)]
+
+
+def _normalize_query(query: str) -> str:
+    """Centralized input preprocessing at the `_search_nixos` entry: trim, truncate, escape.
+
+    Escapes `*`, `?`, `\\` so they are treated as literals by ES wildcard semantics
+    (prevents metacharacter injection). Length cap blocks LLM-generated paragraphs
+    that would make wildcard substring scans expensive.
+    """
+    q = query.strip()
+    if len(q) > _MAX_QUERY_LEN:
+        q = q[:_MAX_QUERY_LEN]
+    return q.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?")
+
+
+def _build_search_query(query: str, fields: list[str], wildcard_field: str) -> dict[str, Any]:
+    """Build the ES query body mirroring the search.nixos.org frontend semantics.
+
+    `dis_max(multi_match + wildcard fallback)`:
+    - `multi_match(cross_fields, whitespace analyzer, operator=and)` does the
+      weighted cross-field match (tie_breaker / auto_generate_synonyms_phrase_query
+      values come straight from the frontend Elm source).
+    - The wildcard fallback (tokenized + `_ ↔ -` swapped + case_insensitive)
+      covers substring and hyphen-variant matches the analyzer would otherwise miss.
+    """
+    return {
+        "dis_max": {
+            "tie_breaker": 0.7,
+            "queries": [
+                {
+                    "multi_match": {
+                        "type": "cross_fields",
+                        "query": query,
+                        "analyzer": "whitespace",
+                        "auto_generate_synonyms_phrase_query": False,
+                        "operator": "and",
+                        "fields": fields,
+                    }
+                },
+                *_wildcard_clauses(query, wildcard_field),
+            ],
+        }
+    }
+
 
 def _search_nixos(query: str, search_type: str, limit: int, channel: str) -> str:
     """Search NixOS packages, options, or programs via Elasticsearch."""
@@ -21,44 +121,20 @@ def _search_nixos(query: str, search_type: str, limit: int, channel: str) -> str
     if channel not in channels:
         return error(f"Invalid channel '{channel}'. {get_channel_suggestions(channel)}")
 
+    # Centralized preprocessing: trim + length truncation + wildcard metachar escaping
+    # (SSOT — downstream helpers assume normalized input).
+    query = _normalize_query(query)
+
     try:
-        if search_type == "packages":
-            # For dotted names like "kdePackages.qt6ct", extract the last component
-            # as the pname and also search the full string against package_attr_name
-            pname_query = query.rsplit(".", 1)[-1] if "." in query else query
-            q = {
-                "bool": {
-                    "must": [{"term": {"type": "package"}}],
-                    "should": [
-                        {"match": {"package_pname": {"query": pname_query, "boost": 3}}},
-                        {"match": {"package_attr_name": {"query": query, "boost": 2}}},
-                        {"match": {"package_description": pname_query}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        elif search_type == "options":
-            q = {
-                "bool": {
-                    "must": [{"term": {"type": "option"}}],
-                    "should": [
-                        {"wildcard": {"option_name": f"*{query}*"}},
-                        {"match": {"option_description": query}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        else:  # programs
-            q = {
-                "bool": {
-                    "must": [{"term": {"type": "package"}}],
-                    "should": [
-                        {"match": {"package_programs": {"query": query, "boost": 2}}},
-                        {"match": {"package_pname": query}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
+        if search_type == "options":
+            type_term, fields, wildcard_field = "option", _OPTION_SEARCH_FIELDS, "option_name"
+        else:
+            # packages and programs share the same query (programs is a specialization):
+            # `package_programs^9` in the multi_match already surfaces packages that
+            # provide the binary; the result-rendering stage then filters by exact
+            # program-name match — two layers together ensure correct program search.
+            type_term, fields, wildcard_field = "package", _PACKAGE_SEARCH_FIELDS, "package_attr_name"
+        q = {"bool": {"must": [{"term": {"type": type_term}}, _build_search_query(query, fields, wildcard_field)]}}
 
         hits = es_query(channels[channel], q, limit)
         if not hits:
