@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.0.1](https://github.com/utensils/mcp-nixos/compare/v3.0.0...v3.0.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **channels:** stop memoizing the stale channel fallback ([#211](https://github.com/utensils/mcp-nixos/issues/211)) ([effeccf](https://github.com/utensils/mcp-nixos/commit/effeccf4efb1ad850ce8308456f0877d9c5f3d39))
+* **ci:** build the distribution with --no-isolation ([#208](https://github.com/utensils/mcp-nixos/issues/208)) ([cd82f7d](https://github.com/utensils/mcp-nixos/commit/cd82f7debfc1d35ecdd18886ff589f22b3ab144c))
+* **search:** align ES query semantics with search.nixos.org frontend ([#206](https://github.com/utensils/mcp-nixos/issues/206)) ([548578c](https://github.com/utensils/mcp-nixos/commit/548578c2f6c209d32c85b3823a6f44bf054ebf8c))
+* **search:** restore exact-match ranking and correct result counts ([#209](https://github.com/utensils/mcp-nixos/issues/209)) ([a786fa8](https://github.com/utensils/mcp-nixos/commit/a786fa8c575fc130fa0e0ec39d9ee5592538df4f))
+
 ## [3.0.0](https://github.com/utensils/mcp-nixos/compare/v2.4.3...v3.0.0) (2026-08-04)
 
 
