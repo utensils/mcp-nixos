@@ -460,18 +460,23 @@ class HtmlOptionsCache:
         self.url = url
         self.display_name = display_name
         self.options: list[dict[str, str]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_options(self) -> list[dict[str, str]]:
         """Fetch, parse, and cache the full option catalogue."""
         if self.options is not None:
             return self.options
 
-        options = parse_html_options(self.url, limit=None)
-        if not options:
-            raise APIError(f"Failed to parse {self.display_name} options: no options found")
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-        self.options = options
-        return self.options
+            options = parse_html_options(self.url, limit=None)
+            if not options:
+                raise APIError(f"Failed to parse {self.display_name} options: no options found")
+
+            self.options = options
+            return self.options
 
 
 home_manager_cache = HtmlOptionsCache(HOME_MANAGER_URL, "Home Manager")
