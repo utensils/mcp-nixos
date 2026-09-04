@@ -1,5 +1,8 @@
 """Unit tests for the shared HTML option catalogue cache, scoring, and sources."""
 
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import patch
 
 import pytest
@@ -90,6 +93,33 @@ class TestHtmlOptionsCache:
             with pytest.raises(APIError, match="no options found"):
                 cache.get_options()
         assert cache.options is None
+
+    def test_concurrent_first_calls_share_one_catalogue(self):
+        cache = HtmlOptionsCache("https://example.invalid/options.html", "Home Manager")
+        start = Barrier(8)
+
+        def parse(*args, **kwargs):
+            # Model blocking network I/O so the other callers encounter a cold cache.
+            time.sleep(0.05)
+            return list(GIT_OPTIONS)
+
+        def load(_):
+            start.wait(timeout=5)
+            return cache.get_options()
+
+        with patch("mcp_nixos.caches.parse_html_options", side_effect=parse) as mock_parse:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                results = list(pool.map(load, range(8)))
+
+        mock_parse.assert_called_once_with(cache.url, limit=None)
+        assert all(result is results[0] for result in results)
+
+    def test_failed_load_can_be_retried(self):
+        cache = HtmlOptionsCache("https://example.invalid/options.html", "Home Manager")
+        with patch("mcp_nixos.caches.parse_html_options", side_effect=[APIError("offline"), list(GIT_OPTIONS)]):
+            with pytest.raises(APIError, match="offline"):
+                cache.get_options()
+            assert cache.get_options() == GIT_OPTIONS
 
     def test_module_singletons_exist(self):
         assert home_manager_cache.display_name == "Home Manager"
