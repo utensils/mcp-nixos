@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/utensils/mcp-nixos/compare/v3.0.1...v3.0.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* serialize initial HTML catalogue loads ([#213](https://github.com/utensils/mcp-nixos/issues/213)) ([a574dad](https://github.com/utensils/mcp-nixos/commit/a574dad8b303bc0ee1b171780794dc51c2266a52))
+
 ## [3.0.1](https://github.com/utensils/mcp-nixos/compare/v3.0.0...v3.0.1) (2026-08-12)
 
 
