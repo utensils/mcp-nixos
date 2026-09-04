@@ -72,6 +72,10 @@
           dontCheckRuntimeDeps = true;
           pythonImportsCheck = [ "mcp_nixos" ];
 
+          # Expose the scoped package set so consumers (and the flake's own
+          # checks) can inspect the exact fastmcp/mcp the binary runs on.
+          passthru = { inherit pythonPackages; };
+
           meta = {
             inherit (pyproject.project) description;
             homepage = "https://github.com/utensils/mcp-nixos";
@@ -95,14 +99,21 @@
         # Upgrade the whole Python package set to fastmcp 4 / mcp 2 when the
         # consumer's nixpkgs still ships an older release. Only needed if you
         # want `pkgs.python3Packages.fastmcp` itself to be 4.x; `mcp-nixos`
-        # below already builds against a scoped copy of this upgrade.
+        # below already builds against a scoped copy of this upgrade. Note
+        # that this also replaces `python3Packages.mcp` (1.x -> 2.x, a major
+        # API break) set-wide, so other packages depending on `mcp` may break.
         overlays.fastmcp4 = _final: prev: {
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [ fastmcp4Extension ];
         };
 
         # Deprecated alias kept so existing `overlays.fastmcp3` references keep
-        # evaluating; it now applies the fastmcp 4 upgrade.
-        overlays.fastmcp3 = self.overlays.fastmcp4;
+        # evaluating. It now applies the fastmcp 4 upgrade above, with the
+        # same set-wide `mcp` replacement, so warn loudly.
+        overlays.fastmcp3 = nixpkgs.lib.warn ''
+          mcp-nixos: overlays.fastmcp3 is deprecated. Use overlays.default for
+          pkgs.mcp-nixos (self-contained), or overlays.fastmcp4 if you really
+          want python3Packages.fastmcp and mcp upgraded set-wide.
+        '' self.overlays.fastmcp4;
 
         # Downstream consumers who apply `mcp-nixos.overlays.default` get
         # `pkgs.mcp-nixos`. It carries its own fastmcp 4 stack, so nothing
@@ -204,6 +215,20 @@
           ];
         in
         {
+          # Guards nix/fastmcp4.nix: fail loudly if either the package this flake
+          # builds or the overlay-applied package set fell back to fastmcp < 4.
+          checks.fastmcp4-overlay =
+            let
+              scoped = self.packages.${system}.mcp-nixos.pythonPackages.fastmcp.version;
+              global = pkgs.python3Packages.fastmcp.version;
+              ok = v: pkgs.lib.versionAtLeast v "4";
+            in
+            assert pkgs.lib.assertMsg (ok scoped) "mcp-nixos builds against fastmcp ${scoped}, expected >= 4";
+            assert pkgs.lib.assertMsg (ok global) "overlays.fastmcp4 yielded fastmcp ${global}, expected >= 4";
+            pkgs.runCommand "fastmcp4-overlay-check" { } ''
+              echo "fastmcp ${scoped} (scoped), ${global} (overlay)" > $out
+            '';
+
           packages = rec {
             mcp-nixos = mkMcpNixos { inherit pkgs; };
             default = mcp-nixos;

@@ -18,8 +18,8 @@ from mcp_nixos.server import nix, nix_versions
 
 
 def _callable(tool):
-    # FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (not directly callable);
-    # FastMCP 3.x keeps them as plain async functions. Support both.
+    # FastMCP 2.x wrapped @mcp.tool() functions as FunctionTool (not directly callable);
+    # FastMCP 3.x and later keep them as plain async functions. Support both.
     return getattr(tool, "fn", tool)
 
 

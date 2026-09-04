@@ -11,7 +11,8 @@
 
 buildPythonPackage rec {
   pname = "httpx2";
-  version = "2.12.0";
+  # httpx2 pins httpcore2 to the exact same version (one repo, one tag).
+  inherit (httpcore2) version;
   format = "wheel";
 
   src = fetchPypi {
@@ -35,7 +36,8 @@ buildPythonPackage rec {
 
   meta = {
     description = "Next-generation HTTP client for Python (httpx 2.x line)";
-    homepage = "https://github.com/encode/httpx";
+    homepage = "https://github.com/pydantic/httpx2";
+    changelog = "https://github.com/pydantic/httpx2/blob/v${version}/src/httpx2/CHANGELOG.md";
     license = lib.licenses.bsd3;
   };
 }

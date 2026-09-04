@@ -39,7 +39,7 @@ and utilities for developers and systems engineers.
 
 ## Architecture
 
-MCP-NixOS v2.x is a **stateless, async FastMCP 4.x server** with a modular structure
+MCP-NixOS v3.x is a **stateless, async FastMCP 4.x server** with a modular structure
 (Python 3.11+). No persistent caches, no databases, no sacred goat to appease — live
 APIs are the source of truth, with some in-process caching for discovered channels
 and index-style sources (Nixvim, NVF, Noogle, nix.dev) so a single server run doesn't

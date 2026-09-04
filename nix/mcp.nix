@@ -19,7 +19,8 @@
 
 buildPythonPackage rec {
   pname = "mcp";
-  version = "2.1.1";
+  # mcp pins mcp-types to the exact same version.
+  inherit (mcp-types) version;
   format = "wheel";
 
   src = fetchPypi {

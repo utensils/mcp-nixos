@@ -29,7 +29,8 @@ buildPythonPackage rec {
 
   meta = {
     description = "Minimal HTTP client transport layer (httpcore 2.x line)";
-    homepage = "https://github.com/encode/httpcore";
+    homepage = "https://github.com/pydantic/httpx2";
+    changelog = "https://github.com/pydantic/httpx2/blob/v${version}/src/httpcore2/CHANGELOG.md";
     license = lib.licenses.bsd3;
   };
 }
