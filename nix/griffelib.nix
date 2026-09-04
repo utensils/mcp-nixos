@@ -1,31 +1,20 @@
 {
   lib,
   buildPythonPackage,
-  fetchFromGitHub,
-  hatchling,
-  pdm-backend,
-  uv-dynamic-versioning,
+  fetchPypi,
 }:
 
-buildPythonPackage (finalAttrs: {
+buildPythonPackage rec {
   pname = "griffelib";
-  version = "2.0.2";
-  pyproject = true;
+  version = "2.2.0";
+  format = "wheel";
 
-  src = fetchFromGitHub {
-    owner = "mkdocstrings";
-    repo = "griffe";
-    tag = finalAttrs.version;
-    hash = "sha256-Fxa9lrBVQ/enVLiU7hUc0d5x9ItI19EGnbxa7MX6Plc=";
+  src = fetchPypi {
+    inherit pname version format;
+    dist = "py3";
+    python = "py3";
+    hash = "sha256-1xw7wrvtn5WEiGNP54i4Q6n3BdbSg4yjLNbCXutk38Q=";
   };
-
-  sourceRoot = "${finalAttrs.src.name}/packages/griffelib";
-
-  build-system = [
-    hatchling
-    pdm-backend
-    uv-dynamic-versioning
-  ];
 
   pythonImportsCheck = [ "griffe" ];
   doCheck = false;
@@ -35,4 +24,4 @@ buildPythonPackage (finalAttrs: {
     homepage = "https://github.com/mkdocstrings/griffe";
     license = lib.licenses.isc;
   };
-})
+}

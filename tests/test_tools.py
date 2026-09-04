@@ -20,8 +20,8 @@ import pytest
 from mcp_nixos.server import nix, nix_versions
 
 # Get underlying functions from MCP tool wrappers.
-# FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
-# returns the plain async function. Support both.
+# FastMCP 2.x wrapped @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
+# and later return the plain async function. Support both.
 nix_fn = getattr(nix, "fn", nix)
 nix_versions_fn = getattr(nix_versions, "fn", nix_versions)
 

@@ -21,8 +21,8 @@ from mcp_nixos.server import (
 )
 
 # Get underlying function from MCP tool wrapper.
-# FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
-# returns the plain async function. Support both.
+# FastMCP 2.x wrapped @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
+# and later return the plain async function. Support both.
 nix_fn = getattr(nix, "fn", nix)
 
 

@@ -1,29 +1,21 @@
 {
   lib,
   buildPythonPackage,
-  fetchFromGitHub,
-  hatch-vcs,
-  hatchling,
+  fetchPypi,
 }:
 
-buildPythonPackage (finalAttrs: {
+buildPythonPackage rec {
   pname = "uncalled-for";
-  version = "0.3.1";
-  pyproject = true;
+  version = "0.4.0";
+  format = "wheel";
 
-  __structuredAttrs = true;
-
-  src = fetchFromGitHub {
-    owner = "chrisguidry";
-    repo = "uncalled-for";
-    tag = finalAttrs.version;
-    hash = "sha256-+akXLsfto3FNbkpsPPwN1DQmvu3BpTafRbqLmLwtqek=";
+  src = fetchPypi {
+    pname = "uncalled_for";
+    inherit version format;
+    dist = "py3";
+    python = "py3";
+    hash = "sha256-FsS7MzdTLkvVVprcGSKFl2861TBUAiVtNMZ6ErXJaL0=";
   };
-
-  build-system = [
-    hatch-vcs
-    hatchling
-  ];
 
   pythonImportsCheck = [ "uncalled_for" ];
   doCheck = false;
@@ -33,4 +25,4 @@ buildPythonPackage (finalAttrs: {
     homepage = "https://github.com/chrisguidry/uncalled-for";
     license = lib.licenses.mit;
   };
-})
+}

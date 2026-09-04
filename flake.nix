@@ -18,6 +18,10 @@
       ...
     }:
     let
+      # Python package-set extension that provides fastmcp 4 / mcp 2 on
+      # nixpkgs revisions that still ship older releases (see nix/fastmcp4.nix).
+      fastmcp4Extension = import ./nix/fastmcp4.nix { inherit (nixpkgs) lib; };
+
       mkMcpNixos =
         {
           pkgs,
@@ -25,8 +29,13 @@
         }:
         let
           pyproject = pkgs.lib.importTOML ./pyproject.toml;
+          # Scope the fastmcp 4 upgrade to this package so consumers get a
+          # working mcp-nixos without having to upgrade `mcp`/`fastmcp` in
+          # their whole Python package set. The extension is a no-op when the
+          # given set already carries fastmcp >= 4.
+          pythonPackages = python3Packages.overrideScope fastmcp4Extension;
         in
-        python3Packages.buildPythonApplication {
+        pythonPackages.buildPythonApplication {
           pname = pyproject.project.name;
           inherit (pyproject.project) version;
           pyproject = true;
@@ -42,8 +51,8 @@
             ];
           };
 
-          build-system = [ python3Packages.hatchling ];
-          dependencies = with python3Packages; [
+          build-system = [ pythonPackages.hatchling ];
+          dependencies = with pythonPackages; [
             fastmcp
             requests
             beautifulsoup4
@@ -51,7 +60,7 @@
 
           pythonRelaxDeps = true;
           doCheck = true;
-          nativeCheckInputs = with python3Packages; [
+          nativeCheckInputs = with pythonPackages; [
             pytest
             pytest-asyncio
             pytest-cov
@@ -83,56 +92,24 @@
       ];
 
       flake = {
-        # Upgrade fastmcp to 3.2.4 only when the consumer's nixpkgs is older.
-        # Newer nixpkgs versions split fastmcp-slim out of the source tree, so
-        # downgrading only fastmcp would create an incompatible mixed package set.
-        overlays.fastmcp3 = final: prev: {
-          pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-            (
-              pyFinal: pyPrev:
-              prev.lib.optionalAttrs (!(pyPrev ? fastmcp-slim)) {
-                fastmcp = pyPrev.fastmcp.overridePythonAttrs (old: rec {
-                  version = "3.2.4";
-                  src = prev.fetchFromGitHub {
-                    owner = "PrefectHQ";
-                    repo = "fastmcp";
-                    tag = "v${version}";
-                    hash = "sha256-rJpxPvqAaa6/vXhG1+R9dI32cY/54e6I+F/zyBVoqBM=";
-                  };
-                  # Drop pydocket (moved to optional-dependencies.tasks upstream in
-                  # nixpkgs PR #510339) and add fastmcp 3's new transitive deps.
-                  # pydocket's build pulls in lupa → luajit, which fails to link on
-                  # aarch64-linux (bundled libluajit.a is in the wrong format), and
-                  # we don't use fastmcp task features.
-                  #
-                  # griffelib and uncalled-for are recent additions to nixos-unstable
-                  # (March 2026) and absent from stable channels. Use upstream if the
-                  # consumer's nixpkgs has them; otherwise fall back to our inline
-                  # definitions so `inputs.nixpkgs.follows = "nixpkgs"` works against
-                  # older pins. See issue #135.
-                  dependencies = builtins.filter (d: (d.pname or "") != "pydocket") (old.dependencies or [ ]) ++ [
-                    (pyFinal.griffelib or (pyFinal.callPackage ./nix/griffelib.nix { }))
-                    pyFinal.opentelemetry-api
-                    (pyFinal.uncalled-for or (pyFinal.callPackage ./nix/uncalled-for.nix { }))
-                    pyFinal.watchfiles
-                    pyFinal.pyyaml
-                  ];
-                  dontCheckRuntimeDeps = true;
-                  doCheck = false;
-                });
-              }
-            )
-          ];
+        # Upgrade the whole Python package set to fastmcp 4 / mcp 2 when the
+        # consumer's nixpkgs still ships an older release. Only needed if you
+        # want `pkgs.python3Packages.fastmcp` itself to be 4.x; `mcp-nixos`
+        # below already builds against a scoped copy of this upgrade.
+        overlays.fastmcp4 = _final: prev: {
+          pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [ fastmcp4Extension ];
         };
 
-        # Downstream consumers who apply `mcp-nixos.overlays.default` get both
-        # mcp-nixos itself and the fastmcp 3 upgrade needed to satisfy our
-        # fastmcp>=3.2.0 dependency against nixpkgs that still ships 2.x.
-        overlays.default = nixpkgs.lib.composeExtensions self.overlays.fastmcp3 (
-          final: _: {
-            mcp-nixos = mkMcpNixos { pkgs = final; };
-          }
-        );
+        # Deprecated alias kept so existing `overlays.fastmcp3` references keep
+        # evaluating; it now applies the fastmcp 4 upgrade.
+        overlays.fastmcp3 = self.overlays.fastmcp4;
+
+        # Downstream consumers who apply `mcp-nixos.overlays.default` get
+        # `pkgs.mcp-nixos`. It carries its own fastmcp 4 stack, so nothing
+        # else in the consumer's Python package set is touched.
+        overlays.default = final: _: {
+          mcp-nixos = mkMcpNixos { pkgs = final; };
+        };
 
         lib.mkMcpNixos = mkMcpNixos;
       };
@@ -142,7 +119,7 @@
         let
           pkgs = import nixpkgs {
             inherit system;
-            overlays = [ self.overlays.fastmcp3 ];
+            overlays = [ self.overlays.fastmcp4 ];
           };
 
           # One unified Python environment with app runtime deps, dev tools,
