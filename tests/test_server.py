@@ -1218,6 +1218,22 @@ class TestPlainTextOutput:
 class TestNoogleFunctions:
     """Test Noogle (noogle.dev) internal functions."""
 
+    def test_type_signature_comes_from_meta(self):
+        """Noogle stores signatures under meta, not content.
+
+        Regression: every search/info result lacked a Type line and stats
+        reported "With type signatures: 0" because only content was inspected.
+        """
+        from mcp_nixos.sources.noogle import _get_noogle_type_signature
+
+        doc = {
+            "meta": {"title": "builtins.mapAttrs", "signature": "mapAttrs :: (String -> a -> b) -> AttrSet\n"},
+            "content": {"content": "Apply a function..."},
+        }
+        assert _get_noogle_type_signature(doc) == "mapAttrs :: (String -> a -> b) -> AttrSet"
+        assert _get_noogle_type_signature({"meta": {"signature": None}, "content": {"type": "a -> b"}}) == "a -> b"
+        assert _get_noogle_type_signature({"meta": {}, "content": {}}) == ""
+
     @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_success(self, mock_get):
         """Test successful Noogle search."""

@@ -19,21 +19,25 @@ def _get_noogle_function_path(doc: dict[str, Any]) -> str:
 
 
 def _get_noogle_type_signature(doc: dict[str, Any]) -> str:
-    """Extract the type signature from a Noogle document."""
+    """Extract the type signature from a Noogle document.
+
+    Noogle publishes it as `meta.signature` (e.g. `mapAttrs :: (String -> a
+    -> b) -> ...`); the older `content.signature` / `content.type` spots are
+    kept as fallbacks for documents shaped differently.
+    """
+    meta = doc.get("meta")
+    if isinstance(meta, dict):
+        signature = meta.get("signature")
+        if signature:
+            return " ".join(str(signature).split())
+
     content = doc.get("content")
     if not content or not isinstance(content, dict):
         return ""
-
-    # Check for signature in content
-    signature = content.get("signature", "")
-    if signature:
-        return str(signature)
-
-    # Check for type annotation
-    type_info = content.get("type", "")
-    if type_info:
-        return str(type_info)
-
+    for key in ("signature", "type"):
+        value = content.get(key)
+        if value:
+            return " ".join(str(value).split())
     return ""
 
 
