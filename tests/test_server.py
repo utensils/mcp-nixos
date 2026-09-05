@@ -933,6 +933,36 @@ class TestNixDevFunctions:
         assert "No nix.dev documentation found" in _search_nixdev("1mb", 10)
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_search_nixdev_partial_matches_rank_below_exact(self, mock_get):
+        """A query word inside a longer body term still scores, below exact hits.
+
+        "shell" is an exact stem for the dev-shell guide and a partial match for
+        the single-document (bare int) body term "nix-shell". Title terms never
+        match partially, so a page whose only link is a partial titleterm is
+        absent. Equal scores order by document id.
+        """
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/first-steps", "guides/dev-shell", "concepts/other"],
+            "titles": ["First steps", "Dev shells", "Other"],
+            "terms": {"shell": [1], "nix-shell": 0},
+            "titleterms": {"shell-history": [2]},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        nixdev_cache.index = None
+
+        result = _search_nixdev("shell", 10)
+        lines = [line for line in result.splitlines() if line.startswith("* ")]
+        assert lines == ["* Dev shells", "* First steps"]
+        assert "Other" not in result
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_no_results(self, mock_get):
         """Test nix.dev search with no matches."""
         import json
