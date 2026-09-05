@@ -11,6 +11,7 @@ from importlib.metadata import version
 
 import mcp.types
 import pytest
+from packaging.version import Version
 
 
 @pytest.mark.unit
@@ -22,3 +23,11 @@ def test_fastmcp_major_version_is_at_least_4() -> None:
 @pytest.mark.unit
 def test_mcp_sdk_speaks_protocol_2026_07_28() -> None:
     assert mcp.types.LATEST_PROTOCOL_VERSION >= "2026-07-28"
+
+
+@pytest.mark.unit
+def test_starlette_meets_fastmcp_security_floor() -> None:
+    # fastmcp-slim 4 requires starlette >= 1.0.1 (CVE-2026-48710). The Nix
+    # packaging relaxes wheel metadata, so re-check the floor here where it
+    # fails `nix build` on any pin that resolves an older starlette.
+    assert Version(version("starlette")) >= Version("1.0.1"), f"starlette {version('starlette')} is below 1.0.1"

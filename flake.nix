@@ -215,18 +215,39 @@
           ];
         in
         {
-          # Guards nix/fastmcp4.nix: fail loudly if either the package this flake
-          # builds or the overlay-applied package set fell back to fastmcp < 4.
+          # Guards nix/fastmcp4.nix: fail loudly if the package this flake builds,
+          # the overlay-applied package set, or the consumer path (a vanilla
+          # nixpkgs with only `overlays.default`) fell back to fastmcp < 4 or to a
+          # starlette below the CVE-2026-48710 floor. The consumer path is what
+          # downstream flakes get, and `packages.mcp-nixos` above cannot cover it
+          # because `pkgs` there already carries `overlays.fastmcp4`.
           checks.fastmcp4-overlay =
             let
+              inherit (pkgs) lib;
               scoped = self.packages.${system}.mcp-nixos.pythonPackages.fastmcp.version;
               global = pkgs.python3Packages.fastmcp.version;
-              ok = v: pkgs.lib.versionAtLeast v "4";
+              bare = import nixpkgs { inherit system; };
+              vanilla = import nixpkgs {
+                inherit system;
+                overlays = [ self.overlays.default ];
+              };
+              consumer = vanilla.mcp-nixos;
+              consumerFastmcp = consumer.pythonPackages.fastmcp.version;
+              consumerStarlette = consumer.pythonPackages.starlette.version;
+              ok = v: lib.versionAtLeast v "4";
             in
-            assert pkgs.lib.assertMsg (ok scoped) "mcp-nixos builds against fastmcp ${scoped}, expected >= 4";
-            assert pkgs.lib.assertMsg (ok global) "overlays.fastmcp4 yielded fastmcp ${global}, expected >= 4";
-            pkgs.runCommand "fastmcp4-overlay-check" { } ''
-              echo "fastmcp ${scoped} (scoped), ${global} (overlay)" > $out
+            assert lib.assertMsg (ok scoped) "mcp-nixos builds against fastmcp ${scoped}, expected >= 4";
+            assert lib.assertMsg (ok global) "overlays.fastmcp4 yielded fastmcp ${global}, expected >= 4";
+            assert lib.assertMsg (ok consumerFastmcp)
+              "overlays.default builds mcp-nixos against fastmcp ${consumerFastmcp}, expected >= 4";
+            assert lib.assertMsg (lib.versionAtLeast consumerStarlette "1.0.1")
+              "overlays.default builds mcp-nixos against starlette ${consumerStarlette}, expected >= 1.0.1";
+            assert lib.assertMsg (
+              vanilla.python3Packages.fastmcp.drvPath == bare.python3Packages.fastmcp.drvPath
+            ) "overlays.default must not replace python3Packages.fastmcp in the consumer's package set";
+            pkgs.runCommand "fastmcp4-overlay-check" { inherit consumer; } ''
+              echo "fastmcp ${scoped} (scoped), ${global} (overlay), ${consumerFastmcp} (consumer via $consumer)" > $out
+              echo "starlette ${consumerStarlette} (consumer)" >> $out
             '';
 
           packages = rec {

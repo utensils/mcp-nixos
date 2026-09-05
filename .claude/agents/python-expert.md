@@ -55,7 +55,7 @@ Provide:
 - **Custom exception classes** with graceful error handling
 - Performance benchmarks for I/O-bound operations
 - Docstrings following Google/NumPy style
-- **pyproject.toml** with async dependencies (fastmcp>=4.0.0, httpx, beautifulsoup4)
+- **pyproject.toml** with async dependencies (fastmcp>=4.0.0, requests, beautifulsoup4)
 - **Development workflow integration** (Nix shell commands: run, run-tests, lint, format, typecheck)
 
 ## MCP Server Example:
@@ -78,7 +78,7 @@ async def search_data(query: str) -> str:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"https://api.example.com/search", params={"q": query})
             response.raise_for_status()
-            
+
             # Format as plain text for LLM
             data = response.json()
             return format_search_results(data)

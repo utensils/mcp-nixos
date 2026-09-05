@@ -19,8 +19,10 @@
 
 buildPythonPackage rec {
   pname = "mcp";
-  # mcp pins mcp-types to the exact same version.
-  inherit (mcp-types) version;
+  # mcp pins mcp-types to the exact same version: keep this in sync with
+  # nix/mcp-types.nix. Pinned here (rather than inherited) so the hash below
+  # can never be paired with a different version.
+  version = "2.1.1";
   format = "wheel";
 
   src = fetchPypi {

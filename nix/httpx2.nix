@@ -11,8 +11,10 @@
 
 buildPythonPackage rec {
   pname = "httpx2";
-  # httpx2 pins httpcore2 to the exact same version (one repo, one tag).
-  inherit (httpcore2) version;
+  # httpx2 and httpcore2 are released together from one repo and one tag: keep
+  # this in sync with nix/httpcore2.nix. Pinned here (rather than inherited) so
+  # the hash below can never be paired with a different version.
+  version = "2.12.0";
   format = "wheel";
 
   src = fetchPypi {
