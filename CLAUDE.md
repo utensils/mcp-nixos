@@ -30,7 +30,8 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
 - `tests/` - Holds pytest unit and integration tests; markers live in `pytest.ini` and `tests/conftest.py`.
 - `website/` - The VitePress docs/marketing site (`index.md`, `usage.md`, `about.md`, custom theme under `.vitepress/`); static assets live in `website/public/`. Output builds to `website/out/` and deploys to S3/CloudFront via `deploy-website.yml`.
 - `.pi/` - Pi Coding Agent extension that wraps the MCP tools as native Pi tools (Pi does not speak MCP). `extensions/mcp-nixos.ts` spawns a Python subprocess that imports `mcp_nixos.server` and calls the tool functions directly — not part of the MCP server runtime, only relevant when running `pi` in this repo.
-- `flake.nix` - Defines the Nix dev shell and build instructions.
+- `flake.nix` - Defines the Nix dev shell, package, overlays, and checks.
+- `nix/` - Python package-set extension that vendors the FastMCP 4 / MCP SDK 2 stack (`fastmcp4.nix` plus one pure-Python wheel derivation per package, e.g. `fastmcp.nix`, `mcp.nix`, `starlette.nix`) for nixpkgs pins that still ship older releases. `flake.nix` applies it scoped to `pkgs.mcp-nixos` via `overrideScope`, and exports it set-wide as `overlays.fastmcp4`.
 - `pyproject.toml` - Defines Python packaging and dependencies.
 - `dist/`, `htmlcov/`, and `result/` are generated artifacts; do not edit by hand.
 

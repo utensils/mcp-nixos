@@ -42,15 +42,16 @@ and utilities for developers and systems engineers.
 MCP-NixOS v3.x is a **stateless, async FastMCP 4.x server** with a modular structure
 (Python 3.11+). No persistent caches, no databases, no sacred goat to appease — live
 APIs are the source of truth, with some in-process caching for discovered channels
-and index-style sources (Nixvim, NVF, Noogle, nix.dev) so a single server run doesn't
-re-fetch the same catalog on every query.
+and catalogue-style sources (Home Manager, nix-darwin, Nixvim, NVF, Noogle, nix.dev) so
+a single server run doesn't re-fetch the same catalog on every query.
 
 - **`nix` tool** — Unified query router for search / info / stats / browse / channels /
   flake-inputs / cache / store across every source.
 - **`nix_versions` tool** — Package version history via NixHub.io.
 - **Elasticsearch client** — Queries search.nixos.org for packages, options, and flakes.
-- **HTML parsers** — Parse Home Manager and nix-darwin documentation on demand and
-  normalize NVF's published option catalogue into plain-text records.
+- **HTML parsers** — Parse Home Manager and nix-darwin documentation on first use
+  (then cached for the process lifetime) and normalize NVF's published option
+  catalogue into plain-text records.
 - **Plain-text formatter** — All responses are rendered as human-readable text for
   optimal LLM consumption. No XML. No JSON leaking into prompts.
 - **Async everywhere** — Every blocking HTTP or file I/O call is wrapped in

@@ -87,6 +87,12 @@ Or consume the flake directly via the provided overlay:
 }
 ```
 
+`overlays.default` only adds `pkgs.mcp-nixos`. The package brings its own FastMCP 4 /
+MCP SDK 2 stack (including a starlette at or above the 1.0.1 security floor), so nothing
+else in your Python package set changes, even on nixpkgs channels that still ship
+FastMCP 3. Want `pkgs.python3Packages.fastmcp` upgraded set-wide too? Add
+`mcp-nixos.overlays.fastmcp4` as well.
+
 </UsageOption>
 
 ### Option 3: Docker {#option-3-docker}
