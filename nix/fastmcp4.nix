@@ -52,7 +52,10 @@ let
   # nixpkgs derives fastmcp-slim's version and source from `fastmcp` in the
   # *final* set, so its version cannot be inspected independently: decide
   # both from the consumer's fastmcp and replace them together.
-  keepStarlette = satisfies "starlette" "1.0.1" null;
+  # starlette and sse-starlette are kept or replaced together, so both must
+  # meet their floors (fastmcp-slim: starlette >= 1.0.1; mcp: sse-starlette
+  # >= 3.0.0) for the consumer's pair to be kept.
+  keepStarlette = satisfies "starlette" "1.0.1" null && satisfies "sse-starlette" "3.0.0" null;
   keepFastmcp = satisfies "fastmcp" "4.0.0" null;
 in
 {

@@ -38,18 +38,28 @@ def _search_nixdev(query: str, limit: int) -> str:
         # there outweighs a body hit so "derivation" ranks the packaging tutorial
         # above pages that merely mention derivations.
         scores: dict[int, int] = {}
+
+        def add(raw_ids: int | list[int], weight: int) -> None:
+            doc_ids = raw_ids if isinstance(raw_ids, list) else [raw_ids]
+            for doc_id in doc_ids:
+                scores[doc_id] = scores.get(doc_id, 0) + weight
+
         for term in query_terms:
+            # Exact and stem-prefix hits are direct dict lookups on the term and
+            # each of its prefixes of at least _MIN_STEM_LEN characters, so they
+            # cost O(len(term)) rather than a scan of the whole index.
+            stems = {term} | {term[:k] for k in range(_MIN_STEM_LEN, len(term))}
             for stem_index, exact_weight, partial_weight in ((terms, 2, 1), (titleterms, 5, 0)):
+                matched = {stem for stem in stems if stem in stem_index}
+                for stem in matched:
+                    add(stem_index[stem], exact_weight)
+                if not partial_weight:
+                    continue
+                # Legacy partial matches (query word inside a longer index term)
+                # still need one pass over the body index.
                 for index_term, raw_ids in stem_index.items():
-                    if index_term == term or (len(index_term) >= _MIN_STEM_LEN and term.startswith(index_term)):
-                        weight = exact_weight
-                    elif partial_weight and term in index_term:
-                        weight = partial_weight
-                    else:
-                        continue
-                    doc_ids = raw_ids if isinstance(raw_ids, list) else [raw_ids]
-                    for doc_id in doc_ids:
-                        scores[doc_id] = scores.get(doc_id, 0) + weight
+                    if index_term not in matched and term in index_term:
+                        add(raw_ids, partial_weight)
 
         # Also search titles
         for i, doc_title in enumerate(titles):
@@ -59,8 +69,9 @@ def _search_nixdev(query: str, limit: int) -> str:
         if not scores:
             return f"No nix.dev documentation found matching '{query}'"
 
-        # Sort by score, limit results
-        sorted_docs = sorted(scores.items(), key=lambda x: -x[1])[:limit]
+        # Sort by score, then by document id so ties are deterministic rather
+        # than following whichever order the index happened to be scanned in.
+        sorted_docs = sorted(scores.items(), key=lambda x: (-x[1], x[0]))[:limit]
 
         results = [f"Found {len(sorted_docs)} nix.dev docs matching '{query}':\n"]
         for doc_id, _score in sorted_docs:

@@ -163,7 +163,11 @@ class ChannelCache:
             return self.flake_index or FLAKE_INDEX
 
     def _list_aliases(self) -> list[str]:
-        """Return live `latest-<gen>-nixos-<channel>` alias names, newest first.
+        """Return live `latest-<gen>-nixos-<channel>` alias names.
+
+        Order is whatever `_cat/aliases` returns; callers that care about
+        generation order (channel resolution, the flake alias) sort or take
+        the max themselves.
 
         Replaces a hardcoded `[43..46]` probe loop with a single
         `_cat/aliases` call, so newly published channel generations
