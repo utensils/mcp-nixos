@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/utensils/mcp-nixos/compare/v3.0.2...v3.1.0) (2026-09-05)
+
+
+### Features
+
+* require FastMCP 4 (MCP spec 2026-07-28) and ship a scoped FastMCP 4 Nix package set ([#215](https://github.com/utensils/mcp-nixos/issues/215)) ([9adb968](https://github.com/utensils/mcp-nixos/commit/9adb96895b828d53478f946cdbea17d1ef90a55b))
+
 ## [3.0.2](https://github.com/utensils/mcp-nixos/compare/v3.0.1...v3.0.2) (2026-09-04)
 
 
