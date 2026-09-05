@@ -1265,6 +1265,28 @@ class TestNoogleFunctions:
         assert _get_noogle_type_signature({"meta": {}, "content": {}}) == ""
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_search_noogle_exact_function_name_outranks_suffix_match(self, mock_get):
+        """`map` must list builtins.map before concatMap (both end in "map")."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        def fn(*path):
+            meta = {"title": ".".join(path), "path": list(path), "aliases": [], "signature": ""}
+            return {"meta": meta, "content": {}}
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [fn("builtins", "concatMap"), fn("builtins", "map"), fn("lib", "lists", "map")],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        lines = [line for line in _search_noogle("map", 10).splitlines() if line.startswith("* ")]
+        assert lines == ["* builtins.map", "* lib.lists.map", "* builtins.concatMap"]
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_success(self, mock_get):
         """Test successful Noogle search."""
         from mcp_nixos.server import _search_noogle, noogle_cache

@@ -92,10 +92,13 @@ def _search_noogle(query: str, limit: int) -> str:
             # Exact path match
             if path_lower == query_lower:
                 score = 100
+            # Exact function name (last path segment): `map` must outrank `concatMap`
+            elif path_lower.rsplit(".", 1)[-1] == query_lower:
+                score = 80
             # Path contains query
             elif query_lower in path_lower:
                 # Boost if query matches end of path (function name)
-                if path_lower.endswith(query_lower) or path_lower.endswith("." + query_lower):
+                if path_lower.endswith(query_lower):
                     score = 50
                 else:
                     score = 30

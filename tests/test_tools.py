@@ -840,7 +840,11 @@ class TestNixVersionsAPI:
 
         result = await nix_versions_fn(package="python", version="3.12.0")
         assert "Found python version 3.12.0" in result
-        assert "commit" in result.lower()
+        # Same record shape as the listing: Updated, Platforms, commit, attribute.
+        assert "Updated: 2024-01-15" in result
+        assert "Platforms: Linux" in result
+        assert "Nixpkgs commit: " + "a" * 40 in result
+        assert "Attribute: python312" in result
 
     @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio

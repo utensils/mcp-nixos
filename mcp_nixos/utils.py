@@ -165,13 +165,15 @@ def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int |
                 type_elem = dd.find("span", class_="term")
                 if type_elem and "Type:" in type_elem.get_text():
                     type_info = type_elem.get_text(strip=True).replace("Type:", "").strip()
-                elif "Type:" in dd.get_text():
-                    text = dd.get_text()
-                    type_start = text.find("Type:") + 5
-                    type_end = text.find("\n", type_start)
-                    if type_end == -1:
-                        type_end = len(text)
-                    type_info = text[type_start:type_end].strip()
+                else:
+                    # DocBook (nix-darwin): `<p><em>Type:</em> null or boolean</p>`.
+                    # Read the whole paragraph; the label and value are split
+                    # across elements and whitespace, so a line-based cut fails.
+                    for para in dd.find_all("p"):
+                        para_text = " ".join(para.get_text(" ").split())
+                        if para_text.startswith("Type:"):
+                            type_info = para_text[len("Type:") :].strip()
+                            break
 
                 options.append(
                     {

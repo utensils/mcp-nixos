@@ -281,14 +281,35 @@ def _info_html_options(cache: HtmlOptionsCache, name: str) -> str:
         return error(str(e))
 
 
+def _option_category(name: str) -> str | None:
+    """Top-level category of a dotted option path, or None for options that
+    are not part of a category (dot-less names like `uninstall`, or attribute
+    names that are not plain lowercase identifiers).
+
+    Shared by stats and browse so both report the same category count.
+    """
+    if not name or "." not in name:
+        return None
+    cat = name.split(".")[0]
+    if len(cat) > 1 and cat.isidentifier() and cat.islower():
+        return cat
+    return None
+
+
+def _count_categories(options: list[dict[str, str]]) -> dict[str, int]:
+    categories: dict[str, int] = {}
+    for opt in options:
+        cat = _option_category(opt["name"])
+        if cat is not None:
+            categories[cat] = categories.get(cat, 0) + 1
+    return categories
+
+
 def _stats_html_options(cache: HtmlOptionsCache) -> str:
     """Get option counts and top categories for a cached HTML catalogue."""
     try:
         options = cache.get_options()
-        categories: dict[str, int] = {}
-        for opt in options:
-            cat = opt["name"].split(".")[0]
-            categories[cat] = categories.get(cat, 0) + 1
+        categories = _count_categories(options)
 
         top_cats = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:5]
         result = [
@@ -326,13 +347,7 @@ def _browse_options(source: str, prefix: str) -> str:
                 results.append(f"... and {len(matches) - _BROWSE_DISPLAY_LIMIT:,} more options")
             return "\n".join(results).strip()
         else:
-            categories: dict[str, int] = {}
-            for opt in options:
-                name = opt["name"]
-                if name and "." in name:
-                    cat = name.split(".")[0]
-                    if len(cat) > 1 and cat.isidentifier() and cat.islower():
-                        categories[cat] = categories.get(cat, 0) + 1
+            categories = _count_categories(options)
 
             results = [f"{source_name} categories ({len(categories)} total):\n"]
             sorted_cats = sorted(categories.items(), key=lambda x: (-x[1], x[0]))
