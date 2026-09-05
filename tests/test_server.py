@@ -248,6 +248,45 @@ class TestChannelCache:
         assert result == {"test": "value"}
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_is_discovered_from_aliases(self, mock_get):
+        """The flake alias rolls forward with Hydra; pick the newest generation."""
+        aliases_resp = Mock(status_code=200)
+        aliases_resp.json.return_value = [
+            {"alias": "latest-50-nixos-unstable"},
+            {"alias": "latest-50-group-manual"},
+            {"alias": "latest-51-nixos-unstable"},
+            {"alias": "latest-51-group-manual"},
+            {"alias": ".kibana"},
+        ]
+        mock_get.return_value = aliases_resp
+        cache = ChannelCache()
+        assert cache.get_flake_index() == "latest-51-group-manual"
+        # Flake aliases must not leak into channel resolution.
+        assert cache.alias_names == ["latest-50-nixos-unstable", "latest-51-nixos-unstable"]
+        # Memoized: a second call does not probe again.
+        assert cache.get_flake_index() == "latest-51-group-manual"
+        assert mock_get.call_count == 1
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_falls_back_when_probe_fails(self, mock_get):
+        from mcp_nixos.config import FLAKE_INDEX
+
+        mock_get.side_effect = Exception("backend unreachable")
+        cache = ChannelCache()
+        assert cache.get_flake_index() == FLAKE_INDEX
+        assert cache.flake_index is None
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_falls_back_when_alias_absent(self, mock_get):
+        from mcp_nixos.config import FLAKE_INDEX
+
+        aliases_resp = Mock(status_code=200)
+        aliases_resp.json.return_value = [{"alias": "latest-51-nixos-unstable"}]
+        mock_get.return_value = aliases_resp
+        cache = ChannelCache()
+        assert cache.get_flake_index() == FLAKE_INDEX
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_resolved_channels_fallback(self, mock_get):
         mock_get.side_effect = Exception("backend unreachable")
         cache = ChannelCache()
@@ -748,35 +787,61 @@ class TestWikiFunctions:
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_success(self, mock_get):
-        """Test successful wiki page info."""
+        """Wiki info renders section 0 via action=parse and strips page chrome."""
         from mcp_nixos.server import _info_wiki
 
+        html = (
+            '<div class="mw-parser-output">'
+            '<div class="mw-pt-languages noprint">Other languages: English español</div>'
+            '<div class="box">This article or section needs cleanup.</div>'
+            "<p>&lt;translate&gt; &lt;!--T:182--&gt; <b>Nix flakes</b> are a new way to manage Nix projects"
+            '<sup class="reference">[1]</sup> , really&lt;/translate&gt;.</p>'
+            '<div class="mw-references-wrap"><ol><li>ref</li></ol></div>'
+            "</div>"
+        )
         mock_resp = Mock()
-        mock_resp.json.return_value = {
-            "query": {
-                "pages": {"123": {"title": "Flakes", "extract": "Flakes are a new way to manage Nix projects..."}}
-            }
-        }
+        mock_resp.json.return_value = {"parse": {"title": "Flakes", "text": {"*": html}}}
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("Flakes")
         assert "Wiki: Flakes" in result
-        assert "wiki.nixos.org" in result
-        assert "Flakes are a new way" in result
+        assert "https://wiki.nixos.org/wiki/Flakes" in result
+        assert "Nix flakes are a new way to manage Nix projects, really." in result
+        for chrome in ("Other languages", "needs cleanup", "[1]", "translate", "T:182", "ref"):
+            assert chrome not in result
+        params = mock_get.call_args.kwargs["params"]
+        assert params["action"] == "parse"
+        assert params["section"] == "0"
+        assert params["redirects"] == "1"
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_not_found(self, mock_get):
-        """Test wiki page not found."""
+        """A missing page is an API-level error object, not an HTTP error."""
         from mcp_nixos.server import _info_wiki
 
         mock_resp = Mock()
-        mock_resp.json.return_value = {"query": {"pages": {"-1": {"missing": True, "title": "NonexistentPage"}}}}
+        mock_resp.json.return_value = {
+            "error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}
+        }
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("NonexistentPage")
         assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.sources.wiki.requests.get")
+    def test_info_wiki_other_api_error(self, mock_get):
+        from mcp_nixos.server import _info_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"error": {"code": "readapidenied", "info": "You need read permission"}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("Flakes")
+        assert "API_ERROR" in result
+        assert "read permission" in result
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_timeout(self, mock_get):
@@ -790,18 +855,18 @@ class TestWikiFunctions:
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_truncates_long_extract(self, mock_get):
-        """Test wiki info truncates very long extracts."""
+        """Test wiki info truncates very long intros."""
         from mcp_nixos.server import _info_wiki
 
-        long_extract = "A" * 2000
+        long_text = "A" * 2000
         mock_resp = Mock()
-        mock_resp.json.return_value = {"query": {"pages": {"123": {"title": "Test", "extract": long_extract}}}}
+        mock_resp.json.return_value = {"parse": {"title": "Test", "text": {"*": f"<p>{long_text}</p>"}}}
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("Test")
-        assert len(result) < len(long_extract) + 200  # Account for header
-        assert "..." in result
+        assert len(result) < len(long_text) + 200  # Account for header
+        assert result.endswith("...")
 
 
 @pytest.mark.unit
@@ -831,6 +896,71 @@ class TestNixDevFunctions:
         result = _search_nixdev("flakes", 10)
         assert "Flakes" in result
         assert "nix.dev" in result
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_search_nixdev_matches_sphinx_stems(self, mock_get):
+        """Sphinx indexes Porter stems, so whole query words must match their stem.
+
+        Regression: "derivation" and "getting started" returned nothing because
+        the index only holds "deriv", "get" and "start". Single-document terms
+        are stored as a bare int, which used to be dropped as well.
+        """
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/packaging", "concepts/faq", "tutorials/first-steps"],
+            "titles": ["Packaging existing software", "FAQ", "First steps"],
+            "terms": {"deriv": [0, 1], "get": 2, "start": 2, "1m": [1]},
+            "titleterms": {"deriv": 0},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        nixdev_cache.index = None
+
+        result = _search_nixdev("derivation", 10)
+        lines = [line for line in result.splitlines() if line.startswith("* ")]
+        # Title stem hit ranks the tutorial above the page that merely mentions it.
+        assert lines == ["* Packaging existing software", "* FAQ"]
+
+        result = _search_nixdev("getting started", 10)
+        assert "First steps" in result
+
+        # Stems shorter than the minimum never match by prefix ("1m" vs "1mb").
+        assert "No nix.dev documentation found" in _search_nixdev("1mb", 10)
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_search_nixdev_partial_matches_rank_below_exact(self, mock_get):
+        """A query word inside a longer body term still scores, below exact hits.
+
+        "shell" is an exact stem for the dev-shell guide and a partial match for
+        the single-document (bare int) body term "nix-shell". Title terms never
+        match partially, so a page whose only link is a partial titleterm is
+        absent. Equal scores order by document id.
+        """
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/first-steps", "guides/dev-shell", "concepts/other"],
+            "titles": ["First steps", "Dev shells", "Other"],
+            "terms": {"shell": [1], "nix-shell": 0},
+            "titleterms": {"shell-history": [2]},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        nixdev_cache.index = None
+
+        result = _search_nixdev("shell", 10)
+        lines = [line for line in result.splitlines() if line.startswith("* ")]
+        assert lines == ["* Dev shells", "* First steps"]
+        assert "Other" not in result
 
     @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_no_results(self, mock_get):
@@ -1117,6 +1247,69 @@ class TestPlainTextOutput:
 @pytest.mark.unit
 class TestNoogleFunctions:
     """Test Noogle (noogle.dev) internal functions."""
+
+    def test_type_signature_comes_from_meta(self):
+        """Noogle stores signatures under meta, not content.
+
+        Regression: every search/info result lacked a Type line and stats
+        reported "With type signatures: 0" because only content was inspected.
+        """
+        from mcp_nixos.sources.noogle import _get_noogle_type_signature
+
+        doc = {
+            "meta": {"title": "builtins.mapAttrs", "signature": "mapAttrs :: (String -> a -> b) -> AttrSet\n"},
+            "content": {"content": "Apply a function..."},
+        }
+        assert _get_noogle_type_signature(doc) == "mapAttrs :: (String -> a -> b) -> AttrSet"
+        assert _get_noogle_type_signature({"meta": {"signature": None}, "content": {"type": "a -> b"}}) == "a -> b"
+        assert _get_noogle_type_signature({"meta": {}, "content": {}}) == ""
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_info_noogle_prefers_canonical_path_over_alias_holder(self, mock_get):
+        """`lib.trivial.id` must resolve to its own record, not the first alias group member."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        def fn(path, aliases):
+            meta = {"title": path, "path": path.split("."), "aliases": [a.split(".") for a in aliases], "signature": ""}
+            return {"meta": meta, "content": {"content": "The identity function"}}
+
+        # Three records share one alias group; "lib.mkFixStrictness" is only ever an alias.
+        group = ["pkgs.appimageTools.wrapAppImage.transformDrv", "lib.id", "lib.trivial.id", "lib.mkFixStrictness"]
+        docs = [fn(p, [a for a in group if a != p]) for p in group[:3]]
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"data": docs, "builtinTypes": {}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        assert _info_noogle("lib.trivial.id").startswith("Noogle Function: lib.trivial.id")
+        # A name that exists only as an alias still resolves to the first group member.
+        assert _info_noogle("lib.mkFixStrictness").startswith(
+            "Noogle Function: pkgs.appimageTools.wrapAppImage.transformDrv"
+        )
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_search_noogle_exact_function_name_outranks_suffix_match(self, mock_get):
+        """`map` must list builtins.map before concatMap (both end in "map")."""
+        from mcp_nixos.server import _search_noogle, noogle_cache
+
+        def fn(*path):
+            meta = {"title": ".".join(path), "path": list(path), "aliases": [], "signature": ""}
+            return {"meta": meta, "content": {}}
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [fn("builtins", "concatMap"), fn("builtins", "map"), fn("lib", "lists", "map")],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        lines = [line for line in _search_noogle("map", 10).splitlines() if line.startswith("* ")]
+        assert lines == ["* builtins.map", "* lib.lists.map", "* builtins.concatMap"]
 
     @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_success(self, mock_get):

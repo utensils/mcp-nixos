@@ -220,3 +220,62 @@ class TestBrowseOptionsCached:
         with patch.object(home_manager_cache, "get_options", return_value=list(GIT_OPTIONS)):
             result = _browse_options("home-manager", "zzz")
         assert result == "No Home Manager options found with prefix 'zzz'"
+
+
+@pytest.mark.unit
+class TestCategoryConsistency:
+    """Stats and browse must agree on what counts as a category."""
+
+    OPTIONS = [
+        {"name": "programs.git.enable", "description": "", "type": "boolean"},
+        {"name": "programs.zsh.enable", "description": "", "type": "boolean"},
+        {"name": "services.gpg-agent.enable", "description": "", "type": "boolean"},
+        {"name": "uninstall", "description": "dot-less option", "type": "boolean"},
+        {"name": "lib", "description": "dot-less option", "type": "attrs"},
+        {"name": "sshAuthSock.enable", "description": "camelCase top level", "type": "boolean"},
+    ]
+
+    def test_stats_and_browse_report_the_same_category_count(self):
+        from mcp_nixos.sources.base import _browse_options, _stats_html_options
+
+        with patch.object(home_manager_cache, "get_options", return_value=list(self.OPTIONS)):
+            stats = _stats_html_options(home_manager_cache)
+            browse = _browse_options("home-manager", "")
+        assert "* Categories: 2" in stats
+        assert "categories (2 total)" in browse
+        assert "uninstall" not in stats and "sshAuthSock" not in stats
+
+
+@pytest.mark.unit
+class TestDocbookTypeParsing:
+    """nix-darwin's DocBook manual splits the Type label and value across elements."""
+
+    HTML = """
+    <html><body><dl>
+      <dt><span class="term"><a id="opt-system.defaults.dock.autohide"></a>
+        <code class="option">system.defaults.dock.autohide</code></span></dt>
+      <dd>
+        <p>Whether to automatically hide and show the dock. The default is false.</p>
+        <p><span class="emphasis"><em>Type:</em></span>
+          null or boolean</p>
+        <p><span class="emphasis"><em>Default:</em></span></p>
+        <pre><code class="programlisting nix">null</code></pre>
+      </dd>
+    </dl></body></html>
+    """
+
+    def test_type_is_extracted_from_docbook_paragraph(self):
+        from unittest.mock import Mock
+
+        from mcp_nixos.utils import parse_html_options
+
+        resp = Mock(content=self.HTML.encode(), raise_for_status=Mock())
+        with patch("mcp_nixos.utils.requests.get", return_value=resp):
+            options = parse_html_options("https://nix-darwin.github.io/nix-darwin/manual/index.html")
+        assert options == [
+            {
+                "name": "system.defaults.dock.autohide",
+                "description": "Whether to automatically hide and show the dock. The default is false.",
+                "type": "null or boolean",
+            }
+        ]

@@ -20,8 +20,8 @@ import pytest
 from mcp_nixos.server import nix, nix_versions
 
 # Get underlying functions from MCP tool wrappers.
-# FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
-# returns the plain async function. Support both.
+# FastMCP 2.x wrapped @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
+# and later return the plain async function. Support both.
 nix_fn = getattr(nix, "fn", nix)
 nix_versions_fn = getattr(nix_versions, "fn", nix_versions)
 
@@ -840,7 +840,11 @@ class TestNixVersionsAPI:
 
         result = await nix_versions_fn(package="python", version="3.12.0")
         assert "Found python version 3.12.0" in result
-        assert "commit" in result.lower()
+        # Same record shape as the listing: Updated, Platforms, commit, attribute.
+        assert "Updated: 2024-01-15" in result
+        assert "Platforms: Linux" in result
+        assert "Nixpkgs commit: " + "a" * 40 in result
+        assert "Attribute: python312" in result
 
     @patch("mcp_nixos.sources.nixhub.requests.get")
     @pytest.mark.asyncio

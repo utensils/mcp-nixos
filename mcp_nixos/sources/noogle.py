@@ -19,21 +19,25 @@ def _get_noogle_function_path(doc: dict[str, Any]) -> str:
 
 
 def _get_noogle_type_signature(doc: dict[str, Any]) -> str:
-    """Extract the type signature from a Noogle document."""
+    """Extract the type signature from a Noogle document.
+
+    Noogle publishes it as `meta.signature` (e.g. `mapAttrs :: (String -> a
+    -> b) -> ...`); the older `content.signature` / `content.type` spots are
+    kept as fallbacks for documents shaped differently.
+    """
+    meta = doc.get("meta")
+    if isinstance(meta, dict):
+        signature = meta.get("signature")
+        if signature:
+            return " ".join(str(signature).split())
+
     content = doc.get("content")
     if not content or not isinstance(content, dict):
         return ""
-
-    # Check for signature in content
-    signature = content.get("signature", "")
-    if signature:
-        return str(signature)
-
-    # Check for type annotation
-    type_info = content.get("type", "")
-    if type_info:
-        return str(type_info)
-
+    for key in ("signature", "type"):
+        value = content.get(key)
+        if value:
+            return " ".join(str(value).split())
     return ""
 
 
@@ -88,10 +92,13 @@ def _search_noogle(query: str, limit: int) -> str:
             # Exact path match
             if path_lower == query_lower:
                 score = 100
+            # Exact function name (last path segment): `map` must outrank `concatMap`
+            elif path_lower.rsplit(".", 1)[-1] == query_lower:
+                score = 80
             # Path contains query
             elif query_lower in path_lower:
                 # Boost if query matches end of path (function name)
-                if path_lower.endswith(query_lower) or path_lower.endswith("." + query_lower):
+                if path_lower.endswith(query_lower):
                     score = 50
                 else:
                     score = 30
@@ -142,22 +149,28 @@ def _info_noogle(name: str) -> str:
         data, _ = noogle_cache.get_data()
         name_lower = name.lower()
 
-        # Find exact match first, then partial match
+        # Prefer the document whose canonical path is the queried name; fall
+        # back to one that lists it as an alias. Alias groups can be large
+        # (the identity function has 21 members, e.g. lib.trivial.id and
+        # pkgs.appimageTools.wrapAppImage.transformDrv), and the first
+        # document in index order is not the one the user asked about.
         exact_match = None
+        alias_match = None
         partial_matches = []
 
         for doc in data:
             path = _get_noogle_function_path(doc)
             path_lower = path.lower()
-            aliases = _get_noogle_aliases(doc)
-            aliases_lower = [a.lower() for a in aliases]
 
-            if path_lower == name_lower or name_lower in aliases_lower:
+            if path_lower == name_lower:
                 exact_match = doc
                 break
+            if alias_match is None and name_lower in (a.lower() for a in _get_noogle_aliases(doc)):
+                alias_match = doc
             elif name_lower in path_lower:
                 partial_matches.append((path, doc))
 
+        exact_match = exact_match or alias_match
         if not exact_match and not partial_matches:
             return error(f"Noogle function '{name}' not found", "NOT_FOUND")
 

@@ -4,8 +4,8 @@ import pytest
 from mcp_nixos.server import nix, nix_versions
 
 # Get underlying functions from MCP tool wrappers.
-# FastMCP 2.x wraps @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
-# returns the plain async function. Support both.
+# FastMCP 2.x wrapped @mcp.tool() functions as FunctionTool (with .fn); FastMCP 3.x
+# and later return the plain async function. Support both.
 nix_fn = getattr(nix, "fn", nix)
 nix_versions_fn = getattr(nix_versions, "fn", nix_versions)
 
@@ -476,12 +476,16 @@ class TestWikiIntegration:
 
     @pytest.mark.asyncio
     async def test_info_wiki(self):
-        """Test real wiki page info."""
+        """Test real wiki page info returns the article intro, not just a title."""
         result = await nix_fn(action="info", query="Flakes", source="wiki")
         assert isinstance(result, str)
         if "NOT_FOUND" not in result and "Error" not in result:
             assert "Wiki:" in result
             assert "wiki.nixos.org" in result
+            # wiki.nixos.org has no TextExtracts; the intro comes from action=parse.
+            body = result.split("\n\n", 1)[1] if "\n\n" in result else ""
+            assert len(body) > 100, f"wiki info returned no page content: {result!r}"
+            assert "<translate>" not in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio

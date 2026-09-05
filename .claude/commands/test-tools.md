@@ -250,7 +250,7 @@ NIX-DEV SEARCH:
 - action=search, source=nix-dev, query=getting started, limit=20
 
 NIX-DEV ERRORS:
-- action=info, source=nix-dev, query=test (expect error suggesting search)
+- action=info, source=nix-dev, query=test (expect NOT_FOUND error: `nix.dev page not found: test`)
 - action=stats, source=nix-dev (expect "Stats not available")
 - action=options, source=nix-dev, query=test (expect error)
 

@@ -11,6 +11,11 @@ from ..utils import error
 _NIXDEV_MAX_MD_BYTES = 200 * 1024
 
 
+# Shortest index stem allowed to match by prefix; below this ("1m", "0x", "ar")
+# prefix matches are noise rather than stems.
+_MIN_STEM_LEN = 3
+
+
 def _search_nixdev(query: str, limit: int) -> str:
     """Search nix.dev documentation via cached Sphinx index."""
     try:
@@ -19,26 +24,42 @@ def _search_nixdev(query: str, limit: int) -> str:
         docnames = index.get("docnames", [])
         titles = index.get("titles", [])
         terms = index.get("terms", {})
+        titleterms = index.get("titleterms", {})
 
         query_lower = query.lower()
         query_terms = query_lower.split()
 
-        # Score documents by term matches
+        # Score documents by term matches. Sphinx stores Porter-stemmed terms
+        # ("derivation" -> "deriv", "getting" -> "get", "tutorial" -> "tutori"),
+        # and the stem is a prefix of the word in nearly every case, so a query
+        # word that *starts with* an index term counts as an exact match. A
+        # term seen in a single document is stored as a bare int, not a list.
+        # `titleterms` holds the same stems for page and section titles; a hit
+        # there outweighs a body hit so "derivation" ranks the packaging tutorial
+        # above pages that merely mention derivations.
         scores: dict[int, int] = {}
-        for term in query_terms:
-            # Exact term match
-            if term in terms:
-                doc_ids = terms[term]
-                if isinstance(doc_ids, list):
-                    for doc_id in doc_ids:
-                        scores[doc_id] = scores.get(doc_id, 0) + 2
 
-            # Partial term matches
-            for index_term, doc_ids in terms.items():
-                if term in index_term and term != index_term:
-                    if isinstance(doc_ids, list):
-                        for doc_id in doc_ids:
-                            scores[doc_id] = scores.get(doc_id, 0) + 1
+        def add(raw_ids: int | list[int], weight: int) -> None:
+            doc_ids = raw_ids if isinstance(raw_ids, list) else [raw_ids]
+            for doc_id in doc_ids:
+                scores[doc_id] = scores.get(doc_id, 0) + weight
+
+        for term in query_terms:
+            # Exact and stem-prefix hits are direct dict lookups on the term and
+            # each of its prefixes of at least _MIN_STEM_LEN characters, so they
+            # cost O(len(term)) rather than a scan of the whole index.
+            stems = {term} | {term[:k] for k in range(_MIN_STEM_LEN, len(term))}
+            for stem_index, exact_weight, partial_weight in ((terms, 2, 1), (titleterms, 5, 0)):
+                matched = {stem for stem in stems if stem in stem_index}
+                for stem in matched:
+                    add(stem_index[stem], exact_weight)
+                if not partial_weight:
+                    continue
+                # Legacy partial matches (query word inside a longer index term)
+                # still need one pass over the body index.
+                for index_term, raw_ids in stem_index.items():
+                    if index_term not in matched and term in index_term:
+                        add(raw_ids, partial_weight)
 
         # Also search titles
         for i, doc_title in enumerate(titles):
@@ -48,8 +69,9 @@ def _search_nixdev(query: str, limit: int) -> str:
         if not scores:
             return f"No nix.dev documentation found matching '{query}'"
 
-        # Sort by score, limit results
-        sorted_docs = sorted(scores.items(), key=lambda x: -x[1])[:limit]
+        # Sort by score, then by document id so ties are deterministic rather
+        # than following whichever order the index happened to be scanned in.
+        sorted_docs = sorted(scores.items(), key=lambda x: (-x[1], x[0]))[:limit]
 
         results = [f"Found {len(sorted_docs)} nix.dev docs matching '{query}':\n"]
         for doc_id, _score in sorted_docs:

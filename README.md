@@ -143,8 +143,10 @@ Just two. We consolidated 17 tools into 2 because your AI's context window isn't
 One tool to rule them all:
 
 ```text
-nix(action, query, source, type, channel, limit)
+nix(action, query, source, type, channel, limit, version, system)
 ```
+
+`version` and `system` are only used by `action="cache"`.
 
 | Action | What it does |
 |--------|-------------|
@@ -155,6 +157,7 @@ nix(action, query, source, type, channel, limit)
 | `channels` | List available NixOS channels |
 | `flake-inputs` | Explore local flake inputs from Nix store |
 | `cache` | Check binary cache status for packages |
+| `store` | Read files or list directories at an explicit `/nix/store` path (requires Nix) |
 
 | Source | What it queries |
 |--------|----------------|
@@ -254,6 +257,10 @@ nix(action="flake-inputs", type="ls", query="nixpkgs:pkgs/by-name")
 
 # Read a file from a flake input
 nix(action="flake-inputs", type="read", query="nixpkgs:flake.nix")
+
+# List or read a store path directly (requires Nix)
+nix(action="store", type="ls", query="/nix/store/<hash>-<name>")
+nix(action="store", type="read", query="/nix/store/<hash>-<name>/flake.nix")
 ```
 
 ### `nix_versions` - Package Version History
@@ -345,6 +352,13 @@ Or use the flake directly with the provided overlay:
   };
 }
 ```
+
+`overlays.default` only adds `pkgs.mcp-nixos`. The package carries its own
+FastMCP 4 / MCP SDK 2 stack (see `nix/fastmcp4.nix`), including a starlette at
+or above the 1.0.1 security floor FastMCP requires, so nothing else in your
+Python package set changes, even on nixpkgs channels that still ship FastMCP 3.
+If you also want `pkgs.python3Packages.fastmcp` itself upgraded set-wide, apply
+`mcp-nixos.overlays.fastmcp4` in addition.
 
 ## Development
 

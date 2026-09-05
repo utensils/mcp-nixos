@@ -214,7 +214,8 @@ async def nix(
         str,
         "One of: search, info, stats, browse, channels, flake-inputs, cache, store. "
         "Use 'search' for keyword lookup, 'info' for details about a specific name, "
-        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only). "
+        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only; "
+        "'options' is accepted as a legacy alias). "
         "'store' reads files or lists directories at an explicit /nix/store/ path.",
     ],
     query: Annotated[
@@ -530,21 +531,9 @@ async def nix_versions(
         if version:
             for release in releases:
                 if release.get("version") == version:
-                    version_lines = [f"Found {package} version {version}\n"]
-                    # Get commit hash from the release
-                    commit = release.get("commit_hash", "")
-                    if commit and re.match(r"^[a-fA-F0-9]{40}$", commit):
-                        version_lines.append(f"Nixpkgs commit: {commit}")
-                        # Get attribute path from systems data
-                        systems_dict = release.get("systems", {})
-                        if isinstance(systems_dict, dict):
-                            for sys_info in systems_dict.values():
-                                if isinstance(sys_info, dict):
-                                    attr_paths = sys_info.get("attr_paths", [])
-                                    if attr_paths:
-                                        version_lines.append(f"  Attribute: {attr_paths[0]}")
-                                        break
-                    return "\n".join(version_lines)
+                    # Same record shape as the listing below, so an exact
+                    # lookup also reports Updated, Platforms and Attribute.
+                    return "\n".join([f"Found {package} version {version}\n", *_format_release(release, package)])
 
             # Version not found
             versions_list: list[str] = [str(r.get("version", "")) for r in releases[:limit]]
