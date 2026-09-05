@@ -214,7 +214,8 @@ async def nix(
         str,
         "One of: search, info, stats, browse, channels, flake-inputs, cache, store. "
         "Use 'search' for keyword lookup, 'info' for details about a specific name, "
-        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only). "
+        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only; "
+        "'options' is accepted as a legacy alias). "
         "'store' reads files or lists directories at an explicit /nix/store/ path.",
     ],
     query: Annotated[

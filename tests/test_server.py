@@ -1265,6 +1265,31 @@ class TestNoogleFunctions:
         assert _get_noogle_type_signature({"meta": {}, "content": {}}) == ""
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_info_noogle_prefers_canonical_path_over_alias_holder(self, mock_get):
+        """`lib.trivial.id` must resolve to its own record, not the first alias group member."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        def fn(path, aliases):
+            meta = {"title": path, "path": path.split("."), "aliases": [a.split(".") for a in aliases], "signature": ""}
+            return {"meta": meta, "content": {"content": "The identity function"}}
+
+        # Three records share one alias group; "lib.mkFixStrictness" is only ever an alias.
+        group = ["pkgs.appimageTools.wrapAppImage.transformDrv", "lib.id", "lib.trivial.id", "lib.mkFixStrictness"]
+        docs = [fn(p, [a for a in group if a != p]) for p in group[:3]]
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"data": docs, "builtinTypes": {}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        assert _info_noogle("lib.trivial.id").startswith("Noogle Function: lib.trivial.id")
+        # A name that exists only as an alias still resolves to the first group member.
+        assert _info_noogle("lib.mkFixStrictness").startswith(
+            "Noogle Function: pkgs.appimageTools.wrapAppImage.transformDrv"
+        )
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_search_noogle_exact_function_name_outranks_suffix_match(self, mock_get):
         """`map` must list builtins.map before concatMap (both end in "map")."""
         from mcp_nixos.server import _search_noogle, noogle_cache

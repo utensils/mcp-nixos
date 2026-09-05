@@ -149,22 +149,28 @@ def _info_noogle(name: str) -> str:
         data, _ = noogle_cache.get_data()
         name_lower = name.lower()
 
-        # Find exact match first, then partial match
+        # Prefer the document whose canonical path is the queried name; fall
+        # back to one that lists it as an alias. Alias groups can be large
+        # (the identity function has 21 members, e.g. lib.trivial.id and
+        # pkgs.appimageTools.wrapAppImage.transformDrv), and the first
+        # document in index order is not the one the user asked about.
         exact_match = None
+        alias_match = None
         partial_matches = []
 
         for doc in data:
             path = _get_noogle_function_path(doc)
             path_lower = path.lower()
-            aliases = _get_noogle_aliases(doc)
-            aliases_lower = [a.lower() for a in aliases]
 
-            if path_lower == name_lower or name_lower in aliases_lower:
+            if path_lower == name_lower:
                 exact_match = doc
                 break
+            if alias_match is None and name_lower in (a.lower() for a in _get_noogle_aliases(doc)):
+                alias_match = doc
             elif name_lower in path_lower:
                 partial_matches.append((path, doc))
 
+        exact_match = exact_match or alias_match
         if not exact_match and not partial_matches:
             return error(f"Noogle function '{name}' not found", "NOT_FOUND")
 
