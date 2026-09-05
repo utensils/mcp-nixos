@@ -4,14 +4,15 @@ from typing import Any
 
 import requests
 
-from ..config import FLAKE_INDEX, NIXOS_API, NIXOS_AUTH
+from ..caches import channel_cache
+from ..config import NIXOS_API, NIXOS_AUTH
 from ..utils import error
 
 
 def _search_flakes(query: str, limit: int) -> str:
     """Search NixOS flakes by name or description."""
     try:
-        flake_index = FLAKE_INDEX
+        flake_index = channel_cache.get_flake_index()
         if query.strip() == "" or query == "*":
             q: dict[str, Any] = {"match_all": {}}
         else:
@@ -131,7 +132,7 @@ def _search_flakes(query: str, limit: int) -> str:
 def _stats_flakes() -> str:
     """Get flake ecosystem statistics."""
     try:
-        flake_index = FLAKE_INDEX
+        flake_index = channel_cache.get_flake_index()
         try:
             resp = requests.post(
                 f"{NIXOS_API}/{flake_index}/_count",

@@ -11,6 +11,11 @@ from ..utils import error
 _NIXDEV_MAX_MD_BYTES = 200 * 1024
 
 
+# Shortest index stem allowed to match by prefix; below this ("1m", "0x", "ar")
+# prefix matches are noise rather than stems.
+_MIN_STEM_LEN = 3
+
+
 def _search_nixdev(query: str, limit: int) -> str:
     """Search nix.dev documentation via cached Sphinx index."""
     try:
@@ -19,26 +24,32 @@ def _search_nixdev(query: str, limit: int) -> str:
         docnames = index.get("docnames", [])
         titles = index.get("titles", [])
         terms = index.get("terms", {})
+        titleterms = index.get("titleterms", {})
 
         query_lower = query.lower()
         query_terms = query_lower.split()
 
-        # Score documents by term matches
+        # Score documents by term matches. Sphinx stores Porter-stemmed terms
+        # ("derivation" -> "deriv", "getting" -> "get", "tutorial" -> "tutori"),
+        # and the stem is a prefix of the word in nearly every case, so a query
+        # word that *starts with* an index term counts as an exact match. A
+        # term seen in a single document is stored as a bare int, not a list.
+        # `titleterms` holds the same stems for page and section titles; a hit
+        # there outweighs a body hit so "derivation" ranks the packaging tutorial
+        # above pages that merely mention derivations.
         scores: dict[int, int] = {}
         for term in query_terms:
-            # Exact term match
-            if term in terms:
-                doc_ids = terms[term]
-                if isinstance(doc_ids, list):
+            for stem_index, exact_weight, partial_weight in ((terms, 2, 1), (titleterms, 5, 0)):
+                for index_term, raw_ids in stem_index.items():
+                    if index_term == term or (len(index_term) >= _MIN_STEM_LEN and term.startswith(index_term)):
+                        weight = exact_weight
+                    elif partial_weight and term in index_term:
+                        weight = partial_weight
+                    else:
+                        continue
+                    doc_ids = raw_ids if isinstance(raw_ids, list) else [raw_ids]
                     for doc_id in doc_ids:
-                        scores[doc_id] = scores.get(doc_id, 0) + 2
-
-            # Partial term matches
-            for index_term, doc_ids in terms.items():
-                if term in index_term and term != index_term:
-                    if isinstance(doc_ids, list):
-                        for doc_id in doc_ids:
-                            scores[doc_id] = scores.get(doc_id, 0) + 1
+                        scores[doc_id] = scores.get(doc_id, 0) + weight
 
         # Also search titles
         for i, doc_title in enumerate(titles):

@@ -248,6 +248,45 @@ class TestChannelCache:
         assert result == {"test": "value"}
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_is_discovered_from_aliases(self, mock_get):
+        """The flake alias rolls forward with Hydra; pick the newest generation."""
+        aliases_resp = Mock(status_code=200)
+        aliases_resp.json.return_value = [
+            {"alias": "latest-50-nixos-unstable"},
+            {"alias": "latest-50-group-manual"},
+            {"alias": "latest-51-nixos-unstable"},
+            {"alias": "latest-51-group-manual"},
+            {"alias": ".kibana"},
+        ]
+        mock_get.return_value = aliases_resp
+        cache = ChannelCache()
+        assert cache.get_flake_index() == "latest-51-group-manual"
+        # Flake aliases must not leak into channel resolution.
+        assert cache.alias_names == ["latest-50-nixos-unstable", "latest-51-nixos-unstable"]
+        # Memoized: a second call does not probe again.
+        assert cache.get_flake_index() == "latest-51-group-manual"
+        assert mock_get.call_count == 1
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_falls_back_when_probe_fails(self, mock_get):
+        from mcp_nixos.config import FLAKE_INDEX
+
+        mock_get.side_effect = Exception("backend unreachable")
+        cache = ChannelCache()
+        assert cache.get_flake_index() == FLAKE_INDEX
+        assert cache.flake_index is None
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_flake_index_falls_back_when_alias_absent(self, mock_get):
+        from mcp_nixos.config import FLAKE_INDEX
+
+        aliases_resp = Mock(status_code=200)
+        aliases_resp.json.return_value = [{"alias": "latest-51-nixos-unstable"}]
+        mock_get.return_value = aliases_resp
+        cache = ChannelCache()
+        assert cache.get_flake_index() == FLAKE_INDEX
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_resolved_channels_fallback(self, mock_get):
         mock_get.side_effect = Exception("backend unreachable")
         cache = ChannelCache()
@@ -748,35 +787,61 @@ class TestWikiFunctions:
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_success(self, mock_get):
-        """Test successful wiki page info."""
+        """Wiki info renders section 0 via action=parse and strips page chrome."""
         from mcp_nixos.server import _info_wiki
 
+        html = (
+            '<div class="mw-parser-output">'
+            '<div class="mw-pt-languages noprint">Other languages: English español</div>'
+            '<div class="box">This article or section needs cleanup.</div>'
+            "<p>&lt;translate&gt; &lt;!--T:182--&gt; <b>Nix flakes</b> are a new way to manage Nix projects"
+            '<sup class="reference">[1]</sup> , really&lt;/translate&gt;.</p>'
+            '<div class="mw-references-wrap"><ol><li>ref</li></ol></div>'
+            "</div>"
+        )
         mock_resp = Mock()
-        mock_resp.json.return_value = {
-            "query": {
-                "pages": {"123": {"title": "Flakes", "extract": "Flakes are a new way to manage Nix projects..."}}
-            }
-        }
+        mock_resp.json.return_value = {"parse": {"title": "Flakes", "text": {"*": html}}}
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("Flakes")
         assert "Wiki: Flakes" in result
-        assert "wiki.nixos.org" in result
-        assert "Flakes are a new way" in result
+        assert "https://wiki.nixos.org/wiki/Flakes" in result
+        assert "Nix flakes are a new way to manage Nix projects, really." in result
+        for chrome in ("Other languages", "needs cleanup", "[1]", "translate", "T:182", "ref"):
+            assert chrome not in result
+        params = mock_get.call_args.kwargs["params"]
+        assert params["action"] == "parse"
+        assert params["section"] == "0"
+        assert params["redirects"] == "1"
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_not_found(self, mock_get):
-        """Test wiki page not found."""
+        """A missing page is an API-level error object, not an HTTP error."""
         from mcp_nixos.server import _info_wiki
 
         mock_resp = Mock()
-        mock_resp.json.return_value = {"query": {"pages": {"-1": {"missing": True, "title": "NonexistentPage"}}}}
+        mock_resp.json.return_value = {
+            "error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}
+        }
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("NonexistentPage")
         assert "NOT_FOUND" in result
+
+    @patch("mcp_nixos.sources.wiki.requests.get")
+    def test_info_wiki_other_api_error(self, mock_get):
+        from mcp_nixos.server import _info_wiki
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {"error": {"code": "readapidenied", "info": "You need read permission"}}
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = _info_wiki("Flakes")
+        assert "API_ERROR" in result
+        assert "read permission" in result
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_timeout(self, mock_get):
@@ -790,18 +855,18 @@ class TestWikiFunctions:
 
     @patch("mcp_nixos.sources.wiki.requests.get")
     def test_info_wiki_truncates_long_extract(self, mock_get):
-        """Test wiki info truncates very long extracts."""
+        """Test wiki info truncates very long intros."""
         from mcp_nixos.server import _info_wiki
 
-        long_extract = "A" * 2000
+        long_text = "A" * 2000
         mock_resp = Mock()
-        mock_resp.json.return_value = {"query": {"pages": {"123": {"title": "Test", "extract": long_extract}}}}
+        mock_resp.json.return_value = {"parse": {"title": "Test", "text": {"*": f"<p>{long_text}</p>"}}}
         mock_resp.raise_for_status = Mock()
         mock_get.return_value = mock_resp
 
         result = _info_wiki("Test")
-        assert len(result) < len(long_extract) + 200  # Account for header
-        assert "..." in result
+        assert len(result) < len(long_text) + 200  # Account for header
+        assert result.endswith("...")
 
 
 @pytest.mark.unit
@@ -831,6 +896,41 @@ class TestNixDevFunctions:
         result = _search_nixdev("flakes", 10)
         assert "Flakes" in result
         assert "nix.dev" in result
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_search_nixdev_matches_sphinx_stems(self, mock_get):
+        """Sphinx indexes Porter stems, so whole query words must match their stem.
+
+        Regression: "derivation" and "getting started" returned nothing because
+        the index only holds "deriv", "get" and "start". Single-document terms
+        are stored as a bare int, which used to be dropped as well.
+        """
+        import json
+
+        from mcp_nixos.server import _search_nixdev, nixdev_cache
+
+        mock_index = {
+            "docnames": ["tutorials/packaging", "concepts/faq", "tutorials/first-steps"],
+            "titles": ["Packaging existing software", "FAQ", "First steps"],
+            "terms": {"deriv": [0, 1], "get": 2, "start": 2, "1m": [1]},
+            "titleterms": {"deriv": 0},
+        }
+        mock_resp = Mock()
+        mock_resp.text = f"Search.setIndex({json.dumps(mock_index)})"
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+        nixdev_cache.index = None
+
+        result = _search_nixdev("derivation", 10)
+        lines = [line for line in result.splitlines() if line.startswith("* ")]
+        # Title stem hit ranks the tutorial above the page that merely mentions it.
+        assert lines == ["* Packaging existing software", "* FAQ"]
+
+        result = _search_nixdev("getting started", 10)
+        assert "First steps" in result
+
+        # Stems shorter than the minimum never match by prefix ("1m" vs "1mb").
+        assert "No nix.dev documentation found" in _search_nixdev("1mb", 10)
 
     @patch("mcp_nixos.caches.requests.get")
     def test_search_nixdev_no_results(self, mock_get):

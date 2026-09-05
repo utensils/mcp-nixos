@@ -40,7 +40,10 @@ FALLBACK_CHANNELS = {
 # the complete option catalogue in one document for search, info, browse, and stats.
 HOME_MANAGER_URL = "https://nix-community.github.io/home-manager/print.html"
 DARWIN_URL = "https://nix-darwin.github.io/nix-darwin/manual/index.html"
-FLAKE_INDEX = "latest-44-group-manual"
+# Fallback only: the live `latest-<gen>-group-manual` alias is discovered from
+# `_cat/aliases` at runtime (see ChannelCache.get_flake_index), because Hydra
+# retires old generations and a hardcoded one eventually 404s.
+FLAKE_INDEX = "latest-51-group-manual"
 
 # FlakeHub API (Determinate Systems)
 FLAKEHUB_API = "https://api.flakehub.com"

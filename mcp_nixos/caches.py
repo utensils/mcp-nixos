@@ -16,6 +16,7 @@ from bs4.element import Tag
 from .config import (
     DARWIN_URL,
     FALLBACK_CHANNELS,
+    FLAKE_INDEX,
     HOME_MANAGER_URL,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
@@ -40,6 +41,10 @@ class ChannelCache:
     # index for a channel it increments the generation and atomically retargets
     # the alias, so the highest generation is always the freshest data.
     _ALIAS_RE = re.compile(r"^latest-(\d+)-nixos-(unstable|\d+\.\d+)$")
+    # The flake index rolls forward with the same generation counter under a
+    # `latest-<gen>-group-manual` alias, and old generations are retired, so
+    # it is discovered from the same probe rather than hardcoded.
+    _FLAKE_ALIAS_RE = re.compile(r"^latest-(\d+)-group-manual$")
 
     # After a failed alias probe, serve the fallback for this long before
     # spending another round of requests. Without it, an outage makes every
@@ -58,6 +63,8 @@ class ChannelCache:
         # are what channel resolution needs, counts are display-only. A partial
         # `_count` failure must not shrink the set of channels we can resolve.
         self.alias_names: list[str] | None = None
+        # Highest-generation flake alias seen by the last successful probe.
+        self.flake_index: str | None = None
         # Aliases whose `_count` came back 200 with zero documents. Hydra
         # publishes the alias before the index finishes filling, so during a
         # rollover the newest generation can be live but empty — resolving to it
@@ -87,6 +94,7 @@ class ChannelCache:
             return
         self._rollover_at = None
         self.alias_names = None
+        self.flake_index = None
         self.available_channels = None
         self.resolved_channels = None
         self.empty_aliases = set()
@@ -142,6 +150,18 @@ class ChannelCache:
             self.resolved_channels = resolved
             return resolved
 
+    def get_flake_index(self) -> str:
+        """Live `latest-<gen>-group-manual` alias, or the `FLAKE_INDEX` fallback.
+
+        Shares the `_cat/aliases` probe (and its failure cooldown) with channel
+        discovery. Like the channel fallback, a fallback here is never memoized.
+        """
+        with self._lock:
+            self._expire_rollover_locked()
+            if self.flake_index is None:
+                self._aliases_locked()
+            return self.flake_index or FLAKE_INDEX
+
     def _list_aliases(self) -> list[str]:
         """Return live `latest-<gen>-nixos-<channel>` alias names, newest first.
 
@@ -164,11 +184,13 @@ class ChannelCache:
         except Exception:
             return []
 
-        return [
-            entry["alias"]
-            for entry in entries
-            if isinstance(entry, dict) and self._ALIAS_RE.match(str(entry.get("alias", "")))
-        ]
+        names = [str(entry.get("alias", "")) for entry in entries if isinstance(entry, dict)]
+        # Record the flake alias from the same response so flake queries do
+        # not need a probe of their own.
+        flake_aliases = [(int(m.group(1)), name) for name in names if (m := self._FLAKE_ALIAS_RE.match(name))]
+        if flake_aliases:
+            self.flake_index = max(flake_aliases)[1]
+        return [name for name in names if self._ALIAS_RE.match(name)]
 
     def _discover_available_channels(self) -> tuple[dict[str, str], set[str], bool]:
         """Map each live alias to its document count.
