@@ -299,7 +299,7 @@
 
             packages = [
               pythonEnv
-              pkgs.nodejs_20
+              pkgs.nodejs_22
               pkgs.git
               pkgs.gh
               pkgs.jq
@@ -425,7 +425,7 @@
             '';
 
             packages = with pkgs; [
-              nodejs_20
+              nodejs_22
               git
               jq
             ];
