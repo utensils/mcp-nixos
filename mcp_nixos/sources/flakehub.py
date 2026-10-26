@@ -5,14 +5,14 @@ from datetime import datetime
 import requests
 
 from ..config import FLAKEHUB_API, FLAKEHUB_USER_AGENT
-from ..utils import error
+from ..utils import HTTP, error
 
 
 def _search_flakehub(query: str, limit: int) -> str:
     """Search FlakeHub flakes by name or description."""
     try:
         headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
-        resp = requests.get(f"{FLAKEHUB_API}/search", params={"q": query}, headers=headers, timeout=15)
+        resp = HTTP.get(f"{FLAKEHUB_API}/search", params={"q": query}, headers=headers, timeout=15)
         resp.raise_for_status()
         flakes = resp.json()
 
@@ -61,7 +61,7 @@ def _info_flakehub(name: str) -> str:
         headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
 
         # Get latest version info
-        resp = requests.get(f"{FLAKEHUB_API}/version/{org}/{project}/*", headers=headers, timeout=15)
+        resp = HTTP.get(f"{FLAKEHUB_API}/version/{org}/{project}/*", headers=headers, timeout=15)
         if resp.status_code == 404:
             return error(f"Flake '{name}' not found on FlakeHub", "NOT_FOUND")
         resp.raise_for_status()
@@ -124,7 +124,7 @@ def _stats_flakehub() -> str:
         headers = {"Accept": "application/json", "User-Agent": FLAKEHUB_USER_AGENT}
 
         # Get all flakes to count them
-        resp = requests.get(f"{FLAKEHUB_API}/flakes", headers=headers, timeout=15)
+        resp = HTTP.get(f"{FLAKEHUB_API}/flakes", headers=headers, timeout=15)
         resp.raise_for_status()
         flakes = resp.json()
 

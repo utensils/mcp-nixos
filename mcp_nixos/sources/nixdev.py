@@ -4,7 +4,7 @@ import requests
 
 from ..caches import nixdev_cache
 from ..config import NIXDEV_BASE_URL, APIError
-from ..utils import error
+from ..utils import HTTP, error
 
 # Cap markdown body at 200KB (~50k tokens) to avoid swamping the LLM context.
 # nix.dev pages are typically 5-60KB so this is plenty for legitimate docs.
@@ -152,7 +152,7 @@ def _info_nixdev(query: str) -> str:
     # multi-MB page doesn't materialize in memory before being truncated.
     # Read one extra byte beyond the cap to detect truncation unambiguously.
     try:
-        resp = requests.get(url, timeout=15, stream=True)
+        resp = HTTP.get(url, timeout=15, stream=True)
     except requests.Timeout:
         return error("nix.dev request timed out", "TIMEOUT")
     except requests.RequestException as exc:

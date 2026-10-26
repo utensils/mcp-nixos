@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from ..utils import error
+from ..utils import HTTP, error
 from .base import es_query, get_channel_suggestions, get_channels
 
 # Field weights mirror the search.nixos.org frontend Elm source
@@ -424,8 +424,6 @@ def _info_nixos(name: str, info_type: str, channel: str) -> str:
 
 def _stats_nixos(channel: str) -> str:
     """Get NixOS package and option counts for a channel."""
-    import requests
-
     from ..config import NIXOS_API, NIXOS_AUTH
 
     channels = get_channels()
@@ -435,19 +433,20 @@ def _stats_nixos(channel: str) -> str:
     try:
         index = channels[channel]
         url = f"{NIXOS_API}/{index}/_count"
-        try:
-            pkg_resp = requests.post(url, json={"query": {"term": {"type": "package"}}}, auth=NIXOS_AUTH, timeout=10)
-            pkg_count = pkg_resp.json().get("count", 0)
-        except Exception:
-            pkg_count = 0
-        try:
-            opt_resp = requests.post(url, json={"query": {"term": {"type": "option"}}}, auth=NIXOS_AUTH, timeout=10)
-            opt_count = opt_resp.json().get("count", 0)
-        except Exception:
-            opt_count = 0
 
-        if pkg_count == 0 and opt_count == 0:
+        def _count(kind: str) -> int | None:
+            try:
+                resp = HTTP.post(url, json={"query": {"term": {"type": kind}}}, auth=NIXOS_AUTH, timeout=10)
+                resp.raise_for_status()
+                return int(resp.json()["count"])
+            except Exception:
+                return None
+
+        pkg_count, opt_count = _count("package"), _count("option")
+        if pkg_count is None and opt_count is None:
             return error("Failed to retrieve statistics")
-        return f"NixOS Statistics ({channel}):\n* Packages: {pkg_count:,}\n* Options: {opt_count:,}"
+        pkgs = "unavailable" if pkg_count is None else f"{pkg_count:,}"
+        opts = "unavailable" if opt_count is None else f"{opt_count:,}"
+        return f"NixOS Statistics ({channel}):\n* Packages: {pkgs}\n* Options: {opts}"
     except Exception as e:
         return error(str(e))

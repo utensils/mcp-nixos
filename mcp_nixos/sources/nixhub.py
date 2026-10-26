@@ -8,7 +8,7 @@ import requests
 
 from .. import __version__
 from ..config import CACHE_NIXOS_ORG, NIXHUB_API
-from ..utils import NarInfo, _format_size, _parse_narinfo, error
+from ..utils import HTTP, NarInfo, _format_size, _parse_narinfo, error
 
 
 def _check_system_cache(sys_info: dict[str, str]) -> list[str]:
@@ -49,11 +49,11 @@ def _check_system_cache(sys_info: dict[str, str]) -> list[str]:
     # Check binary cache
     try:
         narinfo_url = f"{CACHE_NIXOS_ORG}/{store_hash}.narinfo"
-        cache_resp = requests.head(narinfo_url, timeout=5)
+        cache_resp = HTTP.head(narinfo_url, timeout=5)
 
         if cache_resp.status_code == 200:
             # Get full narinfo for size info
-            cache_resp = requests.get(narinfo_url, timeout=5)
+            cache_resp = HTTP.get(narinfo_url, timeout=5)
             if cache_resp.status_code == 200:
                 narinfo: NarInfo = _parse_narinfo(cache_resp.text)
                 results.append("  Status: CACHED")
@@ -90,7 +90,7 @@ def _fetch_nixhub_resolve(name: str, version: str, headers: dict[str, str]) -> t
         # v2/resolve requires version parameter
         params: dict[str, str] = {"name": name, "version": version if version else "latest"}
 
-        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        resp = HTTP.get(url, params=params, headers=headers, timeout=15)
 
         if resp.status_code in (400, 404):
             return error(f"Package '{name}' not found", "NOT_FOUND"), None
@@ -181,7 +181,7 @@ def _fetch_nixhub_search(query: str) -> tuple[str | None, dict[str, Any] | list[
         url = f"{NIXHUB_API}/v2/search"
         params = {"q": query}
         headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
-        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        resp = HTTP.get(url, params=params, headers=headers, timeout=15)
 
         if resp.status_code >= 500:
             return error("NixHub API temporarily unavailable", "SERVICE_ERROR"), None
@@ -246,7 +246,7 @@ def _fetch_nixhub_pkg(name: str) -> tuple[str | None, list[Any] | None]:
     try:
         url = f"{NIXHUB_API}/v1/pkg"
         headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
-        resp = requests.get(url, params={"name": name}, headers=headers, timeout=15)
+        resp = HTTP.get(url, params={"name": name}, headers=headers, timeout=15)
 
         if resp.status_code in (400, 404):
             return error(f"Package '{name}' not found", "NOT_FOUND"), None
@@ -271,7 +271,7 @@ def _fetch_nixhub_resolve_sync(name: str, version: str) -> dict[str, Any] | None
     try:
         url = f"{NIXHUB_API}/v2/resolve"
         headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
-        resp = requests.get(url, params={"name": name, "version": version}, headers=headers, timeout=10)
+        resp = HTTP.get(url, params={"name": name, "version": version}, headers=headers, timeout=10)
         if resp.status_code == 200:
             result: dict[str, Any] = resp.json()
             return result

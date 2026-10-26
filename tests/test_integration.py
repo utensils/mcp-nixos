@@ -131,7 +131,7 @@ class TestNixInfoIntegration:
             source="nvf",
         )
         assert "NVF Option: vim.languages.nix.enable" in result
-        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
+        assert "Documentation: https://nvf.notashelf.dev/options-full.html#option-vim.languages.nix.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
@@ -638,11 +638,12 @@ class TestFlakeInputsIntegration:
         assert_plain_text(result)
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation_no_flake(self):
+    async def test_graceful_degradation_no_flake(self, monkeypatch):
         """Test graceful handling when directory is not a flake."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            monkeypatch.chdir(tmpdir)
             result = await nix_fn(action="flake-inputs", type="list", source=tmpdir)
             assert "FLAKE_ERROR" in result
             assert "no flake.nix" in result.lower()

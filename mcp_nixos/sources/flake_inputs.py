@@ -165,10 +165,11 @@ async def _flake_inputs_list(flake_dir: str) -> str:
     return "\n".join(lines).strip()
 
 
-async def _flake_inputs_ls(flake_dir: str, query: str) -> str:
+async def _flake_inputs_ls(flake_dir: str, query: str, limit: int) -> str:
     """List directory contents within a flake input.
 
-    Query format: 'input_name' or 'input_name:subpath'
+    Query format: 'input_name' or 'input_name:subpath'. At most `limit` entries are
+    printed (directories first).
     """
     if not _get_check_nix_available()():
         return error("Nix is not installed or not in PATH", "NIX_NOT_FOUND")
@@ -234,12 +235,18 @@ async def _flake_inputs_ls(flake_dir: str, query: str) -> str:
             files.append((entry, None))
 
     display_path = f"{input_name}:{subpath}" if subpath else input_name
-    lines = [f"Contents of {display_path} ({len(dirs)} dirs, {len(files)} files):", ""]
+    shown_dirs = dirs[:limit]
+    shown_files = files[: max(0, limit - len(shown_dirs))]
+    shown_total = len(shown_dirs) + len(shown_files)
+    header = f"Contents of {display_path} ({len(dirs)} dirs, {len(files)} files):"
+    if shown_total < len(dirs) + len(files):
+        header += f" showing {shown_total} of {len(dirs) + len(files)}"
+    lines = [header, ""]
 
-    for name in dirs:
+    for name in shown_dirs:
         lines.append(f"  {name}/")
 
-    for name, size in files:
+    for name, size in shown_files:
         size_str = f" ({_format_size(size)})" if size is not None else ""
         lines.append(f"  {name}{size_str}")
 

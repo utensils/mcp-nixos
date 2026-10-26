@@ -270,7 +270,7 @@ class TestDocbookTypeParsing:
         from mcp_nixos.utils import parse_html_options
 
         resp = Mock(content=self.HTML.encode(), raise_for_status=Mock())
-        with patch("mcp_nixos.utils.requests.get", return_value=resp):
+        with patch("mcp_nixos.utils.HTTP.get", return_value=resp):
             options = parse_html_options("https://nix-darwin.github.io/nix-darwin/manual/index.html")
         assert options == [
             {

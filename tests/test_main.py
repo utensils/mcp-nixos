@@ -161,3 +161,119 @@ class TestMainTransport:
         with patch.dict(os.environ, {"MCP_NIXOS_TRANSPORT": "http", "MCP_NIXOS_PATH": path}):
             with pytest.raises(SystemExit, match="1"):
                 main()
+
+
+@pytest.mark.unit
+def test_elasticsearch_url_env_override():
+    # A subprocess, not importlib.reload: reloading config would replace APIError for later tests.
+    import subprocess
+    import sys
+
+    code = "from mcp_nixos.config import NIXOS_API; print(NIXOS_API)"
+    env = {**os.environ, "ELASTICSEARCH_URL": "http://localhost:9200/"}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "http://localhost:9200"
+
+
+@pytest.mark.unit
+def test_http_session_retries():
+    from mcp_nixos.utils import HTTP
+
+    retry = HTTP.get_adapter("https://x").max_retries
+    assert retry.total == 2
+    assert retry.read == 0
+    assert retry.respect_retry_after_header is False
+
+
+def _concurrent_first_load(cache_get, payload_response):
+    """Call cache_get from two threads with a slow HTTP.get; return the mock."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    def slow_get(*args, **kwargs):
+        time.sleep(0.1)
+        return payload_response
+
+    with patch("mcp_nixos.caches.HTTP.get", side_effect=slow_get) as get:
+        with ThreadPoolExecutor(2) as pool:
+            for f in [pool.submit(cache_get), pool.submit(cache_get)]:
+                f.result()
+    return get
+
+
+@pytest.mark.unit
+def test_nvf_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NvfCache
+
+    from tests.test_nvf import NVF_OPTIONS_HTML
+
+    resp = MagicMock(content=NVF_OPTIONS_HTML.encode())
+    assert _concurrent_first_load(NvfCache().get_options, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_nixdev_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NixDevCache
+
+    resp = MagicMock(text='Search.setIndex({"docnames": []})')
+    assert _concurrent_first_load(NixDevCache().get_index, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_noogle_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NoogleCache
+
+    resp = MagicMock()
+    resp.json.return_value = {"data": [], "builtinTypes": {}}
+    assert _concurrent_first_load(NoogleCache().get_data, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_nixvim_cache_failure_cooldown():
+    import requests
+    from mcp_nixos.caches import APIError, NixvimCache  # caches' own binding survives config reloads
+
+    cache = NixvimCache()
+    with (
+        patch("mcp_nixos.caches.time.monotonic", return_value=1000.0),
+        patch("mcp_nixos.caches.HTTP.get", side_effect=requests.Timeout) as get,
+    ):
+        with pytest.raises(APIError):
+            cache.get_options()
+        with pytest.raises(APIError):
+            cache.get_options()
+        assert get.call_count == 1
+
+    with (
+        patch("mcp_nixos.caches.time.monotonic", return_value=1061.0),
+        patch("mcp_nixos.caches.HTTP.get", side_effect=requests.Timeout) as get,
+    ):
+        with pytest.raises(APIError):
+            cache.get_options()
+        assert get.call_count == 1
+
+
+@pytest.mark.unit
+def test_stats_nixos_reports_failed_count_as_unavailable():
+    from unittest.mock import MagicMock
+
+    import requests
+    from mcp_nixos.sources.nixos import _stats_nixos
+
+    ok = MagicMock()
+    ok.json.return_value = {"count": 1234}
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = requests.HTTPError("500")
+    with (
+        patch("mcp_nixos.sources.nixos.get_channels", return_value={"unstable": "idx"}),
+        patch("mcp_nixos.sources.nixos.HTTP.post", side_effect=[ok, bad]),
+    ):
+        result = _stats_nixos("unstable")
+    assert "Packages: 1,234" in result
+    assert "Options: unavailable" in result

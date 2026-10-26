@@ -7,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from ..config import WIKI_API
-from ..utils import error, strip_html
+from ..utils import HTTP, error, strip_html
 
 
 def _search_wiki(query: str, limit: int) -> str:
@@ -24,7 +24,7 @@ def _search_wiki(query: str, limit: int) -> str:
             "utf8": "1",
             "srlimit": limit,
         }
-        resp = requests.get(WIKI_API, params=params, timeout=15)
+        resp = HTTP.get(WIKI_API, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
 
@@ -110,7 +110,7 @@ def _info_wiki(title: str) -> str:
             "disableeditsection": "1",
             "format": "json",
         }
-        resp = requests.get(WIKI_API, params=params, timeout=15)
+        resp = HTTP.get(WIKI_API, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
 

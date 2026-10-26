@@ -6,7 +6,7 @@ import requests
 
 from ..caches import channel_cache
 from ..config import NIXOS_API, NIXOS_AUTH
-from ..utils import error
+from ..utils import HTTP, error
 
 
 def _search_flakes(query: str, limit: int) -> str:
@@ -33,7 +33,7 @@ def _search_flakes(query: str, limit: int) -> str:
 
         search_query = {"bool": {"filter": [{"term": {"type": "package"}}], "must": [q]}}
         try:
-            resp = requests.post(
+            resp = HTTP.post(
                 f"{NIXOS_API}/{flake_index}/_search",
                 json={"query": search_query, "size": limit * 5, "track_total_hits": True},
                 auth=NIXOS_AUTH,
@@ -134,7 +134,7 @@ def _stats_flakes() -> str:
     try:
         flake_index = channel_cache.get_flake_index()
         try:
-            resp = requests.post(
+            resp = HTTP.post(
                 f"{NIXOS_API}/{flake_index}/_count",
                 json={"query": {"term": {"type": "package"}}},
                 auth=NIXOS_AUTH,

@@ -11,7 +11,6 @@ from .base import (
     es_query,
     get_channel_suggestions,
     get_channels,
-    validate_channel,
 )
 
 # nix-darwin options
@@ -122,7 +121,6 @@ from .wiki import (
 __all__ = [
     # Base
     "get_channels",
-    "validate_channel",
     "get_channel_suggestions",
     "es_query",
     "_list_channels",

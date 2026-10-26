@@ -38,7 +38,6 @@ from .caches import (
     nvf_cache,
 )
 from .config import (
-    BASE_CHANNELS,
     CACHE_NIXOS_ORG,
     DARWIN_URL,
     DEFAULT_LINE_LIMIT,
@@ -55,7 +54,6 @@ from .config import (
     NIXHUB_API,
     NIXOS_API,
     NIXOS_AUTH,
-    NIXVIM_META_BASE,
     NOOGLE_API,
     NVF_OPTIONS_URL,
     WIKI_API,
@@ -135,7 +133,6 @@ from .sources import (
     es_query,
     get_channel_suggestions,
     get_channels,
-    validate_channel,
 )
 from .utils import (
     NarInfo,
@@ -228,7 +225,7 @@ async def nix(
         str,
         "Data source for search/info/stats/browse/cache. One of: nixos (default), "
         "home-manager, darwin, flakes, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub. "
-        "For action=flake-inputs, this may instead be a path to a flake directory; "
+        "For action=flake-inputs, this may instead be a flake directory under cwd or $HOME; "
         "omit/default to use the current project. Ignored by action=store.",
     ] = "nixos",
     type: Annotated[
@@ -432,8 +429,24 @@ async def nix(
         return await asyncio.to_thread(_list_channels)
 
     elif action == "flake-inputs":
-        # Determine flake directory: use source if it's not a known source name
-        flake_dir = source if source not in KNOWN_SOURCES else "."
+        if os.environ.get("MCP_NIXOS_TRANSPORT", "").strip().lower() == "http" and not env_bool(
+            "MCP_NIXOS_ALLOW_FLAKE_INPUTS"
+        ):
+            return error("flake-inputs is disabled over HTTP transport; set MCP_NIXOS_ALLOW_FLAKE_INPUTS=1 to enable")
+
+        # Known source names mean the current project; anything else is a flake directory
+        # that must live under the current directory or $HOME.
+        if source in KNOWN_SOURCES:
+            flake_dir = "."
+        else:
+            resolved = os.path.realpath(source)
+            roots = [os.path.realpath(os.getcwd()), os.path.realpath(os.path.expanduser("~"))]
+            # Roots first, so the error never reveals whether a path outside them exists.
+            if not any(resolved == r or resolved.startswith(r + os.sep) for r in roots):
+                return error("flake-inputs only reads flakes under the current directory or $HOME", "SECURITY_ERROR")
+            if not os.path.isdir(resolved):
+                return error(f"Unknown source or not a flake directory: {source!r}")
+            flake_dir = resolved
 
         # Validate type parameter for flake-inputs
         # Note: "packages" is accepted as alias for "list" (default type parameter)
@@ -454,7 +467,8 @@ async def nix(
         elif type == "ls":
             if not query:
                 return error("Query required for ls (input name or input:path)")
-            return await _flake_inputs_ls(flake_dir, query)
+            ls_limit = limit if limit != 20 else DEFAULT_LINE_LIMIT
+            return await _flake_inputs_ls(flake_dir, query, min(ls_limit, MAX_LINE_LIMIT))
         elif type == "read":
             if not query:
                 return error("Query required for read (input:path format)")
@@ -644,14 +658,12 @@ __all__ = [
     # Config constants
     "NIXOS_API",
     "NIXOS_AUTH",
-    "BASE_CHANNELS",
     "FALLBACK_CHANNELS",
     "HOME_MANAGER_URL",
     "DARWIN_URL",
     "FLAKE_INDEX",
     "FLAKEHUB_API",
     "FLAKEHUB_USER_AGENT",
-    "NIXVIM_META_BASE",
     "NVF_OPTIONS_URL",
     "WIKI_API",
     "NIXDEV_SEARCH_INDEX",
@@ -692,7 +704,6 @@ __all__ = [
     "_check_nix_available",
     # Channel functions
     "get_channels",
-    "validate_channel",
     "get_channel_suggestions",
     "es_query",
     # NixOS functions
