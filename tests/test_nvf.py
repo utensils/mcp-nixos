@@ -1,5 +1,6 @@
 """Unit tests for the NVF source contract and shared helpers."""
 
+from queue import SimpleQueue
 from unittest.mock import Mock, patch
 
 import pytest
@@ -28,42 +29,123 @@ NVF_OPTIONS_HTML = """
         <h3 class="option-name">
           <a class="option-anchor" href="#option-_module.args">_module.args</a>
         </h3>
-        <div class="option-type">Type: <code>attribute set</code></div>
+        <dl class="option-details">
+          <dt>Type</dt><dd class="option-value"><code>attribute set</code></dd>
+        </dl>
       </div>
 
       <div class="option" id="option-vim.languages.nix.enable">
         <h3 class="option-name">
           <a class="option-anchor" href="#option-vim.languages.nix.enable">vim.languages.nix.enable</a>
         </h3>
-        <div class="option-type">Type: <code>boolean</code></div>
         <div class="option-description">
           <p>Enable Nix language support.</p>
           <p>Uses <code>nil</code> by default.</p>
         </div>
-        <div class="option-default">Default: <code>false</code></div>
-        <div class="option-example">Example: <pre><code>{
+        <dl class="option-details">
+          <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+          <dt>Default</dt><dd class="option-value"><code>false</code></dd>
+          <dt>Example</dt>
+          <dd class="option-value"><pre><code>{
   enable = true;
-}</code></pre></div>
-        <div class="option-declared">
-          Declared in:
-          <a href="modules/languages/nix.nix">&lt;nvf/modules/languages/nix.nix&gt;</a>
-          <a href="https://github.com/NotAShelf/nvf/blob/main/modules/languages/default.nix">
-            &lt;nvf/modules/languages/default.nix&gt;
-          </a>
-        </div>
+}</code></pre></dd>
+        </dl>
+        <dl class="option-details option-sources">
+          <dt>Declared in</dt>
+          <dd class="option-value">
+            <code><a href="modules/languages/nix.nix">&lt;nvf/modules/languages/nix.nix&gt;</a></code>
+            <code><a href="https://github.com/NotAShelf/nvf/blob/main/modules/languages/default.nix">
+              &lt;nvf/modules/languages/default.nix&gt;
+            </a></code>
+          </dd>
+        </dl>
       </div>
 
       <div class="option" id="option-vim.theme.enable">
         <h3 class="option-name">
           <a class="option-anchor">vim.theme.enable</a>
         </h3>
-        <div class="option-type">Type: <code>boolean</code></div>
         <div class="option-description"><p>Enable the configured theme.</p></div>
+        <dl class="option-details">
+          <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+        </dl>
       </div>
 
       <div class="option" id="option-vim.malformed">
         <div class="option-description">Missing its name anchor.</div>
       </div>
+    </div>
+  </body>
+</html>
+"""
+
+# Chunked document: one inline option, two lazy chunks, embedded index.
+NVF_CHUNKED_OPTIONS_HTML = """
+<html>
+  <body>
+    <div class="options-container">
+      <div class="option" id="option-vim.autocomplete.enable">
+        <h3 class="option-name">
+          <a class="option-anchor" href="#option-vim.autocomplete.enable">vim.autocomplete.enable</a>
+        </h3>
+        <dl class="option-details">
+          <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+          <dt>Default</dt><dd class="option-value"><code>false</code></dd>
+        </dl>
+      </div>
+    </div>
+    <div class="options-chunk-loader">
+      <div class="options-chunk" data-options-chunk="0" data-src="assets/options-chunk-0001.html"></div>
+      <div class="options-chunk" data-options-chunk="1" data-src="assets/options-chunk-0002.html"></div>
+      <div class="options-chunk" data-options-chunk="1" data-src="assets/options-chunk-0002.html"></div>
+    </div>
+    <script>
+      {"option_chunks": {
+        "option-vim.autocomplete.enable": 0,
+        "option-vim.languages.nix.enable": 1,
+        "option-vim.theme.enable": 1
+      }}
+    </script>
+  </body>
+</html>
+"""
+
+# Chunk 0 repeats the inline option (stale type proves first-wins dedupe).
+NVF_OPTIONS_CHUNK_1_HTML = """
+<html>
+  <body>
+    <div class="option" id="option-vim.autocomplete.enable">
+      <h3 class="option-name">
+        <a class="option-anchor" href="#option-vim.autocomplete.enable">vim.autocomplete.enable</a>
+      </h3>
+      <dl class="option-details">
+        <dt>Type</dt><dd class="option-value"><code>null or boolean</code></dd>
+      </dl>
+    </div>
+    <div class="option" id="option-vim.languages.nix.enable">
+      <h3 class="option-name">
+        <a class="option-anchor" href="#option-vim.languages.nix.enable">vim.languages.nix.enable</a>
+      </h3>
+      <div class="option-description"><p>Enable Nix language support.</p></div>
+      <dl class="option-details">
+        <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+        <dt>Default</dt><dd class="option-value"><code>false</code></dd>
+      </dl>
+    </div>
+  </body>
+</html>
+"""
+
+NVF_OPTIONS_CHUNK_2_HTML = """
+<html>
+  <body>
+    <div class="option" id="option-vim.theme.enable">
+      <h3 class="option-name">
+        <a class="option-anchor" href="#option-vim.theme.enable">vim.theme.enable</a>
+      </h3>
+      <dl class="option-details">
+        <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+      </dl>
     </div>
   </body>
 </html>
@@ -211,6 +293,135 @@ class TestNvfCache:
         assert len(first) == 2
         get.assert_called_once_with(NVF_OPTIONS_URL, timeout=30)
         response.raise_for_status.assert_called_once_with()
+
+    def test_parse_options_prefers_canonical_id_over_display_wildcard(self):
+        html = """
+        <html>
+          <body>
+            <div class="option" id="option-vim.augroups._.enable">
+              <h3 class="option-name">
+                <a class="option-anchor" href="#option-vim.augroups._.enable">vim.augroups.*.enable</a>
+              </h3>
+              <dl class="option-details">
+                <dt>Type</dt><dd class="option-value"><code>boolean</code></dd>
+              </dl>
+            </div>
+          </body>
+        </html>
+        """
+        options = NvfCache._parse_options(html)
+
+        assert [option["name"] for option in options] == ["vim.augroups._.enable"]
+        assert options[0]["url"] == f"{NVF_OPTIONS_URL}#option-vim.augroups._.enable"
+
+    def test_get_options_fetches_and_merges_declared_chunks(self):
+        responses = {
+            NVF_OPTIONS_URL: nvf_options_response(NVF_CHUNKED_OPTIONS_HTML.encode()),
+            "https://nvf.notashelf.dev/assets/options-chunk-0001.html": nvf_options_response(
+                NVF_OPTIONS_CHUNK_1_HTML.encode()
+            ),
+            "https://nvf.notashelf.dev/assets/options-chunk-0002.html": nvf_options_response(
+                NVF_OPTIONS_CHUNK_2_HTML.encode()
+            ),
+        }
+        fetched: SimpleQueue[str] = SimpleQueue()
+
+        def fake_get(url: str, timeout: int = 0) -> Mock:
+            assert timeout == 30
+            fetched.put(url)
+            return responses[url]
+
+        cache = NvfCache()
+
+        with patch("mcp_nixos.caches.requests.get", side_effect=fake_get):
+            options = cache.get_options()
+            again = cache.get_options()
+
+        assert again is options
+        assert [option["name"] for option in options] == [
+            "vim.autocomplete.enable",
+            "vim.languages.nix.enable",
+            "vim.theme.enable",
+        ]
+        # Inline rendering wins over the chunk duplicate; each chunk fetched once.
+        assert options[0]["type"] == "boolean"
+        assert {fetched.get_nowait() for _ in responses} == set(responses)
+        assert fetched.empty()
+
+    def test_get_options_requires_index_for_chunked_document(self):
+        document_without_index = NVF_CHUNKED_OPTIONS_HTML.split("<script>", maxsplit=1)[0] + "</body></html>"
+        response = nvf_options_response(document_without_index.encode())
+        cache = NvfCache()
+
+        with (
+            patch("mcp_nixos.caches.requests.get", return_value=response) as get,
+            pytest.raises(APIError, match="chunk index missing or empty"),
+        ):
+            cache.get_options()
+
+        get.assert_called_once_with(NVF_OPTIONS_URL, timeout=30)
+        assert cache.options is None
+
+    def test_get_options_rejects_cross_origin_chunk(self):
+        document = NVF_CHUNKED_OPTIONS_HTML.replace(
+            "assets/options-chunk-0001.html",
+            "http://127.0.0.1/private",
+        )
+        response = nvf_options_response(document.encode())
+        cache = NvfCache()
+
+        with (
+            patch("mcp_nixos.caches.requests.get", return_value=response) as get,
+            pytest.raises(APIError, match="Refusing cross-origin NVF options chunk"),
+        ):
+            cache.get_options()
+
+        get.assert_called_once_with(NVF_OPTIONS_URL, timeout=30)
+        assert cache.options is None
+
+    def test_get_options_rejects_truncated_catalogue(self):
+        truncated = NVF_CHUNKED_OPTIONS_HTML.replace(
+            '"option-vim.theme.enable": 1',
+            '"option-vim.theme.enable": 1, "option-vim.orphaned.enable": 1',
+        )
+        responses = {
+            NVF_OPTIONS_URL: nvf_options_response(truncated.encode()),
+            "https://nvf.notashelf.dev/assets/options-chunk-0001.html": nvf_options_response(
+                NVF_OPTIONS_CHUNK_1_HTML.encode()
+            ),
+            "https://nvf.notashelf.dev/assets/options-chunk-0002.html": nvf_options_response(
+                NVF_OPTIONS_CHUNK_2_HTML.encode()
+            ),
+        }
+        cache = NvfCache()
+
+        with (
+            patch("mcp_nixos.caches.requests.get", side_effect=lambda url, timeout=30: responses[url]),
+            pytest.raises(APIError, match="indexed options missing"),
+        ):
+            cache.get_options()
+
+        assert cache.options is None
+
+    def test_get_options_reports_chunk_fetch_failure(self):
+        responses = {
+            NVF_OPTIONS_URL: nvf_options_response(NVF_CHUNKED_OPTIONS_HTML.encode()),
+        }
+
+        def fake_get(url: str, timeout: int = 0) -> Mock:
+            if url in responses:
+                return responses[url]
+            raise requests.HTTPError(f"chunk fetch failed for {url}")
+
+        cache = NvfCache()
+
+        with (
+            patch("mcp_nixos.caches.requests.get", side_effect=fake_get),
+            pytest.raises(APIError, match="Failed to fetch NVF options: chunk fetch failed"),
+        ):
+            cache.get_options()
+
+        assert cache.options is None
 
     def test_get_options_reports_timeout(self):
         cache = NvfCache()
