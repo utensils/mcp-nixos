@@ -6,8 +6,9 @@ import json
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -383,43 +384,101 @@ nixvim_cache = NixvimCache()
 class NvfCache:
     """Cache NVF's canonical ``vim.*`` options from its published docs."""
 
+    _CHUNK_WORKERS = 8
+
     def __init__(self) -> None:
         self.options: list[NvfOption] | None = None
+        self._init_lock = threading.Lock()
 
     @staticmethod
-    def _extract_text(option: Tag, selector: str, label: str = "") -> str:
-        """Extract a field as readable plain text, preserving code blocks."""
-        field = option.select_one(selector)
-        if field is None:
-            return ""
-
+    def _tag_text(field: Tag) -> str:
+        """Extract an element as readable plain text, preserving code blocks."""
         preserve_lines = field.find("pre") is not None
         separator = "\n" if preserve_lines else " "
         value = field.get_text(separator=separator, strip=True)
-        if label and value.startswith(label):
-            value = value[len(label) :].lstrip()
 
         if preserve_lines:
             return "\n".join(line.rstrip() for line in value.splitlines()).strip()
         return " ".join(value.split())
 
     @classmethod
+    def _extract_text(cls, option: Tag, selector: str) -> str:
+        """Extract a field by class selector."""
+        field = option.select_one(selector)
+        return "" if field is None else cls._tag_text(field)
+
+    @classmethod
+    def _extract_detail(cls, option: Tag, label: str) -> str:
+        """Extract a ``dl.option-details`` value by its ``dt`` label."""
+        for dt in option.select("dl.option-details dt"):
+            if dt.get_text(" ", strip=True) == label:
+                dd = dt.find_next_sibling("dd")
+                if isinstance(dd, Tag):
+                    return cls._tag_text(dd)
+        return ""
+
+    @staticmethod
+    def _option_index(soup: BeautifulSoup) -> set[str] | None:
+        """Extract canonical option names from the chunk index."""
+        for script in soup.find_all("script"):
+            text = script.get_text().strip()
+            if not text.startswith("{"):
+                continue
+            try:
+                data = json.loads(text)
+            except ValueError:
+                continue
+            chunks = data.get("option_chunks") if isinstance(data, dict) else None
+            if isinstance(chunks, dict):
+                return {
+                    key.removeprefix("option-") for key in chunks if isinstance(key, str) and key.startswith("option-")
+                }
+        return None
+
+    @staticmethod
+    def _chunk_urls(soup: BeautifulSoup) -> list[str]:
+        """Collect the lazy-render option chunk URLs declared by a document."""
+        origin = urlsplit(NVF_OPTIONS_URL)
+        urls: dict[str, None] = {}
+        for loader in soup.select(".options-chunk[data-src]"):
+            src = loader.get("data-src")
+            if isinstance(src, str) and src:
+                url = urljoin(NVF_OPTIONS_URL, src)
+                parsed = urlsplit(url)
+                if (parsed.scheme, parsed.netloc) != (origin.scheme, origin.netloc):
+                    raise APIError(f"Refusing cross-origin NVF options chunk: {url}")
+                urls[url] = None
+        return list(urls)
+
+    @staticmethod
+    def _fetch_document(url: str) -> bytes:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return response.content
+
+    @classmethod
     def _parse_options(cls, html: bytes | str) -> list[NvfOption]:
-        """Parse normalized NVF option records from ``options.html``."""
+        """Parse option records from an NVF document or chunk."""
         soup = BeautifulSoup(html, "html.parser")
         options: list[NvfOption] = []
 
-        for option in soup.select(".options-container .option"):
+        for option in soup.select(".option"):
             anchor = option.select_one(".option-name .option-anchor")
             if anchor is None:
                 continue
 
-            name = anchor.get_text(" ", strip=True)
+            # The id is canonical: wildcards render ``*`` in anchor text but ``_`` in id/index.
+            option_id = option.get("id")
+            name = (
+                option_id.removeprefix("option-")
+                if isinstance(option_id, str) and option_id.startswith("option-")
+                else "".join(anchor.stripped_strings)
+            )
             if name != "vim" and not name.startswith("vim."):
                 continue
 
             declarations: list[str] = []
-            for declaration in option.select(".option-declared a[href]"):
+            for declaration in option.select("dl.option-sources a[href]"):
                 href = declaration.get("href")
                 if isinstance(href, str):
                     declarations.append(urljoin(NVF_OPTIONS_URL, href))
@@ -435,10 +494,10 @@ class NvfCache:
             options.append(
                 {
                     "name": name,
-                    "type": cls._extract_text(option, ".option-type", "Type:"),
+                    "type": cls._extract_detail(option, "Type"),
                     "description": cls._extract_text(option, ".option-description"),
-                    "default": cls._extract_text(option, ".option-default", "Default:"),
-                    "example": cls._extract_text(option, ".option-example", "Example:"),
+                    "default": cls._extract_detail(option, "Default"),
+                    "example": cls._extract_detail(option, "Example"),
                     "declarations": declarations,
                     "url": option_url,
                 }
@@ -451,23 +510,49 @@ class NvfCache:
         if self.options is not None:
             return self.options
 
-        try:
-            response = requests.get(NVF_OPTIONS_URL, timeout=30)
-            response.raise_for_status()
-            options = self._parse_options(response.content)
-            if not options:
-                raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-            self.options = options
-            return self.options
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching NVF options") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch NVF options: {exc}") from exc
-        except APIError:
-            raise
-        except Exception as exc:
-            raise APIError(f"Failed to parse NVF options: {exc}") from exc
+            try:
+                document = self._fetch_document(NVF_OPTIONS_URL)
+                soup = BeautifulSoup(document, "html.parser")
+                chunk_urls = self._chunk_urls(soup)
+                expected = self._option_index(soup)
+                if chunk_urls and not expected:
+                    raise APIError("Failed to parse NVF options: chunk index missing or empty")
+                with ThreadPoolExecutor(max_workers=self._CHUNK_WORKERS) as executor:
+                    chunks = list(executor.map(self._fetch_document, chunk_urls))
+
+                options: list[NvfOption] = []
+                seen: set[str] = set()
+                for body in [document, *chunks]:
+                    for option in self._parse_options(body):
+                        if option["name"] in seen:
+                            continue
+                        seen.add(option["name"])
+                        options.append(option)
+
+                if not options:
+                    raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+
+                missing = (expected or set()) - seen
+                if missing:
+                    raise APIError(
+                        f"Failed to parse NVF options: {len(missing)} indexed options missing "
+                        f"(e.g. {sorted(missing)[0]})"
+                    )
+
+                self.options = options
+                return self.options
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching NVF options") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch NVF options: {exc}") from exc
+            except APIError:
+                raise
+            except Exception as exc:
+                raise APIError(f"Failed to parse NVF options: {exc}") from exc
 
 
 nvf_cache = NvfCache()
