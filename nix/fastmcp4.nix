@@ -46,7 +46,14 @@ let
   # Packages released in lockstep (mcp pins mcp-types to its exact version,
   # httpx2 and httpcore2 share one tag) are kept or replaced as a pair so a
   # vendored wheel is never combined with the consumer's copy of its twin.
-  keepMcp = satisfies "mcp" "2.0.0" "3.0.0" && satisfies "mcp-types" "2.0.0" "3.0.0";
+  #
+  # `mcp-types` must NOT be probed with `satisfies`: nixpkgs derives it from
+  # `mcp` (`mcp-types/default.nix`: `inherit (mcp) version src;`), while `mcp`
+  # here is `pair keepMcp "mcp"` — reading `pyPrev.mcp-types.version` therefore
+  # re-enters `keepMcp` and the package-set fixpoint fails with
+  # "infinite recursion encountered". The pair is released in lockstep, so
+  # deciding it from `mcp` alone is both sufficient and cycle-free.
+  keepMcp = satisfies "mcp" "2.0.0" "3.0.0";
   keepHttpx2 = satisfies "httpx2" "2.5.0" null && satisfies "httpcore2" "2.5.0" null;
   pair = keep: name: if keep then builtins.getAttr name pyPrev else own name;
   # nixpkgs derives fastmcp-slim's version and source from `fastmcp` in the
