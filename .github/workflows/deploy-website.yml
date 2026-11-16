@@ -6,25 +6,26 @@ on:
     paths:
       - 'website/**'
       - '.github/workflows/deploy-website.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  deploy:
+  # Runs on PRs and pushes: type-check and build only, no credentials.
+  check:
     runs-on: ubuntu-latest
-    environment:
-      name: AWS
-      url: https://mcp-nixos.io/
-
     steps:
     - uses: actions/checkout@v6
 
     - name: Setup Node.js
       uses: actions/setup-node@v6
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
         cache-dependency-path: website/package-lock.json
 
@@ -40,8 +41,37 @@ jobs:
       working-directory: website
       run: npm run build
 
+  deploy:
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: AWS
+      url: https://mcp-nixos.io/
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: website/package-lock.json
+
+    - name: Install dependencies
+      working-directory: website
+      run: npm ci
+
+    - name: Build website
+      working-directory: website
+      run: npm run build
+
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v6
+      uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
