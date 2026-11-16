@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.1](https://github.com/utensils/mcp-nixos/compare/v3.1.0...v3.1.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **nix:** stop the fastmcp4 extension from probing mcp-types ([#219](https://github.com/utensils/mcp-nixos/issues/219)) ([a0fb7ab](https://github.com/utensils/mcp-nixos/commit/a0fb7ab7701d8aff179199536b7c2574ef05507a))
+* parse NVF's chunked options document ([#218](https://github.com/utensils/mcp-nixos/issues/218)) ([08f2f19](https://github.com/utensils/mcp-nixos/commit/08f2f19713d9f2c13d7e0c774da44b3cb1099060))
+
 ## [3.1.0](https://github.com/utensils/mcp-nixos/compare/v3.0.2...v3.1.0) (2026-09-05)
 
 
