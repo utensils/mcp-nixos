@@ -1422,6 +1422,99 @@ class TestNoogleFunctions:
         assert "Source:" in result
 
     @patch("mcp_nixos.caches.requests.get")
+    def test_info_noogle_shows_definition_and_source_position(self, mock_get):
+        """Noogle stores the function source and its position under meta.
+
+        Regression (#223): `pkgs.writeShellApplication` only showed its one-line
+        doc comment, and no record showed a Source line because only
+        `meta.position`, which Noogle does not publish, was read.
+        """
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        store = "/nix/store/j1kiywarl9jcdzw8hn47vkpk65sdnvyh-source"
+        expr = "writeShellApplication =\n    {\n      name,\n      text,\n    }@args:\n    writeTextFile { };"
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {
+                        "title": "pkgs.writeShellApplication",
+                        "path": ["pkgs", "writeShellApplication"],
+                        "aliases": [],
+                        "signature": None,
+                        "primop_meta": None,
+                        "attr_position": {
+                            "file": f"{store}/pkgs/build-support/trivial-builders/default.nix",
+                            "line": 275,
+                        },
+                        "attr_expr": expr,
+                        "lambda_position": {
+                            "file": f"{store}/pkgs/build-support/trivial-builders/default.nix",
+                            "line": 276,
+                        },
+                        "lambda_expr": expr,
+                    },
+                    "content": {
+                        "content": "or https://nixos.org/manual/nixpkgs/unstable/#trivial-builder-writeShellApplication"
+                    },
+                }
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _info_noogle("pkgs.writeShellApplication")
+        assert "Definition:\nwriteShellApplication =" in result
+        assert result.count("writeShellApplication =") == 1
+        assert "Source: pkgs/build-support/trivial-builders/default.nix:276" in result
+        assert "/nix/store" not in result
+
+    @patch("mcp_nixos.caches.requests.get")
+    def test_info_noogle_record_without_content(self, mock_get):
+        """Noogle publishes `"content": null` for undocumented functions; info must not fail on them."""
+        from mcp_nixos.server import _info_noogle, noogle_cache
+
+        mock_resp = Mock()
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "meta": {
+                        "title": "pkgs.appimageTools.wrapType2",
+                        "path": ["pkgs", "appimageTools", "wrapType2"],
+                        "aliases": None,
+                        "signature": None,
+                        "primop_meta": None,
+                        "attr_position": {
+                            "file": "/nix/store/j1kiywarl9jcdzw8hn47vkpk65sdnvyh-source"
+                            "/pkgs/build-support/appimage/default.nix",
+                            "line": 86,
+                        },
+                        "attr_expr": "wrapType2 = lib.extendMkDerivation {\n    constructDrv = wrapAppImage;\n  };",
+                        "lambda_position": None,
+                        "lambda_expr": None,
+                    },
+                    "content": None,
+                }
+            ],
+            "builtinTypes": {},
+        }
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        noogle_cache._data = None
+        noogle_cache._builtin_types = None
+
+        result = _info_noogle("pkgs.appimageTools.wrapType2")
+        assert result.startswith("Noogle Function: pkgs.appimageTools.wrapType2")
+        assert "Error" not in result
+        assert "Definition:\nwrapType2 = lib.extendMkDerivation {" in result
+        assert "Source: pkgs/build-support/appimage/default.nix:86" in result
+
+    @patch("mcp_nixos.caches.requests.get")
     def test_info_noogle_not_found(self, mock_get):
         """Test Noogle function not found."""
         from mcp_nixos.server import _info_noogle, noogle_cache

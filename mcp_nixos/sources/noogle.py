@@ -1,5 +1,6 @@
 """Noogle source (noogle.dev - Nix function API search)."""
 
+import re
 from typing import Any
 
 from ..caches import noogle_cache
@@ -71,6 +72,41 @@ def _get_noogle_description(doc: dict[str, Any]) -> str:
             return strip_html(str(lambda_desc))
 
     return ""
+
+
+def _get_noogle_definition(doc: dict[str, Any]) -> str:
+    """Extract the Nix source of a function from a Noogle document.
+
+    Noogle publishes it as `meta.lambda_expr` (the function itself) and
+    `meta.attr_expr` (the attribute that binds it, e.g. `mapAttrs =
+    builtins.mapAttrs;`) and shows the lambda first, as noogle.dev does.
+    """
+    meta = doc.get("meta")
+    if not meta or not isinstance(meta, dict):
+        return ""
+    for key in ("lambda_expr", "attr_expr"):
+        value = meta.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _get_noogle_position(doc: dict[str, Any]) -> dict[str, Any]:
+    """Extract the source position from a Noogle document.
+
+    Noogle publishes `meta.lambda_position` and `meta.attr_position` with
+    `/nix/store/...-source/` paths; the store prefix is dropped so the path is
+    relative to the nixpkgs checkout. `meta.position` is kept as a fallback.
+    """
+    meta = doc.get("meta")
+    if not meta or not isinstance(meta, dict):
+        return {}
+    for key in ("lambda_position", "attr_position", "position"):
+        position = meta.get(key)
+        if position and isinstance(position, dict) and position.get("file"):
+            file_path = re.sub(r"^/nix/store/[^/]+/", "", str(position["file"]))
+            return {"file": file_path, "line": position.get("line")}
+    return {}
 
 
 def _search_noogle(query: str, limit: int) -> str:
@@ -182,7 +218,7 @@ def _info_noogle(name: str) -> str:
         doc = exact_match
         path = _get_noogle_function_path(doc)
         meta = doc.get("meta", {})
-        content = doc.get("content", {})
+        content = doc.get("content") or {}
 
         results = [f"Noogle Function: {path}"]
 
@@ -230,8 +266,18 @@ def _info_noogle(name: str) -> str:
             results.append(example)
             results.append("")
 
+        # Definition
+        definition = _get_noogle_definition(doc)
+        if definition:
+            results.append("Definition:")
+            # Truncate long definitions
+            if len(definition) > 500:
+                definition = definition[:500] + "..."
+            results.append(definition)
+            results.append("")
+
         # Source position
-        position = meta.get("position", {})
+        position = _get_noogle_position(doc)
         if position:
             file_path = position.get("file", "")
             line = position.get("line")
