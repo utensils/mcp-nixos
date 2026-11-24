@@ -18,6 +18,7 @@ import sys
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from . import __version__
 
@@ -208,7 +209,7 @@ def env_bool(name: str, default: bool = False) -> bool:
 # =============================================================================
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
 async def nix(
     action: Annotated[
         str,
@@ -501,7 +502,7 @@ async def nix(
         )
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
 async def nix_versions(
     package: Annotated[str, "Package name"],
     version: Annotated[str, "Specific version to find"] = "",
